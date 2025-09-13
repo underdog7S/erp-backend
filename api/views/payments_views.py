@@ -1,4 +1,7 @@
-import razorpay
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -22,6 +25,10 @@ class RazorpayOrderCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        # Check if razorpay is available
+        if razorpay is None:
+            return Response({'error': 'Razorpay is not available. Please check configuration.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
         # Get amount and currency from request data
         amount = request.data.get('amount')
         currency = request.data.get('currency', 'INR')
