@@ -181,6 +181,14 @@ SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://xbemjxfunalbebxwoffz.supabase.
 SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
 
+# CSRF settings for production
+CSRF_TRUSTED_ORIGINS = [
+    'https://erp-backend-av9v.onrender.com',
+    'https://erp-frontend-psi-six.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
