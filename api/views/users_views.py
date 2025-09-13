@@ -214,7 +214,7 @@ class InviteUserView(APIView):
         token = get_random_string(32)
         # Store token in a simple way (in production, use a model)
         # For demo, send token in email
-        activation_link = f"https://your-frontend-url.com/activate?email={email}&token={token}"
+        activation_link = f"https://erp-frontend-psi-six.vercel.app/activate?email={email}&token={token}"
         send_mail(
             "You're invited to Zenith ERP",
             f"Click the link to activate your account: {activation_link}",

@@ -77,7 +77,7 @@ class RegisterView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         try:
-            verification_url = f"http://localhost:3000/verify-email?token={email_verification.token}"
+            verification_url = f"https://erp-frontend-psi-six.vercel.app/verify-email?token={email_verification.token}"
             subject = "Verify Your Zenith ERP Account"
             # HTML email body
             html_message = f"""
@@ -191,7 +191,7 @@ class ResendVerificationEmailView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         try:
-            verification_url = f"http://localhost:3000/verify-email?token={email_verification.token}"
+            verification_url = f"https://erp-frontend-psi-six.vercel.app/verify-email?token={email_verification.token}"
             
             subject = "Verify Your Zenith ERP Account"
             message = f"""
