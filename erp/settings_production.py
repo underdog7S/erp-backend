@@ -9,7 +9,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security settings for production
 SECRET_KEY = os.getenv('SECRET_KEY', 'replace-this-with-a-secure-key')
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    'erp-backend-av9v.onrender.com',  # Your Render backend domain
+]
+# Also allow environment variable override
+env_hosts = os.getenv('ALLOWED_HOSTS', '').split(',')
+if env_hosts and env_hosts[0].strip():
+    ALLOWED_HOSTS.extend([
+        host.strip() for host in env_hosts
+        if host.strip() and host.strip() not in ALLOWED_HOSTS
+    ])
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -112,7 +123,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings for production
 CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://erp-backend-av9v.onrender.com',  # Your Render backend URL
+]
+# Also allow environment variable override
+env_origins = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+if env_origins and env_origins[0].strip():
+    CORS_ALLOWED_ORIGINS.extend([
+        origin.strip() for origin in env_origins
+        if origin.strip() and origin.strip() not in CORS_ALLOWED_ORIGINS
+    ])
 CORS_ALLOW_CREDENTIALS = True
 
 # REST Framework settings
