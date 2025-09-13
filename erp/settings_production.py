@@ -62,15 +62,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'erp.wsgi.application'
 
-# Database
+# Database - Supabase PostgreSQL
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'erp'),
-        'USER': os.getenv('DB_USER', 'erp_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'NAME': os.getenv('SUPABASE_DB_NAME', 'postgres'),
+        'USER': os.getenv('SUPABASE_DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('SUPABASE_DB_PASSWORD', ''),
+        'HOST': os.getenv('SUPABASE_DB_HOST', 'db.xbemjxfunalbebxwoffz.supabase.co'),
+        'PORT': os.getenv('SUPABASE_DB_PORT', '5432'),
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
     }
 }
 
@@ -150,6 +153,11 @@ GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', '')
 # Tawk.to settings
 TAWK_SITE_ID = os.getenv('TAWK_SITE_ID', '')
 TAWK_WIDGET_ID = os.getenv('TAWK_WIDGET_ID', '')
+
+# Supabase settings
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://xbemjxfunalbebxwoffz.supabase.co')
+SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True
