@@ -1,0 +1,32 @@
+# Core Django
+Django==5.2.4
+djangorestframework==3.16.0
+django-cors-headers==4.8.0
+djangorestframework-simplejwt==5.5.1
+drf-yasg==1.21.10
+
+# Database
+psycopg2-binary==2.9.7
+
+# Environment
+python-dotenv==1.1.1
+
+# Image processing
+Pillow==11.3.0
+
+# Payment gateway
+razorpay==1.4.2
+
+# PDF processing
+PyPDF2==3.0.1
+python-docx==1.2.0
+
+# HTTP requests
+requests==2.32.4
+
+# Production server
+gunicorn==21.2.0
+whitenoise==6.6.0
+
+# Setuptools for pkg_resources
+setuptools==75.6.0
