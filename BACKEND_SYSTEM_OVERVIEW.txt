@@ -1,0 +1,96 @@
+Zenith ERP Backend System Overview
+==================================
+
+This document provides a comprehensive overview of the backend system for Zenith ERP, including its structure, key models, features, API organization, admin utilities, and configuration.
+
+
+1. Project Structure
+--------------------
+- **api/**: Main Django app for core business logic, APIs, models, views, and management commands.
+- **education/**: App for education-specific models (classes, students, attendance, staff attendance, departments, etc.).
+- **erp/**: Project-level settings, URLs, and WSGI entry point.
+- **user_photos/**: Directory for user-uploaded profile photos.
+- **db.sqlite3**: SQLite database file (development only).
+- **manage.py**: Django management script.
+
+
+2. Key Models
+-------------
+- **UserProfile**: Extends Django User with tenant, role, department, and profile info.
+- **Tenant**: Represents an organization using the ERP (multi-tenant support).
+- **Role**: User roles (admin, staff, teacher, etc.).
+- **Plan**: Subscription plans (Free, Starter, Pro, etc.) with feature flags and limits.
+- **StaffAttendance**: Tracks staff check-in/check-out per day (unique per staff, date, tenant).
+- **Attendance**: Tracks student attendance per day.
+- **Student, Class, Department**: Education module entities.
+- **FeeStructure, FeePayment, FeeDiscount**: Fee management for students/classes.
+- **Invoice, InvoiceItem, InvoicePayment**: Invoicing and payment tracking.
+- **SupportTicket, TicketResponse**: Support system for tenants.
+- **Alert, AuditLog**: System alerts and audit logging.
+- **PaymentTransaction**: Tracks payment gateway transactions (Razorpay, etc.).
+
+
+3. Core Features
+----------------
+- **Authentication & Authorization**: JWT-based, with role and plan-based permissions.
+- **Multi-Tenancy**: Each user belongs to a tenant (organization); all data is tenant-scoped.
+- **Plan Management**: Subscription plans with user/storage limits and feature flags.
+- **Education Module**: Classes, students, staff, attendance, fees, reports, departments.
+- **Payments & Invoicing**: Integrated with Razorpay, supports plan upgrades and invoice management.
+- **Audit Logging**: Tracks user actions, API calls, and changes for compliance.
+- **Alerts & Notifications**: System-generated alerts for usage, plan, and general info.
+- **Support System**: Ticketing for tenant support requests.
+
+
+4. API and Views
+----------------
+- **api/views/**: Organized by domain (users, education, payments, plans, dashboard, etc.).
+- **Key Endpoints:**
+  - `/api/register/`, `/api/login/`, `/api/token/refresh/`: Auth endpoints
+  - `/api/users/`, `/api/users/me/`, `/api/users/add/`, `/api/users/edit/`: User management
+  - `/api/plans/`, `/api/plans/change/`: Plan management
+  - `/api/education/classes/`, `/api/education/students/`, `/api/education/staff-attendance/`: Education module
+  - `/api/payments/`: Payment and Razorpay integration
+  - `/api/dashboard/`: Dashboard stats
+  - `/api/alerts/`: Alerts
+  - `/api/support/`: Support tickets
+- **Serializers**: Located in `api/models/serializers_education.py` and similar files.
+
+
+5. Admin and Management Commands
+-------------------------------
+- **admin.py**: Registers key models for Django admin interface.
+- **Management Commands:**
+  - `assign_default_departments.py`: Assigns default departments to users/staff missing one.
+  - `setup_plans.py`: Initializes or updates all subscription plans in the database.
+
+
+6. Settings and Configuration
+----------------------------
+- **erp/settings.py**: Main Django settings, loads environment variables (dotenv).
+- **Razorpay Integration**: Keys loaded from environment variables.
+- **requirements.txt**: Lists all Python dependencies.
+
+
+7. Testing and Utilities
+------------------------
+- **tests.py**: Unit and API tests for education and core modules.
+- **fix_test_user.py**: Utility script for test user management.
+
+
+8. Migrations
+-------------
+- **api/migrations/**, **education/migrations/**: Django migration files for schema changes.
+- **Unique Constraints**: Enforced on StaffAttendance (staff, date, tenant), FeeStructure, Invoice, etc.
+
+
+9. Notes
+--------
+- **Multi-Tenancy**: All major models are tenant-scoped for data isolation.
+- **Role-Based Access**: Decorators and permissions enforce role-based access to APIs.
+- **Extensible**: Designed to support additional modules (manufacturing, healthcare, etc.).
+- **Production**: Use a production WSGI/ASGI server and a robust database (not SQLite) for deployment.
+
+
+---
+This file is auto-generated for developer onboarding and system maintenance. For more details, see the codebase and API docs. 
