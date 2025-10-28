@@ -9,22 +9,47 @@ class ClassSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'schedule']
 
 class StudentSerializer(serializers.ModelSerializer):
-    """Serializer for Student model with validation."""
+    """Enhanced serializer for Student model with validation."""
     assigned_class = ClassSerializer(read_only=True)
     assigned_class_id = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.all(), source='assigned_class', write_only=True, required=True  # Now required
+        queryset=Class.objects.all(), source='assigned_class', write_only=True, required=True
     )
+    
     class Meta:
         model = Student
-        fields = ['id', 'name', 'email', 'admission_date', 'assigned_class', 'assigned_class_id']
+        fields = [
+            'id', 'name', 'email', 'upper_id', 'admission_date', 'assigned_class', 'assigned_class_id',
+            'phone', 'address', 'date_of_birth', 'parent_name', 'parent_phone', 'is_active',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
     def validate_name(self, value):
         if not value:
             raise serializers.ValidationError("Name is required.")
         return value
+    
     def validate_email(self, value):
         if not value:
             raise serializers.ValidationError("Email is required.")
         return value
+    
+    def validate_upper_id(self, value):
+        if value:
+            # Convert to uppercase for consistency
+            value = value.upper()
+            # Check if upper_id already exists for this tenant
+            if self.instance:
+                # For updates, exclude current instance
+                existing = Student.objects.filter(upper_id=value, tenant=self.context.get('tenant')).exclude(id=self.instance.id)
+            else:
+                # For creates, check all instances
+                existing = Student.objects.filter(upper_id=value, tenant=self.context.get('tenant'))
+            
+            if existing.exists():
+                raise serializers.ValidationError("A student with this Upper ID already exists.")
+        return value
+    
     def validate(self, data):
         if not data.get('assigned_class'):
             raise serializers.ValidationError({"assigned_class_id": "Class assignment is required."})

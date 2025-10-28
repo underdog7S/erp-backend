@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from api.models.user import Tenant, UserProfile
 
 class Class(models.Model):
@@ -15,8 +16,37 @@ class Student(models.Model):
     upper_id = models.CharField(max_length=50, help_text="Unique student ID (uppercase).", unique=True, null=True, blank=True)
     admission_date = models.DateField()
     assigned_class = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True, blank=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    parent_name = models.CharField(max_length=100, blank=True, null=True)
+    parent_phone = models.CharField(max_length=20, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['upper_id', 'tenant']
+        ordering = ['-created_at']
+    
+    def save(self, *args, **kwargs):
+        if not self.upper_id:
+            # Auto-generate upper_id if not provided
+            self.upper_id = self.generate_upper_id()
+        super().save(*args, **kwargs)
+    
+    def generate_upper_id(self):
+        """Generate unique upper_id for the student"""
+        import uuid
+        from datetime import datetime
+        
+        # Format: STU-YYYY-XXXX (e.g., STU-2024-1A2B)
+        year = datetime.now().year
+        unique_part = uuid.uuid4().hex[:4].upper()
+        return f"STU-{year}-{unique_part}"
+    
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.upper_id})"
 
 class AdmissionApplication(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)

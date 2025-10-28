@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
-    google_auth_views, api_docs_views, auth_views, admin_views, import_views
+    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views
 )
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
 from api.views.users_views import UserProfileViewSet
@@ -80,6 +80,7 @@ urlpatterns = [
     path('users/', users_views.UserListView.as_view(), name='user-list'),
     path('users/add/', users_views.AddUserView.as_view(), name='add-user'),
     path('users/edit/', users_views.UserEditView.as_view(), name='user-edit'),
+    path('users/toggle-status/', users_views.UserToggleStatusView.as_view(), name='user-toggle-status'),
     path('users/delete/<int:user_id>/', users_views.DeleteUserView.as_view(), name='delete-user'),
     path('roles/', users_views.RoleListView.as_view(), name='role-list'),
     
@@ -93,6 +94,8 @@ urlpatterns = [
     path('education/admin-summary/', education_views.AdminEducationSummaryView.as_view(), name='education-admin-summary'),
     path('education/staff-attendance/', education_views.StaffAttendanceListCreateView.as_view(), name='education-staff-attendance'),
     path('education/staff-attendance/<int:pk>/', education_views.StaffAttendanceDetailView.as_view(), name='education-staff-attendance-detail'),
+    path('education/analytics/', education_views.EducationAnalyticsView.as_view(), name='education-analytics'),
+    path('education/analytics/comprehensive/', education_views.ComprehensiveAnalyticsView.as_view(), name='education-comprehensive-analytics'),
     path('education/analytics/class-stats/', education_views.ClassStatsView.as_view(), name='education-class-stats'),
     path('education/analytics/monthly-report/', education_views.MonthlyReportView.as_view(), name='education-monthly-report'),
     path('education/analytics/attendance-trends/', education_views.AttendanceTrendsView.as_view(), name='education-attendance-trends'),
@@ -122,6 +125,17 @@ urlpatterns = [
     path('dashboard/', dashboard_views.DashboardView.as_view(), name='dashboard'),
     path('dashboard/storage/', dashboard_views.StorageUsageView.as_view(), name='storage-usage'),
     path('alerts/', dashboard_views.AlertsView.as_view(), name='alerts'),
+    
+    # Alert Management
+    path('alerts/list/', alerts_views.AlertListView.as_view(), name='alert-list'),
+    path('alerts/create/', alerts_views.AlertCreateView.as_view(), name='alert-create'),
+    path('alerts/<int:alert_id>/delete/', alerts_views.AlertDeleteView.as_view(), name='alert-delete'),
+    path('alerts/mark-read/', alerts_views.AlertMarkReadView.as_view(), name='alert-mark-read'),
+    path('alerts/bulk-mark-read/', alerts_views.AlertBulkMarkReadView.as_view(), name='alert-bulk-mark-read'),
+    path('alerts/bulk-delete/', alerts_views.AlertBulkDeleteView.as_view(), name='alert-bulk-delete'),
+    path('alerts/stats/', alerts_views.AlertStatsView.as_view(), name='alert-stats'),
+    path('alerts/auto-create/', alerts_views.AlertAutoCreateView.as_view(), name='alert-auto-create'),
+    path('alerts/cleanup/', alerts_views.AlertCleanupView.as_view(), name='alert-cleanup'),
     
     # # Payments
     # path('payments/create-order/', payments_views.CreateOrderView.as_view(), name='create-order'),
@@ -176,6 +190,12 @@ urlpatterns += [
     path('education/fee-payments/export/', education_views.FeePaymentExportView.as_view(), name='education-fee-payments-export'),
     path('education/fee-discounts/export/', education_views.FeeDiscountExportView.as_view(), name='education-fee-discounts-export'),
     path('education/students/export/', education_views.StudentExportView.as_view(), name='education-students-export'),
+    
+    # Enhanced Fee Management endpoints
+    path('education/students/<int:student_id>/fee-status/', education_views.StudentFeeStatusView.as_view(), name='education-student-fee-status'),
+    path('education/students/<int:student_id>/payment-history/', education_views.StudentFeePaymentHistoryView.as_view(), name='education-student-payment-history'),
+    path('education/students/<int:student_id>/fee-reminder/', education_views.StudentFeeReminderView.as_view(), name='education-student-fee-reminder'),
+    path('education/classes/<int:class_id>/fee-summary/', education_views.ClassFeeSummaryView.as_view(), name='education-class-fee-summary'),
     
     # Pharmacy Export endpoints
     path('pharmacy/medicines/export/', pharmacy_views.MedicineExportView.as_view(), name='pharmacy-medicines-export'),

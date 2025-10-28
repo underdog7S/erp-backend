@@ -481,4 +481,40 @@ def user_me(request):
         }
         return Response(data)
     except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST) 
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserToggleStatusView(APIView):
+    """Toggle user active status"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            print(f"Toggle status request data: {request.data}")
+            user_id = request.data.get('user_id')
+            is_active = request.data.get('is_active', True)
+            
+            if not user_id:
+                return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get the user
+            try:
+                user = User.objects.get(id=user_id)
+                print(f"Found user: {user.username}, current is_active: {user.is_active}")
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Update the user's active status
+            user.is_active = is_active
+            user.save()
+            print(f"Updated user {user.username} is_active to: {user.is_active}")
+            
+            return Response({
+                "message": f"User {'activated' if is_active else 'deactivated'} successfully",
+                "user_id": user_id,
+                "is_active": is_active
+            })
+            
+        except Exception as e:
+            print(f"Error in toggle status: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST) 

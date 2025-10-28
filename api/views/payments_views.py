@@ -29,16 +29,27 @@ class RazorpayOrderCreateView(APIView):
         if razorpay is None:
             return Response({'error': 'Razorpay is not available. Please check configuration.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         
+        # Check if Razorpay keys are configured
+        if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+            return Response({'error': 'Razorpay keys not configured. Please contact administrator.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        
         # Get amount and currency from request data
         amount = request.data.get('amount')
         currency = request.data.get('currency', 'INR')
         receipt = request.data.get('receipt', None)
+        
         if not amount:
             return Response({'error': 'Amount is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
+            # Validate amount
+            amount_float = float(amount)
+            if amount_float <= 0:
+                return Response({'error': 'Amount must be greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+            
             client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
             order_data = {
-                'amount': int(float(amount) * 100),  # Razorpay expects paise
+                'amount': int(amount_float * 100),  # Razorpay expects paise
                 'currency': currency,
                 'payment_capture': 1,
             }
@@ -46,8 +57,10 @@ class RazorpayOrderCreateView(APIView):
                 order_data['receipt'] = receipt
             order = client.order.create(data=order_data)
             return Response({'order': order}, status=status.HTTP_201_CREATED)
+        except ValueError:
+            return Response({'error': 'Invalid amount format.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Payment order creation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class RazorpayPaymentVerifyView(APIView):
     authentication_classes = [JWTAuthentication]

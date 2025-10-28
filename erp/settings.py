@@ -2,12 +2,17 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()  # take environment variables from .env
+# load_dotenv()  # take environment variables from .env
+try:
+    load_dotenv()  # Enable environment variables loading
+except Exception as e:
+    print(f"Warning: Could not load .env file: {e}")
+    # Continue without .env file
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'replace-this-with-a-secure-key'
-DEBUG = True
+SECRET_KEY = os.getenv('SECRET_KEY', 'replace-this-with-a-secure-key')
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 INSTALLED_APPS = [

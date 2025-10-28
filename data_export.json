@@ -1,0 +1,9129 @@
+[
+{
+  "model": "admin.logentry",
+  "pk": 152,
+  "fields": {
+    "action_time": "2025-07-31T07:56:07.514Z",
+    "user": 61,
+    "content_type": 33,
+    "object_id": "20",
+    "object_repr": "noor1 (admin) in XYZ - 2025-07-24",
+    "action_flag": 3,
+    "change_message": ""
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 153,
+  "fields": {
+    "action_time": "2025-07-31T07:56:07.514Z",
+    "user": 61,
+    "content_type": 33,
+    "object_id": "19",
+    "object_repr": "alfiya12 (admin) in Heritage - 2025-07-22",
+    "action_flag": 3,
+    "change_message": ""
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 154,
+  "fields": {
+    "action_time": "2025-07-31T07:56:25.964Z",
+    "user": 61,
+    "content_type": 4,
+    "object_id": "62",
+    "object_repr": "alfiya12",
+    "action_flag": 3,
+    "change_message": ""
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 155,
+  "fields": {
+    "action_time": "2025-07-31T07:56:25.964Z",
+    "user": 61,
+    "content_type": 4,
+    "object_id": "63",
+    "object_repr": "noor1",
+    "action_flag": 3,
+    "change_message": ""
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 156,
+  "fields": {
+    "action_time": "2025-09-08T17:48:31.620Z",
+    "user": 61,
+    "content_type": 103,
+    "object_id": "1",
+    "object_repr": "hai",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 157,
+  "fields": {
+    "action_time": "2025-09-08T17:49:14.083Z",
+    "user": 61,
+    "content_type": 104,
+    "object_id": "1",
+    "object_repr": "ham cutting",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}]"
+  }
+},
+{
+  "model": "admin.logentry",
+  "pk": 158,
+  "fields": {
+    "action_time": "2025-09-08T17:52:19.340Z",
+    "user": 61,
+    "content_type": 105,
+    "object_id": "1",
+    "object_repr": "Shadab Sheikh",
+    "action_flag": 1,
+    "change_message": "[{\"added\": {}}]"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 1,
+  "fields": {
+    "name": "Can add log entry",
+    "content_type": 1,
+    "codename": "add_logentry"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 2,
+  "fields": {
+    "name": "Can change log entry",
+    "content_type": 1,
+    "codename": "change_logentry"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 3,
+  "fields": {
+    "name": "Can delete log entry",
+    "content_type": 1,
+    "codename": "delete_logentry"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 4,
+  "fields": {
+    "name": "Can view log entry",
+    "content_type": 1,
+    "codename": "view_logentry"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 5,
+  "fields": {
+    "name": "Can add permission",
+    "content_type": 2,
+    "codename": "add_permission"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 6,
+  "fields": {
+    "name": "Can change permission",
+    "content_type": 2,
+    "codename": "change_permission"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 7,
+  "fields": {
+    "name": "Can delete permission",
+    "content_type": 2,
+    "codename": "delete_permission"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 8,
+  "fields": {
+    "name": "Can view permission",
+    "content_type": 2,
+    "codename": "view_permission"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 9,
+  "fields": {
+    "name": "Can add group",
+    "content_type": 3,
+    "codename": "add_group"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 10,
+  "fields": {
+    "name": "Can change group",
+    "content_type": 3,
+    "codename": "change_group"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 11,
+  "fields": {
+    "name": "Can delete group",
+    "content_type": 3,
+    "codename": "delete_group"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 12,
+  "fields": {
+    "name": "Can view group",
+    "content_type": 3,
+    "codename": "view_group"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 13,
+  "fields": {
+    "name": "Can add user",
+    "content_type": 4,
+    "codename": "add_user"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 14,
+  "fields": {
+    "name": "Can change user",
+    "content_type": 4,
+    "codename": "change_user"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 15,
+  "fields": {
+    "name": "Can delete user",
+    "content_type": 4,
+    "codename": "delete_user"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 16,
+  "fields": {
+    "name": "Can view user",
+    "content_type": 4,
+    "codename": "view_user"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 17,
+  "fields": {
+    "name": "Can add content type",
+    "content_type": 5,
+    "codename": "add_contenttype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 18,
+  "fields": {
+    "name": "Can change content type",
+    "content_type": 5,
+    "codename": "change_contenttype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 19,
+  "fields": {
+    "name": "Can delete content type",
+    "content_type": 5,
+    "codename": "delete_contenttype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 20,
+  "fields": {
+    "name": "Can view content type",
+    "content_type": 5,
+    "codename": "view_contenttype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 21,
+  "fields": {
+    "name": "Can add session",
+    "content_type": 6,
+    "codename": "add_session"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 22,
+  "fields": {
+    "name": "Can change session",
+    "content_type": 6,
+    "codename": "change_session"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 23,
+  "fields": {
+    "name": "Can delete session",
+    "content_type": 6,
+    "codename": "delete_session"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 24,
+  "fields": {
+    "name": "Can view session",
+    "content_type": 6,
+    "codename": "view_session"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 25,
+  "fields": {
+    "name": "Can add class",
+    "content_type": 7,
+    "codename": "add_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 26,
+  "fields": {
+    "name": "Can change class",
+    "content_type": 7,
+    "codename": "change_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 27,
+  "fields": {
+    "name": "Can delete class",
+    "content_type": 7,
+    "codename": "delete_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 28,
+  "fields": {
+    "name": "Can view class",
+    "content_type": 7,
+    "codename": "view_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 29,
+  "fields": {
+    "name": "Can add doctor",
+    "content_type": 8,
+    "codename": "add_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 30,
+  "fields": {
+    "name": "Can change doctor",
+    "content_type": 8,
+    "codename": "change_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 31,
+  "fields": {
+    "name": "Can delete doctor",
+    "content_type": 8,
+    "codename": "delete_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 32,
+  "fields": {
+    "name": "Can view doctor",
+    "content_type": 8,
+    "codename": "view_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 33,
+  "fields": {
+    "name": "Can add patient",
+    "content_type": 9,
+    "codename": "add_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 34,
+  "fields": {
+    "name": "Can change patient",
+    "content_type": 9,
+    "codename": "change_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 35,
+  "fields": {
+    "name": "Can delete patient",
+    "content_type": 9,
+    "codename": "delete_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 36,
+  "fields": {
+    "name": "Can view patient",
+    "content_type": 9,
+    "codename": "view_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 37,
+  "fields": {
+    "name": "Can add plan",
+    "content_type": 10,
+    "codename": "add_plan"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 38,
+  "fields": {
+    "name": "Can change plan",
+    "content_type": 10,
+    "codename": "change_plan"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 39,
+  "fields": {
+    "name": "Can delete plan",
+    "content_type": 10,
+    "codename": "delete_plan"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 40,
+  "fields": {
+    "name": "Can view plan",
+    "content_type": 10,
+    "codename": "view_plan"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 41,
+  "fields": {
+    "name": "Can add product",
+    "content_type": 11,
+    "codename": "add_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 42,
+  "fields": {
+    "name": "Can change product",
+    "content_type": 11,
+    "codename": "change_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 43,
+  "fields": {
+    "name": "Can delete product",
+    "content_type": 11,
+    "codename": "delete_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 44,
+  "fields": {
+    "name": "Can view product",
+    "content_type": 11,
+    "codename": "view_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 45,
+  "fields": {
+    "name": "Can add role",
+    "content_type": 12,
+    "codename": "add_role"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 46,
+  "fields": {
+    "name": "Can change role",
+    "content_type": 12,
+    "codename": "change_role"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 47,
+  "fields": {
+    "name": "Can delete role",
+    "content_type": 12,
+    "codename": "delete_role"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 48,
+  "fields": {
+    "name": "Can view role",
+    "content_type": 12,
+    "codename": "view_role"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 49,
+  "fields": {
+    "name": "Can add tenant",
+    "content_type": 13,
+    "codename": "add_tenant"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 50,
+  "fields": {
+    "name": "Can change tenant",
+    "content_type": 13,
+    "codename": "change_tenant"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 51,
+  "fields": {
+    "name": "Can delete tenant",
+    "content_type": 13,
+    "codename": "delete_tenant"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 52,
+  "fields": {
+    "name": "Can view tenant",
+    "content_type": 13,
+    "codename": "view_tenant"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 53,
+  "fields": {
+    "name": "Can add student",
+    "content_type": 14,
+    "codename": "add_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 54,
+  "fields": {
+    "name": "Can change student",
+    "content_type": 14,
+    "codename": "change_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 55,
+  "fields": {
+    "name": "Can delete student",
+    "content_type": 14,
+    "codename": "delete_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 56,
+  "fields": {
+    "name": "Can view student",
+    "content_type": 14,
+    "codename": "view_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 57,
+  "fields": {
+    "name": "Can add report card",
+    "content_type": 15,
+    "codename": "add_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 58,
+  "fields": {
+    "name": "Can change report card",
+    "content_type": 15,
+    "codename": "change_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 59,
+  "fields": {
+    "name": "Can delete report card",
+    "content_type": 15,
+    "codename": "delete_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 60,
+  "fields": {
+    "name": "Can view report card",
+    "content_type": 15,
+    "codename": "view_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 61,
+  "fields": {
+    "name": "Can add quality control",
+    "content_type": 16,
+    "codename": "add_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 62,
+  "fields": {
+    "name": "Can change quality control",
+    "content_type": 16,
+    "codename": "change_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 63,
+  "fields": {
+    "name": "Can delete quality control",
+    "content_type": 16,
+    "codename": "delete_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 64,
+  "fields": {
+    "name": "Can view quality control",
+    "content_type": 16,
+    "codename": "view_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 65,
+  "fields": {
+    "name": "Can add purchase order",
+    "content_type": 17,
+    "codename": "add_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 66,
+  "fields": {
+    "name": "Can change purchase order",
+    "content_type": 17,
+    "codename": "change_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 67,
+  "fields": {
+    "name": "Can delete purchase order",
+    "content_type": 17,
+    "codename": "delete_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 68,
+  "fields": {
+    "name": "Can view purchase order",
+    "content_type": 17,
+    "codename": "view_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 69,
+  "fields": {
+    "name": "Can add production",
+    "content_type": 18,
+    "codename": "add_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 70,
+  "fields": {
+    "name": "Can change production",
+    "content_type": 18,
+    "codename": "change_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 71,
+  "fields": {
+    "name": "Can delete production",
+    "content_type": 18,
+    "codename": "delete_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 72,
+  "fields": {
+    "name": "Can view production",
+    "content_type": 18,
+    "codename": "view_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 73,
+  "fields": {
+    "name": "Can add prescription",
+    "content_type": 19,
+    "codename": "add_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 74,
+  "fields": {
+    "name": "Can change prescription",
+    "content_type": 19,
+    "codename": "change_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 75,
+  "fields": {
+    "name": "Can delete prescription",
+    "content_type": 19,
+    "codename": "delete_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 76,
+  "fields": {
+    "name": "Can view prescription",
+    "content_type": 19,
+    "codename": "view_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 77,
+  "fields": {
+    "name": "Can add inventory",
+    "content_type": 20,
+    "codename": "add_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 78,
+  "fields": {
+    "name": "Can change inventory",
+    "content_type": 20,
+    "codename": "change_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 79,
+  "fields": {
+    "name": "Can delete inventory",
+    "content_type": 20,
+    "codename": "delete_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 80,
+  "fields": {
+    "name": "Can view inventory",
+    "content_type": 20,
+    "codename": "view_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 81,
+  "fields": {
+    "name": "Can add fee",
+    "content_type": 21,
+    "codename": "add_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 82,
+  "fields": {
+    "name": "Can change fee",
+    "content_type": 21,
+    "codename": "change_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 83,
+  "fields": {
+    "name": "Can delete fee",
+    "content_type": 21,
+    "codename": "delete_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 84,
+  "fields": {
+    "name": "Can view fee",
+    "content_type": 21,
+    "codename": "view_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 85,
+  "fields": {
+    "name": "Can add billing",
+    "content_type": 22,
+    "codename": "add_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 86,
+  "fields": {
+    "name": "Can change billing",
+    "content_type": 22,
+    "codename": "change_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 87,
+  "fields": {
+    "name": "Can delete billing",
+    "content_type": 22,
+    "codename": "delete_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 88,
+  "fields": {
+    "name": "Can view billing",
+    "content_type": 22,
+    "codename": "view_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 89,
+  "fields": {
+    "name": "Can add attendance",
+    "content_type": 23,
+    "codename": "add_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 90,
+  "fields": {
+    "name": "Can change attendance",
+    "content_type": 23,
+    "codename": "change_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 91,
+  "fields": {
+    "name": "Can delete attendance",
+    "content_type": 23,
+    "codename": "delete_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 92,
+  "fields": {
+    "name": "Can view attendance",
+    "content_type": 23,
+    "codename": "view_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 93,
+  "fields": {
+    "name": "Can add appointment",
+    "content_type": 24,
+    "codename": "add_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 94,
+  "fields": {
+    "name": "Can change appointment",
+    "content_type": 24,
+    "codename": "change_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 95,
+  "fields": {
+    "name": "Can delete appointment",
+    "content_type": 24,
+    "codename": "delete_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 96,
+  "fields": {
+    "name": "Can view appointment",
+    "content_type": 24,
+    "codename": "view_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 97,
+  "fields": {
+    "name": "Can add alert",
+    "content_type": 25,
+    "codename": "add_alert"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 98,
+  "fields": {
+    "name": "Can change alert",
+    "content_type": 25,
+    "codename": "change_alert"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 99,
+  "fields": {
+    "name": "Can delete alert",
+    "content_type": 25,
+    "codename": "delete_alert"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 100,
+  "fields": {
+    "name": "Can view alert",
+    "content_type": 25,
+    "codename": "view_alert"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 101,
+  "fields": {
+    "name": "Can add user profile",
+    "content_type": 26,
+    "codename": "add_userprofile"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 102,
+  "fields": {
+    "name": "Can change user profile",
+    "content_type": 26,
+    "codename": "change_userprofile"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 103,
+  "fields": {
+    "name": "Can delete user profile",
+    "content_type": 26,
+    "codename": "delete_userprofile"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 104,
+  "fields": {
+    "name": "Can view user profile",
+    "content_type": 26,
+    "codename": "view_userprofile"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 105,
+  "fields": {
+    "name": "Can add class fee structure",
+    "content_type": 27,
+    "codename": "add_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 106,
+  "fields": {
+    "name": "Can change class fee structure",
+    "content_type": 27,
+    "codename": "change_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 107,
+  "fields": {
+    "name": "Can delete class fee structure",
+    "content_type": 27,
+    "codename": "delete_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 108,
+  "fields": {
+    "name": "Can view class fee structure",
+    "content_type": 27,
+    "codename": "view_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 109,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 28,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 110,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 28,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 111,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 28,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 112,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 28,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 113,
+  "fields": {
+    "name": "Can add class fee structure",
+    "content_type": 29,
+    "codename": "add_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 114,
+  "fields": {
+    "name": "Can change class fee structure",
+    "content_type": 29,
+    "codename": "change_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 115,
+  "fields": {
+    "name": "Can delete class fee structure",
+    "content_type": 29,
+    "codename": "delete_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 116,
+  "fields": {
+    "name": "Can view class fee structure",
+    "content_type": 29,
+    "codename": "view_classfeestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 117,
+  "fields": {
+    "name": "Can add class",
+    "content_type": 30,
+    "codename": "add_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 118,
+  "fields": {
+    "name": "Can change class",
+    "content_type": 30,
+    "codename": "change_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 119,
+  "fields": {
+    "name": "Can delete class",
+    "content_type": 30,
+    "codename": "delete_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 120,
+  "fields": {
+    "name": "Can view class",
+    "content_type": 30,
+    "codename": "view_class"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 121,
+  "fields": {
+    "name": "Can add attendance",
+    "content_type": 31,
+    "codename": "add_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 122,
+  "fields": {
+    "name": "Can change attendance",
+    "content_type": 31,
+    "codename": "change_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 123,
+  "fields": {
+    "name": "Can delete attendance",
+    "content_type": 31,
+    "codename": "delete_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 124,
+  "fields": {
+    "name": "Can view attendance",
+    "content_type": 31,
+    "codename": "view_attendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 125,
+  "fields": {
+    "name": "Can add fee",
+    "content_type": 32,
+    "codename": "add_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 126,
+  "fields": {
+    "name": "Can change fee",
+    "content_type": 32,
+    "codename": "change_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 127,
+  "fields": {
+    "name": "Can delete fee",
+    "content_type": 32,
+    "codename": "delete_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 128,
+  "fields": {
+    "name": "Can view fee",
+    "content_type": 32,
+    "codename": "view_fee"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 129,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 33,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 130,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 33,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 131,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 33,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 132,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 33,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 133,
+  "fields": {
+    "name": "Can add student",
+    "content_type": 34,
+    "codename": "add_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 134,
+  "fields": {
+    "name": "Can change student",
+    "content_type": 34,
+    "codename": "change_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 135,
+  "fields": {
+    "name": "Can delete student",
+    "content_type": 34,
+    "codename": "delete_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 136,
+  "fields": {
+    "name": "Can view student",
+    "content_type": 34,
+    "codename": "view_student"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 137,
+  "fields": {
+    "name": "Can add report card",
+    "content_type": 35,
+    "codename": "add_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 138,
+  "fields": {
+    "name": "Can change report card",
+    "content_type": 35,
+    "codename": "change_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 139,
+  "fields": {
+    "name": "Can delete report card",
+    "content_type": 35,
+    "codename": "delete_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 140,
+  "fields": {
+    "name": "Can view report card",
+    "content_type": 35,
+    "codename": "view_reportcard"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 141,
+  "fields": {
+    "name": "Can add appointment",
+    "content_type": 36,
+    "codename": "add_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 142,
+  "fields": {
+    "name": "Can change appointment",
+    "content_type": 36,
+    "codename": "change_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 143,
+  "fields": {
+    "name": "Can delete appointment",
+    "content_type": 36,
+    "codename": "delete_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 144,
+  "fields": {
+    "name": "Can view appointment",
+    "content_type": 36,
+    "codename": "view_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 145,
+  "fields": {
+    "name": "Can add billing",
+    "content_type": 37,
+    "codename": "add_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 146,
+  "fields": {
+    "name": "Can change billing",
+    "content_type": 37,
+    "codename": "change_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 147,
+  "fields": {
+    "name": "Can delete billing",
+    "content_type": 37,
+    "codename": "delete_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 148,
+  "fields": {
+    "name": "Can view billing",
+    "content_type": 37,
+    "codename": "view_billing"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 149,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 38,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 150,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 38,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 151,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 38,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 152,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 38,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 153,
+  "fields": {
+    "name": "Can add prescription",
+    "content_type": 39,
+    "codename": "add_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 154,
+  "fields": {
+    "name": "Can change prescription",
+    "content_type": 39,
+    "codename": "change_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 155,
+  "fields": {
+    "name": "Can delete prescription",
+    "content_type": 39,
+    "codename": "delete_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 156,
+  "fields": {
+    "name": "Can view prescription",
+    "content_type": 39,
+    "codename": "view_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 157,
+  "fields": {
+    "name": "Can add department",
+    "content_type": 40,
+    "codename": "add_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 158,
+  "fields": {
+    "name": "Can change department",
+    "content_type": 40,
+    "codename": "change_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 159,
+  "fields": {
+    "name": "Can delete department",
+    "content_type": 40,
+    "codename": "delete_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 160,
+  "fields": {
+    "name": "Can view department",
+    "content_type": 40,
+    "codename": "view_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 161,
+  "fields": {
+    "name": "Can add staff",
+    "content_type": 41,
+    "codename": "add_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 162,
+  "fields": {
+    "name": "Can change staff",
+    "content_type": 41,
+    "codename": "change_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 163,
+  "fields": {
+    "name": "Can delete staff",
+    "content_type": 41,
+    "codename": "delete_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 164,
+  "fields": {
+    "name": "Can view staff",
+    "content_type": 41,
+    "codename": "view_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 165,
+  "fields": {
+    "name": "Can add patient",
+    "content_type": 42,
+    "codename": "add_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 166,
+  "fields": {
+    "name": "Can change patient",
+    "content_type": 42,
+    "codename": "change_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 167,
+  "fields": {
+    "name": "Can delete patient",
+    "content_type": 42,
+    "codename": "delete_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 168,
+  "fields": {
+    "name": "Can view patient",
+    "content_type": 42,
+    "codename": "view_patient"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 169,
+  "fields": {
+    "name": "Can add doctor",
+    "content_type": 43,
+    "codename": "add_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 170,
+  "fields": {
+    "name": "Can change doctor",
+    "content_type": 43,
+    "codename": "change_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 171,
+  "fields": {
+    "name": "Can delete doctor",
+    "content_type": 43,
+    "codename": "delete_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 172,
+  "fields": {
+    "name": "Can view doctor",
+    "content_type": 43,
+    "codename": "view_doctor"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 173,
+  "fields": {
+    "name": "Can add staff assignment",
+    "content_type": 44,
+    "codename": "add_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 174,
+  "fields": {
+    "name": "Can change staff assignment",
+    "content_type": 44,
+    "codename": "change_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 175,
+  "fields": {
+    "name": "Can delete staff assignment",
+    "content_type": 44,
+    "codename": "delete_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 176,
+  "fields": {
+    "name": "Can view staff assignment",
+    "content_type": 44,
+    "codename": "view_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 177,
+  "fields": {
+    "name": "Can add product",
+    "content_type": 45,
+    "codename": "add_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 178,
+  "fields": {
+    "name": "Can change product",
+    "content_type": 45,
+    "codename": "change_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 179,
+  "fields": {
+    "name": "Can delete product",
+    "content_type": 45,
+    "codename": "delete_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 180,
+  "fields": {
+    "name": "Can view product",
+    "content_type": 45,
+    "codename": "view_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 181,
+  "fields": {
+    "name": "Can add staff assignment",
+    "content_type": 46,
+    "codename": "add_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 182,
+  "fields": {
+    "name": "Can change staff assignment",
+    "content_type": 46,
+    "codename": "change_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 183,
+  "fields": {
+    "name": "Can delete staff assignment",
+    "content_type": 46,
+    "codename": "delete_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 184,
+  "fields": {
+    "name": "Can view staff assignment",
+    "content_type": 46,
+    "codename": "view_staffassignment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 185,
+  "fields": {
+    "name": "Can add inventory",
+    "content_type": 47,
+    "codename": "add_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 186,
+  "fields": {
+    "name": "Can change inventory",
+    "content_type": 47,
+    "codename": "change_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 187,
+  "fields": {
+    "name": "Can delete inventory",
+    "content_type": 47,
+    "codename": "delete_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 188,
+  "fields": {
+    "name": "Can view inventory",
+    "content_type": 47,
+    "codename": "view_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 189,
+  "fields": {
+    "name": "Can add quality control",
+    "content_type": 48,
+    "codename": "add_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 190,
+  "fields": {
+    "name": "Can change quality control",
+    "content_type": 48,
+    "codename": "change_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 191,
+  "fields": {
+    "name": "Can delete quality control",
+    "content_type": 48,
+    "codename": "delete_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 192,
+  "fields": {
+    "name": "Can view quality control",
+    "content_type": 48,
+    "codename": "view_qualitycontrol"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 193,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 49,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 194,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 49,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 195,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 49,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 196,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 49,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 197,
+  "fields": {
+    "name": "Can add production",
+    "content_type": 50,
+    "codename": "add_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 198,
+  "fields": {
+    "name": "Can change production",
+    "content_type": 50,
+    "codename": "change_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 199,
+  "fields": {
+    "name": "Can delete production",
+    "content_type": 50,
+    "codename": "delete_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 200,
+  "fields": {
+    "name": "Can view production",
+    "content_type": 50,
+    "codename": "view_production"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 201,
+  "fields": {
+    "name": "Can add staff",
+    "content_type": 51,
+    "codename": "add_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 202,
+  "fields": {
+    "name": "Can change staff",
+    "content_type": 51,
+    "codename": "change_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 203,
+  "fields": {
+    "name": "Can delete staff",
+    "content_type": 51,
+    "codename": "delete_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 204,
+  "fields": {
+    "name": "Can view staff",
+    "content_type": 51,
+    "codename": "view_staff"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 205,
+  "fields": {
+    "name": "Can add purchase order",
+    "content_type": 52,
+    "codename": "add_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 206,
+  "fields": {
+    "name": "Can change purchase order",
+    "content_type": 52,
+    "codename": "change_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 207,
+  "fields": {
+    "name": "Can delete purchase order",
+    "content_type": 52,
+    "codename": "delete_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 208,
+  "fields": {
+    "name": "Can view purchase order",
+    "content_type": 52,
+    "codename": "view_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 209,
+  "fields": {
+    "name": "Can add production line",
+    "content_type": 53,
+    "codename": "add_productionline"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 210,
+  "fields": {
+    "name": "Can change production line",
+    "content_type": 53,
+    "codename": "change_productionline"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 211,
+  "fields": {
+    "name": "Can delete production line",
+    "content_type": 53,
+    "codename": "delete_productionline"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 212,
+  "fields": {
+    "name": "Can view production line",
+    "content_type": 53,
+    "codename": "view_productionline"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 213,
+  "fields": {
+    "name": "Can add department",
+    "content_type": 54,
+    "codename": "add_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 214,
+  "fields": {
+    "name": "Can change department",
+    "content_type": 54,
+    "codename": "change_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 215,
+  "fields": {
+    "name": "Can delete department",
+    "content_type": 54,
+    "codename": "delete_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 216,
+  "fields": {
+    "name": "Can view department",
+    "content_type": 54,
+    "codename": "view_department"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 217,
+  "fields": {
+    "name": "Can add payment transaction",
+    "content_type": 55,
+    "codename": "add_paymenttransaction"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 218,
+  "fields": {
+    "name": "Can change payment transaction",
+    "content_type": 55,
+    "codename": "change_paymenttransaction"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 219,
+  "fields": {
+    "name": "Can delete payment transaction",
+    "content_type": 55,
+    "codename": "delete_paymenttransaction"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 220,
+  "fields": {
+    "name": "Can view payment transaction",
+    "content_type": 55,
+    "codename": "view_paymenttransaction"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 221,
+  "fields": {
+    "name": "Can add fee payment",
+    "content_type": 56,
+    "codename": "add_feepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 222,
+  "fields": {
+    "name": "Can change fee payment",
+    "content_type": 56,
+    "codename": "change_feepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 223,
+  "fields": {
+    "name": "Can delete fee payment",
+    "content_type": 56,
+    "codename": "delete_feepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 224,
+  "fields": {
+    "name": "Can view fee payment",
+    "content_type": 56,
+    "codename": "view_feepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 225,
+  "fields": {
+    "name": "Can add fee structure",
+    "content_type": 57,
+    "codename": "add_feestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 226,
+  "fields": {
+    "name": "Can change fee structure",
+    "content_type": 57,
+    "codename": "change_feestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 227,
+  "fields": {
+    "name": "Can delete fee structure",
+    "content_type": 57,
+    "codename": "delete_feestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 228,
+  "fields": {
+    "name": "Can view fee structure",
+    "content_type": 57,
+    "codename": "view_feestructure"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 229,
+  "fields": {
+    "name": "Can add fee discount",
+    "content_type": 58,
+    "codename": "add_feediscount"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 230,
+  "fields": {
+    "name": "Can change fee discount",
+    "content_type": 58,
+    "codename": "change_feediscount"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 231,
+  "fields": {
+    "name": "Can delete fee discount",
+    "content_type": 58,
+    "codename": "delete_feediscount"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 232,
+  "fields": {
+    "name": "Can view fee discount",
+    "content_type": 58,
+    "codename": "view_feediscount"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 233,
+  "fields": {
+    "name": "Can add email verification",
+    "content_type": 59,
+    "codename": "add_emailverification"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 234,
+  "fields": {
+    "name": "Can change email verification",
+    "content_type": 59,
+    "codename": "change_emailverification"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 235,
+  "fields": {
+    "name": "Can delete email verification",
+    "content_type": 59,
+    "codename": "delete_emailverification"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 236,
+  "fields": {
+    "name": "Can view email verification",
+    "content_type": 59,
+    "codename": "view_emailverification"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 237,
+  "fields": {
+    "name": "Can add invoice",
+    "content_type": 60,
+    "codename": "add_invoice"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 238,
+  "fields": {
+    "name": "Can change invoice",
+    "content_type": 60,
+    "codename": "change_invoice"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 239,
+  "fields": {
+    "name": "Can delete invoice",
+    "content_type": 60,
+    "codename": "delete_invoice"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 240,
+  "fields": {
+    "name": "Can view invoice",
+    "content_type": 60,
+    "codename": "view_invoice"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 241,
+  "fields": {
+    "name": "Can add invoice item",
+    "content_type": 61,
+    "codename": "add_invoiceitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 242,
+  "fields": {
+    "name": "Can change invoice item",
+    "content_type": 61,
+    "codename": "change_invoiceitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 243,
+  "fields": {
+    "name": "Can delete invoice item",
+    "content_type": 61,
+    "codename": "delete_invoiceitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 244,
+  "fields": {
+    "name": "Can view invoice item",
+    "content_type": 61,
+    "codename": "view_invoiceitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 245,
+  "fields": {
+    "name": "Can add invoice payment",
+    "content_type": 62,
+    "codename": "add_invoicepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 246,
+  "fields": {
+    "name": "Can change invoice payment",
+    "content_type": 62,
+    "codename": "change_invoicepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 247,
+  "fields": {
+    "name": "Can delete invoice payment",
+    "content_type": 62,
+    "codename": "delete_invoicepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 248,
+  "fields": {
+    "name": "Can view invoice payment",
+    "content_type": 62,
+    "codename": "view_invoicepayment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 249,
+  "fields": {
+    "name": "Can add invoice template",
+    "content_type": 63,
+    "codename": "add_invoicetemplate"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 250,
+  "fields": {
+    "name": "Can change invoice template",
+    "content_type": 63,
+    "codename": "change_invoicetemplate"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 251,
+  "fields": {
+    "name": "Can delete invoice template",
+    "content_type": 63,
+    "codename": "delete_invoicetemplate"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 252,
+  "fields": {
+    "name": "Can view invoice template",
+    "content_type": 63,
+    "codename": "view_invoicetemplate"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 253,
+  "fields": {
+    "name": "Can add medicine category",
+    "content_type": 64,
+    "codename": "add_medicinecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 254,
+  "fields": {
+    "name": "Can change medicine category",
+    "content_type": 64,
+    "codename": "change_medicinecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 255,
+  "fields": {
+    "name": "Can delete medicine category",
+    "content_type": 64,
+    "codename": "delete_medicinecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 256,
+  "fields": {
+    "name": "Can view medicine category",
+    "content_type": 64,
+    "codename": "view_medicinecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 257,
+  "fields": {
+    "name": "Can add supplier",
+    "content_type": 65,
+    "codename": "add_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 258,
+  "fields": {
+    "name": "Can change supplier",
+    "content_type": 65,
+    "codename": "change_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 259,
+  "fields": {
+    "name": "Can delete supplier",
+    "content_type": 65,
+    "codename": "delete_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 260,
+  "fields": {
+    "name": "Can view supplier",
+    "content_type": 65,
+    "codename": "view_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 261,
+  "fields": {
+    "name": "Can add medicine",
+    "content_type": 66,
+    "codename": "add_medicine"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 262,
+  "fields": {
+    "name": "Can change medicine",
+    "content_type": 66,
+    "codename": "change_medicine"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 263,
+  "fields": {
+    "name": "Can delete medicine",
+    "content_type": 66,
+    "codename": "delete_medicine"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 264,
+  "fields": {
+    "name": "Can view medicine",
+    "content_type": 66,
+    "codename": "view_medicine"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 265,
+  "fields": {
+    "name": "Can add customer",
+    "content_type": 67,
+    "codename": "add_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 266,
+  "fields": {
+    "name": "Can change customer",
+    "content_type": 67,
+    "codename": "change_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 267,
+  "fields": {
+    "name": "Can delete customer",
+    "content_type": 67,
+    "codename": "delete_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 268,
+  "fields": {
+    "name": "Can view customer",
+    "content_type": 67,
+    "codename": "view_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 269,
+  "fields": {
+    "name": "Can add medicine batch",
+    "content_type": 68,
+    "codename": "add_medicinebatch"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 270,
+  "fields": {
+    "name": "Can change medicine batch",
+    "content_type": 68,
+    "codename": "change_medicinebatch"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 271,
+  "fields": {
+    "name": "Can delete medicine batch",
+    "content_type": 68,
+    "codename": "delete_medicinebatch"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 272,
+  "fields": {
+    "name": "Can view medicine batch",
+    "content_type": 68,
+    "codename": "view_medicinebatch"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 273,
+  "fields": {
+    "name": "Can add prescription",
+    "content_type": 69,
+    "codename": "add_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 274,
+  "fields": {
+    "name": "Can change prescription",
+    "content_type": 69,
+    "codename": "change_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 275,
+  "fields": {
+    "name": "Can delete prescription",
+    "content_type": 69,
+    "codename": "delete_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 276,
+  "fields": {
+    "name": "Can view prescription",
+    "content_type": 69,
+    "codename": "view_prescription"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 277,
+  "fields": {
+    "name": "Can add prescription item",
+    "content_type": 70,
+    "codename": "add_prescriptionitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 278,
+  "fields": {
+    "name": "Can change prescription item",
+    "content_type": 70,
+    "codename": "change_prescriptionitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 279,
+  "fields": {
+    "name": "Can delete prescription item",
+    "content_type": 70,
+    "codename": "delete_prescriptionitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 280,
+  "fields": {
+    "name": "Can view prescription item",
+    "content_type": 70,
+    "codename": "view_prescriptionitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 281,
+  "fields": {
+    "name": "Can add sale",
+    "content_type": 71,
+    "codename": "add_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 282,
+  "fields": {
+    "name": "Can change sale",
+    "content_type": 71,
+    "codename": "change_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 283,
+  "fields": {
+    "name": "Can delete sale",
+    "content_type": 71,
+    "codename": "delete_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 284,
+  "fields": {
+    "name": "Can view sale",
+    "content_type": 71,
+    "codename": "view_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 285,
+  "fields": {
+    "name": "Can add sale item",
+    "content_type": 72,
+    "codename": "add_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 286,
+  "fields": {
+    "name": "Can change sale item",
+    "content_type": 72,
+    "codename": "change_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 287,
+  "fields": {
+    "name": "Can delete sale item",
+    "content_type": 72,
+    "codename": "delete_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 288,
+  "fields": {
+    "name": "Can view sale item",
+    "content_type": 72,
+    "codename": "view_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 289,
+  "fields": {
+    "name": "Can add purchase order",
+    "content_type": 73,
+    "codename": "add_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 290,
+  "fields": {
+    "name": "Can change purchase order",
+    "content_type": 73,
+    "codename": "change_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 291,
+  "fields": {
+    "name": "Can delete purchase order",
+    "content_type": 73,
+    "codename": "delete_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 292,
+  "fields": {
+    "name": "Can view purchase order",
+    "content_type": 73,
+    "codename": "view_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 293,
+  "fields": {
+    "name": "Can add purchase order item",
+    "content_type": 74,
+    "codename": "add_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 294,
+  "fields": {
+    "name": "Can change purchase order item",
+    "content_type": 74,
+    "codename": "change_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 295,
+  "fields": {
+    "name": "Can delete purchase order item",
+    "content_type": 74,
+    "codename": "delete_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 296,
+  "fields": {
+    "name": "Can view purchase order item",
+    "content_type": 74,
+    "codename": "view_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 297,
+  "fields": {
+    "name": "Can add stock adjustment",
+    "content_type": 75,
+    "codename": "add_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 298,
+  "fields": {
+    "name": "Can change stock adjustment",
+    "content_type": 75,
+    "codename": "change_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 299,
+  "fields": {
+    "name": "Can delete stock adjustment",
+    "content_type": 75,
+    "codename": "delete_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 300,
+  "fields": {
+    "name": "Can view stock adjustment",
+    "content_type": 75,
+    "codename": "view_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 301,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 76,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 302,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 76,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 303,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 76,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 304,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 76,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 305,
+  "fields": {
+    "name": "Can add product category",
+    "content_type": 77,
+    "codename": "add_productcategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 306,
+  "fields": {
+    "name": "Can change product category",
+    "content_type": 77,
+    "codename": "change_productcategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 307,
+  "fields": {
+    "name": "Can delete product category",
+    "content_type": 77,
+    "codename": "delete_productcategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 308,
+  "fields": {
+    "name": "Can view product category",
+    "content_type": 77,
+    "codename": "view_productcategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 309,
+  "fields": {
+    "name": "Can add supplier",
+    "content_type": 78,
+    "codename": "add_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 310,
+  "fields": {
+    "name": "Can change supplier",
+    "content_type": 78,
+    "codename": "change_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 311,
+  "fields": {
+    "name": "Can delete supplier",
+    "content_type": 78,
+    "codename": "delete_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 312,
+  "fields": {
+    "name": "Can view supplier",
+    "content_type": 78,
+    "codename": "view_supplier"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 313,
+  "fields": {
+    "name": "Can add warehouse",
+    "content_type": 79,
+    "codename": "add_warehouse"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 314,
+  "fields": {
+    "name": "Can change warehouse",
+    "content_type": 79,
+    "codename": "change_warehouse"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 315,
+  "fields": {
+    "name": "Can delete warehouse",
+    "content_type": 79,
+    "codename": "delete_warehouse"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 316,
+  "fields": {
+    "name": "Can view warehouse",
+    "content_type": 79,
+    "codename": "view_warehouse"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 317,
+  "fields": {
+    "name": "Can add product",
+    "content_type": 80,
+    "codename": "add_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 318,
+  "fields": {
+    "name": "Can change product",
+    "content_type": 80,
+    "codename": "change_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 319,
+  "fields": {
+    "name": "Can delete product",
+    "content_type": 80,
+    "codename": "delete_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 320,
+  "fields": {
+    "name": "Can view product",
+    "content_type": 80,
+    "codename": "view_product"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 321,
+  "fields": {
+    "name": "Can add inventory",
+    "content_type": 81,
+    "codename": "add_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 322,
+  "fields": {
+    "name": "Can change inventory",
+    "content_type": 81,
+    "codename": "change_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 323,
+  "fields": {
+    "name": "Can delete inventory",
+    "content_type": 81,
+    "codename": "delete_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 324,
+  "fields": {
+    "name": "Can view inventory",
+    "content_type": 81,
+    "codename": "view_inventory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 325,
+  "fields": {
+    "name": "Can add customer",
+    "content_type": 82,
+    "codename": "add_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 326,
+  "fields": {
+    "name": "Can change customer",
+    "content_type": 82,
+    "codename": "change_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 327,
+  "fields": {
+    "name": "Can delete customer",
+    "content_type": 82,
+    "codename": "delete_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 328,
+  "fields": {
+    "name": "Can view customer",
+    "content_type": 82,
+    "codename": "view_customer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 329,
+  "fields": {
+    "name": "Can add purchase order",
+    "content_type": 83,
+    "codename": "add_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 330,
+  "fields": {
+    "name": "Can change purchase order",
+    "content_type": 83,
+    "codename": "change_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 331,
+  "fields": {
+    "name": "Can delete purchase order",
+    "content_type": 83,
+    "codename": "delete_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 332,
+  "fields": {
+    "name": "Can view purchase order",
+    "content_type": 83,
+    "codename": "view_purchaseorder"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 333,
+  "fields": {
+    "name": "Can add purchase order item",
+    "content_type": 84,
+    "codename": "add_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 334,
+  "fields": {
+    "name": "Can change purchase order item",
+    "content_type": 84,
+    "codename": "change_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 335,
+  "fields": {
+    "name": "Can delete purchase order item",
+    "content_type": 84,
+    "codename": "delete_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 336,
+  "fields": {
+    "name": "Can view purchase order item",
+    "content_type": 84,
+    "codename": "view_purchaseorderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 337,
+  "fields": {
+    "name": "Can add goods receipt",
+    "content_type": 85,
+    "codename": "add_goodsreceipt"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 338,
+  "fields": {
+    "name": "Can change goods receipt",
+    "content_type": 85,
+    "codename": "change_goodsreceipt"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 339,
+  "fields": {
+    "name": "Can delete goods receipt",
+    "content_type": 85,
+    "codename": "delete_goodsreceipt"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 340,
+  "fields": {
+    "name": "Can view goods receipt",
+    "content_type": 85,
+    "codename": "view_goodsreceipt"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 341,
+  "fields": {
+    "name": "Can add goods receipt item",
+    "content_type": 86,
+    "codename": "add_goodsreceiptitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 342,
+  "fields": {
+    "name": "Can change goods receipt item",
+    "content_type": 86,
+    "codename": "change_goodsreceiptitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 343,
+  "fields": {
+    "name": "Can delete goods receipt item",
+    "content_type": 86,
+    "codename": "delete_goodsreceiptitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 344,
+  "fields": {
+    "name": "Can view goods receipt item",
+    "content_type": 86,
+    "codename": "view_goodsreceiptitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 345,
+  "fields": {
+    "name": "Can add sale",
+    "content_type": 87,
+    "codename": "add_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 346,
+  "fields": {
+    "name": "Can change sale",
+    "content_type": 87,
+    "codename": "change_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 347,
+  "fields": {
+    "name": "Can delete sale",
+    "content_type": 87,
+    "codename": "delete_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 348,
+  "fields": {
+    "name": "Can view sale",
+    "content_type": 87,
+    "codename": "view_sale"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 349,
+  "fields": {
+    "name": "Can add sale item",
+    "content_type": 88,
+    "codename": "add_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 350,
+  "fields": {
+    "name": "Can change sale item",
+    "content_type": 88,
+    "codename": "change_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 351,
+  "fields": {
+    "name": "Can delete sale item",
+    "content_type": 88,
+    "codename": "delete_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 352,
+  "fields": {
+    "name": "Can view sale item",
+    "content_type": 88,
+    "codename": "view_saleitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 353,
+  "fields": {
+    "name": "Can add stock transfer",
+    "content_type": 89,
+    "codename": "add_stocktransfer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 354,
+  "fields": {
+    "name": "Can change stock transfer",
+    "content_type": 89,
+    "codename": "change_stocktransfer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 355,
+  "fields": {
+    "name": "Can delete stock transfer",
+    "content_type": 89,
+    "codename": "delete_stocktransfer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 356,
+  "fields": {
+    "name": "Can view stock transfer",
+    "content_type": 89,
+    "codename": "view_stocktransfer"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 357,
+  "fields": {
+    "name": "Can add stock transfer item",
+    "content_type": 90,
+    "codename": "add_stocktransferitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 358,
+  "fields": {
+    "name": "Can change stock transfer item",
+    "content_type": 90,
+    "codename": "change_stocktransferitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 359,
+  "fields": {
+    "name": "Can delete stock transfer item",
+    "content_type": 90,
+    "codename": "delete_stocktransferitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 360,
+  "fields": {
+    "name": "Can view stock transfer item",
+    "content_type": 90,
+    "codename": "view_stocktransferitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 361,
+  "fields": {
+    "name": "Can add stock adjustment",
+    "content_type": 91,
+    "codename": "add_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 362,
+  "fields": {
+    "name": "Can change stock adjustment",
+    "content_type": 91,
+    "codename": "change_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 363,
+  "fields": {
+    "name": "Can delete stock adjustment",
+    "content_type": 91,
+    "codename": "delete_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 364,
+  "fields": {
+    "name": "Can view stock adjustment",
+    "content_type": 91,
+    "codename": "view_stockadjustment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 365,
+  "fields": {
+    "name": "Can add stock adjustment item",
+    "content_type": 92,
+    "codename": "add_stockadjustmentitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 366,
+  "fields": {
+    "name": "Can change stock adjustment item",
+    "content_type": 92,
+    "codename": "change_stockadjustmentitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 367,
+  "fields": {
+    "name": "Can delete stock adjustment item",
+    "content_type": 92,
+    "codename": "delete_stockadjustmentitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 368,
+  "fields": {
+    "name": "Can view stock adjustment item",
+    "content_type": 92,
+    "codename": "view_stockadjustmentitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 369,
+  "fields": {
+    "name": "Can add staff attendance",
+    "content_type": 93,
+    "codename": "add_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 370,
+  "fields": {
+    "name": "Can change staff attendance",
+    "content_type": 93,
+    "codename": "change_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 371,
+  "fields": {
+    "name": "Can delete staff attendance",
+    "content_type": 93,
+    "codename": "delete_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 372,
+  "fields": {
+    "name": "Can view staff attendance",
+    "content_type": 93,
+    "codename": "view_staffattendance"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 373,
+  "fields": {
+    "name": "Can add guest",
+    "content_type": 94,
+    "codename": "add_guest"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 374,
+  "fields": {
+    "name": "Can change guest",
+    "content_type": 94,
+    "codename": "change_guest"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 375,
+  "fields": {
+    "name": "Can delete guest",
+    "content_type": 94,
+    "codename": "delete_guest"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 376,
+  "fields": {
+    "name": "Can view guest",
+    "content_type": 94,
+    "codename": "view_guest"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 377,
+  "fields": {
+    "name": "Can add room",
+    "content_type": 95,
+    "codename": "add_room"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 378,
+  "fields": {
+    "name": "Can change room",
+    "content_type": 95,
+    "codename": "change_room"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 379,
+  "fields": {
+    "name": "Can delete room",
+    "content_type": 95,
+    "codename": "delete_room"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 380,
+  "fields": {
+    "name": "Can view room",
+    "content_type": 95,
+    "codename": "view_room"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 381,
+  "fields": {
+    "name": "Can add booking",
+    "content_type": 96,
+    "codename": "add_booking"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 382,
+  "fields": {
+    "name": "Can change booking",
+    "content_type": 96,
+    "codename": "change_booking"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 383,
+  "fields": {
+    "name": "Can delete booking",
+    "content_type": 96,
+    "codename": "delete_booking"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 384,
+  "fields": {
+    "name": "Can view booking",
+    "content_type": 96,
+    "codename": "view_booking"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 385,
+  "fields": {
+    "name": "Can add room type",
+    "content_type": 97,
+    "codename": "add_roomtype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 386,
+  "fields": {
+    "name": "Can change room type",
+    "content_type": 97,
+    "codename": "change_roomtype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 387,
+  "fields": {
+    "name": "Can delete room type",
+    "content_type": 97,
+    "codename": "delete_roomtype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 388,
+  "fields": {
+    "name": "Can view room type",
+    "content_type": 97,
+    "codename": "view_roomtype"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 389,
+  "fields": {
+    "name": "Can add menu category",
+    "content_type": 98,
+    "codename": "add_menucategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 390,
+  "fields": {
+    "name": "Can change menu category",
+    "content_type": 98,
+    "codename": "change_menucategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 391,
+  "fields": {
+    "name": "Can delete menu category",
+    "content_type": 98,
+    "codename": "delete_menucategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 392,
+  "fields": {
+    "name": "Can view menu category",
+    "content_type": 98,
+    "codename": "view_menucategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 393,
+  "fields": {
+    "name": "Can add menu item",
+    "content_type": 99,
+    "codename": "add_menuitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 394,
+  "fields": {
+    "name": "Can change menu item",
+    "content_type": 99,
+    "codename": "change_menuitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 395,
+  "fields": {
+    "name": "Can delete menu item",
+    "content_type": 99,
+    "codename": "delete_menuitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 396,
+  "fields": {
+    "name": "Can view menu item",
+    "content_type": 99,
+    "codename": "view_menuitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 397,
+  "fields": {
+    "name": "Can add order",
+    "content_type": 100,
+    "codename": "add_order"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 398,
+  "fields": {
+    "name": "Can change order",
+    "content_type": 100,
+    "codename": "change_order"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 399,
+  "fields": {
+    "name": "Can delete order",
+    "content_type": 100,
+    "codename": "delete_order"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 400,
+  "fields": {
+    "name": "Can view order",
+    "content_type": 100,
+    "codename": "view_order"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 401,
+  "fields": {
+    "name": "Can add order item",
+    "content_type": 101,
+    "codename": "add_orderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 402,
+  "fields": {
+    "name": "Can change order item",
+    "content_type": 101,
+    "codename": "change_orderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 403,
+  "fields": {
+    "name": "Can delete order item",
+    "content_type": 101,
+    "codename": "delete_orderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 404,
+  "fields": {
+    "name": "Can view order item",
+    "content_type": 101,
+    "codename": "view_orderitem"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 405,
+  "fields": {
+    "name": "Can add table",
+    "content_type": 102,
+    "codename": "add_table"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 406,
+  "fields": {
+    "name": "Can change table",
+    "content_type": 102,
+    "codename": "change_table"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 407,
+  "fields": {
+    "name": "Can delete table",
+    "content_type": 102,
+    "codename": "delete_table"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 408,
+  "fields": {
+    "name": "Can view table",
+    "content_type": 102,
+    "codename": "view_table"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 409,
+  "fields": {
+    "name": "Can add service category",
+    "content_type": 103,
+    "codename": "add_servicecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 410,
+  "fields": {
+    "name": "Can change service category",
+    "content_type": 103,
+    "codename": "change_servicecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 411,
+  "fields": {
+    "name": "Can delete service category",
+    "content_type": 103,
+    "codename": "delete_servicecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 412,
+  "fields": {
+    "name": "Can view service category",
+    "content_type": 103,
+    "codename": "view_servicecategory"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 413,
+  "fields": {
+    "name": "Can add service",
+    "content_type": 104,
+    "codename": "add_service"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 414,
+  "fields": {
+    "name": "Can change service",
+    "content_type": 104,
+    "codename": "change_service"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 415,
+  "fields": {
+    "name": "Can delete service",
+    "content_type": 104,
+    "codename": "delete_service"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 416,
+  "fields": {
+    "name": "Can view service",
+    "content_type": 104,
+    "codename": "view_service"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 417,
+  "fields": {
+    "name": "Can add stylist",
+    "content_type": 105,
+    "codename": "add_stylist"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 418,
+  "fields": {
+    "name": "Can change stylist",
+    "content_type": 105,
+    "codename": "change_stylist"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 419,
+  "fields": {
+    "name": "Can delete stylist",
+    "content_type": 105,
+    "codename": "delete_stylist"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 420,
+  "fields": {
+    "name": "Can view stylist",
+    "content_type": 105,
+    "codename": "view_stylist"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 421,
+  "fields": {
+    "name": "Can add appointment",
+    "content_type": 106,
+    "codename": "add_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 422,
+  "fields": {
+    "name": "Can change appointment",
+    "content_type": 106,
+    "codename": "change_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 423,
+  "fields": {
+    "name": "Can delete appointment",
+    "content_type": 106,
+    "codename": "delete_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 424,
+  "fields": {
+    "name": "Can view appointment",
+    "content_type": 106,
+    "codename": "view_appointment"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 425,
+  "fields": {
+    "name": "Can add admission application",
+    "content_type": 107,
+    "codename": "add_admissionapplication"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 426,
+  "fields": {
+    "name": "Can change admission application",
+    "content_type": 107,
+    "codename": "change_admissionapplication"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 427,
+  "fields": {
+    "name": "Can delete admission application",
+    "content_type": 107,
+    "codename": "delete_admissionapplication"
+  }
+},
+{
+  "model": "auth.permission",
+  "pk": 428,
+  "fields": {
+    "name": "Can view admission application",
+    "content_type": 107,
+    "codename": "view_admissionapplication"
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 61,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$4Ltxzn0frdjvhMbSt0U235$mr/a/Dks1KrhrlAN7BNqvbYH8UmTTk0gun1MqfHSb6c=",
+    "last_login": "2025-09-08T17:01:51.853Z",
+    "is_superuser": true,
+    "username": "shaze@76",
+    "first_name": "",
+    "last_name": "",
+    "email": "",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2025-07-22T14:06:30.644Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 64,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$ZQTTTryXnQ72x9dhM70N2t$t4WRbGZMNmKVbkYTiOdagTQ60wbVRMyyZkSLG3A/DoM=",
+    "last_login": "2025-07-31T08:50:17.532Z",
+    "is_superuser": false,
+    "username": "shadab",
+    "first_name": "",
+    "last_name": "",
+    "email": "shadabsheikh314@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-07-31T08:10:52.483Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 65,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$2axMoQeR064RYgCS1xe4rS$wHzMBy6Ud+cQ5YjAXPG62OZD7t6uigpkqa6w19muxC0=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "alfiya12",
+    "first_name": "",
+    "last_name": "",
+    "email": "shadabsheikh314ee@gmail.com",
+    "is_staff": false,
+    "is_active": false,
+    "date_joined": "2025-07-31T13:59:10.959Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 66,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$Sth0iGEdjYYFREqhMQPZgU$KmRhyDaDQ83uVx2yciwkvgDV/7L2BmvolIC/IU3DjNM=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "alfiya",
+    "first_name": "",
+    "last_name": "",
+    "email": "shadabsheikhee314@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-07-31T14:02:14.423Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 67,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$30XibM6eyJwzLumJAhNtEk$MG2EJPKp9oRYL9YGGmT0XrjmxrvdVuuejz4DjhnukTA=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "user1",
+    "first_name": "",
+    "last_name": "",
+    "email": "user1@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-01T05:24:34.351Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 68,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$mdDXxPrq2yaK5x7aw1JOHZ$NoW9BQS+bl5WSxgqq0/b0b6MOVo8cTOHR0au6/FGjkA=",
+    "last_login": null,
+    "is_superuser": true,
+    "username": "admin",
+    "first_name": "Admin",
+    "last_name": "User",
+    "email": "admin@testpharmacy.com",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2025-08-01T05:41:11.349Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 69,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$Lc23jOPYti7rFE5Ap2qgjM$uPhOgDmAQgB4sW66os6e5VgqVGiA41jYhx1SOnXG4wQ=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "vikram123",
+    "first_name": "",
+    "last_name": "",
+    "email": "heritage.spices.pvtltd@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-01T09:42:11.714Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 70,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$DJ5I3yXY8Xtajx2koc0c00$V9ufAku3CKKya97LChUgRiYTvL+bczlKYjDe15p4hjg=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:25:26.687Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 71,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$y9IHgKqQ8zGtqZGNpbAMCo$BBzZThsVTTbOBI0Mzq6RQpzQ6UGa95msgLjCNiiWQiI=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754126759",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754126759@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:25:59.833Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 72,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$5ME4hUwVLtXdy4b1nOPjEe$Qq5JKKOnXqqWWsWEYc6MOZfI076q5Y/4lAR55zv1cq8=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754126789",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754126789@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:26:29.097Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 73,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$2EnT28DQjJqHWB7OvdpC75$Vpm/mhHMNODpDJqoTeZ4SP/1utdVGJk4aUfBBsa6FbY=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754126804",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754126804@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:26:44.230Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 74,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$HByXjRNSpVZqrBS7a4haaC$l5C4K/bzrZrKHA448iLc6cLk5oTBniRN+0x4tQWequA=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754126819",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754126819@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:26:59.212Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 75,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$toEGrlerwCN2UwmolstEQz$noCLvvP85Vb1ioin9vCFsu3MlI1fxGIEWQAKE5p5WSM=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754127115",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754127115@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:31:55.737Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 76,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$9SFaSgel5C0BakjMRQ1OME$Wj7D0Ha8LZXQf0qaamamMDf69sIOT1f9r2iTIqy94Wk=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754127197",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754127197@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:33:17.578Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 77,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$CvEwEOTyJyjUAlgfcpFG7Y$sv+0GIHNbWI445kgWvL/CmV6VyhegvyenchabaWPmzk=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "retail_test_user_1754127227",
+    "first_name": "",
+    "last_name": "",
+    "email": "retail_1754127227@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:33:47.581Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 78,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$ygOoDfPNiesiEGUCHkWtJS$pW/lC4caEfPTENyCUVexrBf6n5zc8R/uvsgmcft8ZOM=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "complete_test_user_1754127382",
+    "first_name": "",
+    "last_name": "",
+    "email": "complete_1754127382@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:36:22.855Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 79,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$yE0IiWgl1xcfLzj75B1dlp$XaAEA7KTR1GNtv2kt8QaJq7T3tsvQ/Ahe1Bwahc/BG8=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "complete_test_user_1754127413",
+    "first_name": "",
+    "last_name": "",
+    "email": "complete_1754127413@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:36:53.624Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 80,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$uLNTsNyJ7OgYlVipxft2Du$NicDCFC0D2jDEVTBAk4asKC8x388ZoUQXsaYiltK+m8=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "deep_analysis_user_1754127630",
+    "first_name": "",
+    "last_name": "",
+    "email": "deep_analysis_1754127630@test.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-08-02T09:40:30.724Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "pk": 81,
+  "fields": {
+    "password": "pbkdf2_sha256$1000000$kP2GRarQSHRC3vfTDMHEde$aRF8C91ZCZyv0cItbiYX7Au3N8ja1LsJk6x9Kd+XT1M=",
+    "last_login": null,
+    "is_superuser": false,
+    "username": "salon1",
+    "first_name": "",
+    "last_name": "",
+    "email": "safeeditpdf@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2025-09-08T16:21:41.666Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 1,
+  "fields": {
+    "app_label": "admin",
+    "model": "logentry"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 2,
+  "fields": {
+    "app_label": "auth",
+    "model": "permission"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 3,
+  "fields": {
+    "app_label": "auth",
+    "model": "group"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 4,
+  "fields": {
+    "app_label": "auth",
+    "model": "user"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 5,
+  "fields": {
+    "app_label": "contenttypes",
+    "model": "contenttype"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 6,
+  "fields": {
+    "app_label": "sessions",
+    "model": "session"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 7,
+  "fields": {
+    "app_label": "api",
+    "model": "class"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 8,
+  "fields": {
+    "app_label": "api",
+    "model": "doctor"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 9,
+  "fields": {
+    "app_label": "api",
+    "model": "patient"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 10,
+  "fields": {
+    "app_label": "api",
+    "model": "plan"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 11,
+  "fields": {
+    "app_label": "api",
+    "model": "product"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 12,
+  "fields": {
+    "app_label": "api",
+    "model": "role"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 13,
+  "fields": {
+    "app_label": "api",
+    "model": "tenant"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 14,
+  "fields": {
+    "app_label": "api",
+    "model": "student"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 15,
+  "fields": {
+    "app_label": "api",
+    "model": "reportcard"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 16,
+  "fields": {
+    "app_label": "api",
+    "model": "qualitycontrol"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 17,
+  "fields": {
+    "app_label": "api",
+    "model": "purchaseorder"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 18,
+  "fields": {
+    "app_label": "api",
+    "model": "production"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 19,
+  "fields": {
+    "app_label": "api",
+    "model": "prescription"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 20,
+  "fields": {
+    "app_label": "api",
+    "model": "inventory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 21,
+  "fields": {
+    "app_label": "api",
+    "model": "fee"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 22,
+  "fields": {
+    "app_label": "api",
+    "model": "billing"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 23,
+  "fields": {
+    "app_label": "api",
+    "model": "attendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 24,
+  "fields": {
+    "app_label": "api",
+    "model": "appointment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 25,
+  "fields": {
+    "app_label": "api",
+    "model": "alert"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 26,
+  "fields": {
+    "app_label": "api",
+    "model": "userprofile"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 27,
+  "fields": {
+    "app_label": "api",
+    "model": "classfeestructure"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 28,
+  "fields": {
+    "app_label": "api",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 29,
+  "fields": {
+    "app_label": "education",
+    "model": "classfeestructure"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 30,
+  "fields": {
+    "app_label": "education",
+    "model": "class"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 31,
+  "fields": {
+    "app_label": "education",
+    "model": "attendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 32,
+  "fields": {
+    "app_label": "education",
+    "model": "fee"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 33,
+  "fields": {
+    "app_label": "education",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 34,
+  "fields": {
+    "app_label": "education",
+    "model": "student"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 35,
+  "fields": {
+    "app_label": "education",
+    "model": "reportcard"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 36,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "appointment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 37,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "billing"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 38,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 39,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "prescription"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 40,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "department"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 41,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "staff"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 42,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "patient"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 43,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "doctor"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 44,
+  "fields": {
+    "app_label": "healthcare",
+    "model": "staffassignment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 45,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "product"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 46,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "staffassignment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 47,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "inventory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 48,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "qualitycontrol"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 49,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 50,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "production"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 51,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "staff"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 52,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "purchaseorder"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 53,
+  "fields": {
+    "app_label": "manufacturing",
+    "model": "productionline"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 54,
+  "fields": {
+    "app_label": "education",
+    "model": "department"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 55,
+  "fields": {
+    "app_label": "api",
+    "model": "paymenttransaction"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 56,
+  "fields": {
+    "app_label": "education",
+    "model": "feepayment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 57,
+  "fields": {
+    "app_label": "education",
+    "model": "feestructure"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 58,
+  "fields": {
+    "app_label": "education",
+    "model": "feediscount"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 59,
+  "fields": {
+    "app_label": "api",
+    "model": "emailverification"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 60,
+  "fields": {
+    "app_label": "api",
+    "model": "invoice"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 61,
+  "fields": {
+    "app_label": "api",
+    "model": "invoiceitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 62,
+  "fields": {
+    "app_label": "api",
+    "model": "invoicepayment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 63,
+  "fields": {
+    "app_label": "api",
+    "model": "invoicetemplate"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 64,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "medicinecategory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 65,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "supplier"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 66,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "medicine"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 67,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "customer"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 68,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "medicinebatch"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 69,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "prescription"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 70,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "prescriptionitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 71,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "sale"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 72,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "saleitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 73,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "purchaseorder"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 74,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "purchaseorderitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 75,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "stockadjustment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 76,
+  "fields": {
+    "app_label": "pharmacy",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 77,
+  "fields": {
+    "app_label": "retail",
+    "model": "productcategory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 78,
+  "fields": {
+    "app_label": "retail",
+    "model": "supplier"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 79,
+  "fields": {
+    "app_label": "retail",
+    "model": "warehouse"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 80,
+  "fields": {
+    "app_label": "retail",
+    "model": "product"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 81,
+  "fields": {
+    "app_label": "retail",
+    "model": "inventory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 82,
+  "fields": {
+    "app_label": "retail",
+    "model": "customer"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 83,
+  "fields": {
+    "app_label": "retail",
+    "model": "purchaseorder"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 84,
+  "fields": {
+    "app_label": "retail",
+    "model": "purchaseorderitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 85,
+  "fields": {
+    "app_label": "retail",
+    "model": "goodsreceipt"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 86,
+  "fields": {
+    "app_label": "retail",
+    "model": "goodsreceiptitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 87,
+  "fields": {
+    "app_label": "retail",
+    "model": "sale"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 88,
+  "fields": {
+    "app_label": "retail",
+    "model": "saleitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 89,
+  "fields": {
+    "app_label": "retail",
+    "model": "stocktransfer"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 90,
+  "fields": {
+    "app_label": "retail",
+    "model": "stocktransferitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 91,
+  "fields": {
+    "app_label": "retail",
+    "model": "stockadjustment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 92,
+  "fields": {
+    "app_label": "retail",
+    "model": "stockadjustmentitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 93,
+  "fields": {
+    "app_label": "retail",
+    "model": "staffattendance"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 94,
+  "fields": {
+    "app_label": "hotel",
+    "model": "guest"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 95,
+  "fields": {
+    "app_label": "hotel",
+    "model": "room"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 96,
+  "fields": {
+    "app_label": "hotel",
+    "model": "booking"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 97,
+  "fields": {
+    "app_label": "hotel",
+    "model": "roomtype"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 98,
+  "fields": {
+    "app_label": "restaurant",
+    "model": "menucategory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 99,
+  "fields": {
+    "app_label": "restaurant",
+    "model": "menuitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 100,
+  "fields": {
+    "app_label": "restaurant",
+    "model": "order"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 101,
+  "fields": {
+    "app_label": "restaurant",
+    "model": "orderitem"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 102,
+  "fields": {
+    "app_label": "restaurant",
+    "model": "table"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 103,
+  "fields": {
+    "app_label": "salon",
+    "model": "servicecategory"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 104,
+  "fields": {
+    "app_label": "salon",
+    "model": "service"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 105,
+  "fields": {
+    "app_label": "salon",
+    "model": "stylist"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 106,
+  "fields": {
+    "app_label": "salon",
+    "model": "appointment"
+  }
+},
+{
+  "model": "contenttypes.contenttype",
+  "pk": 107,
+  "fields": {
+    "app_label": "education",
+    "model": "admissionapplication"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "egp9n927b595r2lvziedg53ad1g70o2k",
+  "fields": {
+    "session_data": ".eJxVjEEOwiAQRe_C2pChIKUu3fcMZGYYpGpKUtqV8e7apAvd_vfef6mI21ri1mSJU1IX5Y06_Y6E_JB5J-mO861qrvO6TKR3RR-06bEmeV4P9--gYCvfegAbDOF5COAxs3cBc9ehsCMCgGQss--SeAlZjJBxBI6z77mH7MCq9wcS2jh8:1uiuEi:znIqXfq2H0ijNKcLX0VlWac6fXOF5o9rGAf4dsvp2uw",
+    "expire_date": "2025-08-18T12:24:16.907Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "mbhpdh5y0z9i9g5zjxhzv79oodm21rlm",
+  "fields": {
+    "session_data": ".eJxVjEEOwiAQRe_C2pChIKUu3fcMZGYYpGpKUtqV8e7apAvd_vfef6mI21ri1mSJU1IX5Y06_Y6E_JB5J-mO861qrvO6TKR3RR-06bEmeV4P9--gYCvfegAbDOF5COAxs3cBc9ehsCMCgGQss--SeAlZjJBxBI6z77mH7MCq9wcS2jh8:1uvfFX:oR6ud38rPW2rja2iwU1BAW_5eoCPDI20QVo71xTZEXU",
+    "expire_date": "2025-09-22T17:01:51.859Z"
+  }
+},
+{
+  "model": "sessions.session",
+  "pk": "mi00to3jo9dxa4uippmrxqmbtnrzdyx1",
+  "fields": {
+    "session_data": ".eJxVjEEOwiAQRe_C2pChIKUu3fcMZGYYpGpKUtqV8e7apAvd_vfef6mI21ri1mSJU1IX5Y06_Y6E_JB5J-mO861qrvO6TKR3RR-06bEmeV4P9--gYCvfegAbDOF5COAxs3cBc9ehsCMCgGQss--SeAlZjJBxBI6z77mH7MCq9wcS2jh8:1ueDem:25Qwnx6XE9Wj_xVIVAUa3MRkbKfh8S8CR7RcojBSF-Q",
+    "expire_date": "2025-08-05T14:07:48.844Z"
+  }
+},
+{
+  "model": "api.plan",
+  "pk": 9,
+  "fields": {
+    "name": "Free",
+    "description": "Perfect for small organizations getting started.",
+    "max_users": 5,
+    "storage_limit_mb": 500,
+    "price": "0.00",
+    "billing_cycle": "monthly",
+    "monthly_equivalent": null,
+    "color": "#4CAF50",
+    "popular": false,
+    "savings_text": "",
+    "has_inventory": false,
+    "has_education": true,
+    "has_pharmacy": true,
+    "has_retail": true,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "has_healthcare": false,
+    "has_dashboard": true,
+    "has_analytics": false,
+    "has_qc": false,
+    "has_billing": false,
+    "has_api_access": false,
+    "has_audit_logs": false,
+    "has_priority_support": false,
+    "has_phone_support": false,
+    "has_white_label": false,
+    "has_onboarding": false,
+    "has_sla_support": false,
+    "has_daily_backups": false,
+    "has_strategy_call": false,
+    "has_custom_reports": false,
+    "has_future_discount": false,
+    "has_new_features_access": false
+  }
+},
+{
+  "model": "api.plan",
+  "pk": 10,
+  "fields": {
+    "name": "Starter",
+    "description": "Great for growing businesses.",
+    "max_users": 20,
+    "storage_limit_mb": 2048,
+    "price": "999.00",
+    "billing_cycle": "annual",
+    "monthly_equivalent": null,
+    "color": "#2196F3",
+    "popular": false,
+    "savings_text": "",
+    "has_inventory": true,
+    "has_education": true,
+    "has_pharmacy": true,
+    "has_retail": true,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "has_healthcare": true,
+    "has_dashboard": true,
+    "has_analytics": false,
+    "has_qc": false,
+    "has_billing": false,
+    "has_api_access": false,
+    "has_audit_logs": false,
+    "has_priority_support": false,
+    "has_phone_support": false,
+    "has_white_label": false,
+    "has_onboarding": false,
+    "has_sla_support": false,
+    "has_daily_backups": true,
+    "has_strategy_call": false,
+    "has_custom_reports": false,
+    "has_future_discount": false,
+    "has_new_features_access": false
+  }
+},
+{
+  "model": "api.plan",
+  "pk": 11,
+  "fields": {
+    "name": "Business",
+    "description": "Best value for growing businesses with annual commitment.",
+    "max_users": 150,
+    "storage_limit_mb": 20480,
+    "price": "4999.00",
+    "billing_cycle": "annual",
+    "monthly_equivalent": null,
+    "color": "#FF9800",
+    "popular": false,
+    "savings_text": "",
+    "has_inventory": true,
+    "has_education": true,
+    "has_pharmacy": true,
+    "has_retail": true,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "has_healthcare": true,
+    "has_dashboard": true,
+    "has_analytics": true,
+    "has_qc": true,
+    "has_billing": true,
+    "has_api_access": true,
+    "has_audit_logs": true,
+    "has_priority_support": true,
+    "has_phone_support": false,
+    "has_white_label": false,
+    "has_onboarding": true,
+    "has_sla_support": false,
+    "has_daily_backups": true,
+    "has_strategy_call": true,
+    "has_custom_reports": true,
+    "has_future_discount": true,
+    "has_new_features_access": true
+  }
+},
+{
+  "model": "api.plan",
+  "pk": 12,
+  "fields": {
+    "name": "Pro",
+    "description": "Perfect for established teams and organizations.",
+    "max_users": 50,
+    "storage_limit_mb": 10240,
+    "price": "2499.00",
+    "billing_cycle": "annual",
+    "monthly_equivalent": null,
+    "color": "#9C27B0",
+    "popular": true,
+    "savings_text": "",
+    "has_inventory": true,
+    "has_education": true,
+    "has_pharmacy": true,
+    "has_retail": true,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "has_healthcare": true,
+    "has_dashboard": true,
+    "has_analytics": true,
+    "has_qc": true,
+    "has_billing": true,
+    "has_api_access": true,
+    "has_audit_logs": true,
+    "has_priority_support": true,
+    "has_phone_support": false,
+    "has_white_label": false,
+    "has_onboarding": false,
+    "has_sla_support": false,
+    "has_daily_backups": true,
+    "has_strategy_call": false,
+    "has_custom_reports": false,
+    "has_future_discount": false,
+    "has_new_features_access": false
+  }
+},
+{
+  "model": "api.plan",
+  "pk": 13,
+  "fields": {
+    "name": "Enterprise",
+    "description": "Custom plan for large organizations with unlimited scalability.",
+    "max_users": null,
+    "storage_limit_mb": 102400,
+    "price": null,
+    "billing_cycle": "custom",
+    "monthly_equivalent": null,
+    "color": "#F44336",
+    "popular": false,
+    "savings_text": "",
+    "has_inventory": true,
+    "has_education": true,
+    "has_pharmacy": true,
+    "has_retail": true,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "has_healthcare": true,
+    "has_dashboard": true,
+    "has_analytics": true,
+    "has_qc": true,
+    "has_billing": true,
+    "has_api_access": true,
+    "has_audit_logs": true,
+    "has_priority_support": true,
+    "has_phone_support": true,
+    "has_white_label": true,
+    "has_onboarding": true,
+    "has_sla_support": true,
+    "has_daily_backups": true,
+    "has_strategy_call": true,
+    "has_custom_reports": true,
+    "has_future_discount": true,
+    "has_new_features_access": true
+  }
+},
+{
+  "model": "api.role",
+  "pk": 1,
+  "fields": {
+    "name": "admin",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 2,
+  "fields": {
+    "name": "staff",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 3,
+  "fields": {
+    "name": "teacher",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 4,
+  "fields": {
+    "name": "principal",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 5,
+  "fields": {
+    "name": "accountant",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 6,
+  "fields": {
+    "name": "librarian",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 7,
+  "fields": {
+    "name": "student",
+    "description": ""
+  }
+},
+{
+  "model": "api.role",
+  "pk": 8,
+  "fields": {
+    "name": "pharmacy_admin",
+    "description": "Pharmacy Administrator - Full access to pharmacy management"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 9,
+  "fields": {
+    "name": "pharmacist",
+    "description": "Pharmacist - Can manage medicines, prescriptions, and sales"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 10,
+  "fields": {
+    "name": "pharmacy_staff",
+    "description": "Pharmacy Staff - Basic pharmacy operations"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 11,
+  "fields": {
+    "name": "pharmacy_cashier",
+    "description": "Pharmacy Cashier - Handle sales and billing"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 12,
+  "fields": {
+    "name": "pharmacy_manager",
+    "description": "Pharmacy Manager - Manage inventory and staff"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 13,
+  "fields": {
+    "name": "pharmacy_assistant",
+    "description": "Pharmacy Assistant - Support pharmacy operations"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 14,
+  "fields": {
+    "name": "retail_admin",
+    "description": "Retail Administrator - Full access to retail management"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 15,
+  "fields": {
+    "name": "retail_manager",
+    "description": "Retail Manager - Manage inventory, staff, and operations"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 16,
+  "fields": {
+    "name": "retail_staff",
+    "description": "Retail Staff - Basic retail operations"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 17,
+  "fields": {
+    "name": "retail_cashier",
+    "description": "Retail Cashier - Handle sales and billing"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 18,
+  "fields": {
+    "name": "retail_assistant",
+    "description": "Retail Assistant - Support retail operations"
+  }
+},
+{
+  "model": "api.role",
+  "pk": 19,
+  "fields": {
+    "name": "Admin",
+    "description": "Administrator role"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 8,
+  "fields": {
+    "name": "Indian Heritage Spices pvt.ltd",
+    "industry": "Manufacturing",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:03:35.768Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 9,
+  "fields": {
+    "name": "GHRC",
+    "industry": "education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:12:30.395Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 10,
+  "fields": {
+    "name": "Indian Heritage Spices pvt.ltd",
+    "industry": "Manufacturing",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:36:08.685Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 11,
+  "fields": {
+    "name": "Test Company",
+    "industry": "Technology",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:41:29.870Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 12,
+  "fields": {
+    "name": "Test Company",
+    "industry": "Technology",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:41:54.684Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 13,
+  "fields": {
+    "name": "Indian Heritage Spices pvt.ltd",
+    "industry": "Manufacturing",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:43:25.611Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 14,
+  "fields": {
+    "name": "Test Company",
+    "industry": "Technology",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:52:27.651Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 15,
+  "fields": {
+    "name": "Indian Heritage Spices pvt.ltd",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:55:23.286Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 16,
+  "fields": {
+    "name": "Indian Heritage Spices pvt.ltd",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-19T11:57:17.791Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 17,
+  "fields": {
+    "name": "Test School",
+    "industry": "education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-20T05:28:48.080Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 18,
+  "fields": {
+    "name": "Heritage",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-21T18:20:30.740Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 19,
+  "fields": {
+    "name": "Heritage",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-21T18:36:50.910Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 20,
+  "fields": {
+    "name": "Demo School",
+    "industry": "education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-22T13:29:46.176Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 21,
+  "fields": {
+    "name": "VIT",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-22T13:55:46.868Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 22,
+  "fields": {
+    "name": "Heritage",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-22T16:36:08.475Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 23,
+  "fields": {
+    "name": "XYZ",
+    "industry": "Education",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-24T13:17:20.719Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 24,
+  "fields": {
+    "name": "SSP",
+    "industry": "Pharmacy",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T08:10:52.478Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 25,
+  "fields": {
+    "name": "Pharmacy Store",
+    "industry": "pharmacy",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T12:24:03.531Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 26,
+  "fields": {
+    "name": "Retail Store",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T12:24:03.540Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 27,
+  "fields": {
+    "name": "Education Institute",
+    "industry": "education",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T12:24:03.549Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 28,
+  "fields": {
+    "name": "Ram ",
+    "industry": "Retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T13:59:10.951Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 29,
+  "fields": {
+    "name": "Ram ",
+    "industry": "Retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-07-31T14:02:14.418Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 30,
+  "fields": {
+    "name": "Test Pharmacy",
+    "industry": "healthcare",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-01T05:39:59.578Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 31,
+  "fields": {
+    "name": "Agency",
+    "industry": "Retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-01T09:42:11.705Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 32,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:25:27.016Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 33,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:26:00.159Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 34,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:26:29.432Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 35,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:26:44.615Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 36,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:26:59.543Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 37,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:31:56.072Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 38,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:33:17.910Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 39,
+  "fields": {
+    "name": "Test Retail Tenant",
+    "industry": "retail",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:33:47.912Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 40,
+  "fields": {
+    "name": "Complete Test Tenant",
+    "industry": "education",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:36:23.192Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 41,
+  "fields": {
+    "name": "Complete Test Tenant",
+    "industry": "education",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:36:53.956Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 42,
+  "fields": {
+    "name": "Deep Analysis Tenant",
+    "industry": "education",
+    "plan": 9,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-02T09:40:31.494Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 43,
+  "fields": {
+    "name": "Default Tenant",
+    "industry": "healthcare",
+    "plan": null,
+    "slug": null,
+    "public_booking_enabled": false,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": null,
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-08-04T12:26:44.505Z"
+  }
+},
+{
+  "model": "api.tenant",
+  "pk": 44,
+  "fields": {
+    "name": "salon1",
+    "industry": "salon",
+    "plan": 10,
+    "slug": "defevjvv2535xsjvhj",
+    "public_booking_enabled": true,
+    "public_orders_enabled": false,
+    "public_admissions_enabled": false,
+    "public_api_key": "VAx2jHQknvd_nd1UpTsJa_g7EDk0UIPQGln-iVHIXfE",
+    "has_hotel": false,
+    "has_restaurant": false,
+    "has_salon": false,
+    "storage_used_mb": 0.0,
+    "created_at": "2025-09-08T16:21:41.651Z"
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 49,
+  "fields": {
+    "user": 64,
+    "tenant": 24,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 50,
+  "fields": {
+    "user": 65,
+    "tenant": 28,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 51,
+  "fields": {
+    "user": 66,
+    "tenant": 29,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 52,
+  "fields": {
+    "user": 67,
+    "tenant": 24,
+    "role": 9,
+    "department": null,
+    "photo": "",
+    "phone": "8697456328",
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 53,
+  "fields": {
+    "user": 68,
+    "tenant": 30,
+    "role": 19,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 54,
+  "fields": {
+    "user": 69,
+    "tenant": 31,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 55,
+  "fields": {
+    "user": 71,
+    "tenant": 33,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 56,
+  "fields": {
+    "user": 72,
+    "tenant": 34,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 57,
+  "fields": {
+    "user": 73,
+    "tenant": 35,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 58,
+  "fields": {
+    "user": 74,
+    "tenant": 36,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 59,
+  "fields": {
+    "user": 75,
+    "tenant": 37,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 60,
+  "fields": {
+    "user": 76,
+    "tenant": 38,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 61,
+  "fields": {
+    "user": 77,
+    "tenant": 39,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 62,
+  "fields": {
+    "user": 78,
+    "tenant": 40,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 63,
+  "fields": {
+    "user": 79,
+    "tenant": 41,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 64,
+  "fields": {
+    "user": 80,
+    "tenant": 42,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 65,
+  "fields": {
+    "user": 61,
+    "tenant": 8,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 66,
+  "fields": {
+    "user": 70,
+    "tenant": 43,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.userprofile",
+  "pk": 67,
+  "fields": {
+    "user": 81,
+    "tenant": 44,
+    "role": 1,
+    "department": null,
+    "photo": "",
+    "phone": null,
+    "address": null,
+    "date_of_birth": null,
+    "gender": null,
+    "emergency_contact": null,
+    "job_title": null,
+    "joining_date": null,
+    "qualifications": null,
+    "bio": null,
+    "linkedin": null,
+    "assigned_classes": []
+  }
+},
+{
+  "model": "api.emailverification",
+  "pk": 15,
+  "fields": {
+    "user": 64,
+    "token": "5a0b8650-91e8-421d-81c8-07d3d48c1040",
+    "email": "shadabsheikh314@gmail.com",
+    "created_at": "2025-07-31T08:10:52.902Z",
+    "verified_at": "2025-07-31T08:11:25.541Z",
+    "is_verified": true
+  }
+},
+{
+  "model": "api.emailverification",
+  "pk": 16,
+  "fields": {
+    "user": 65,
+    "token": "1e3395c0-a078-43a6-83b2-6e8da48485a0",
+    "email": "shadabsheikh314ee@gmail.com",
+    "created_at": "2025-07-31T13:59:11.442Z",
+    "verified_at": null,
+    "is_verified": false
+  }
+},
+{
+  "model": "api.emailverification",
+  "pk": 17,
+  "fields": {
+    "user": 66,
+    "token": "ff37800e-96ed-4d04-9ec1-d92a16676a72",
+    "email": "shadabsheikhee314@gmail.com",
+    "created_at": "2025-07-31T14:02:14.894Z",
+    "verified_at": "2025-07-31T14:02:40.180Z",
+    "is_verified": true
+  }
+},
+{
+  "model": "api.emailverification",
+  "pk": 18,
+  "fields": {
+    "user": 69,
+    "token": "ce4189ef-b3d7-4f21-b76b-391aad23c9b6",
+    "email": "heritage.spices.pvtltd@gmail.com",
+    "created_at": "2025-08-01T09:42:12.939Z",
+    "verified_at": "2025-08-01T09:43:45.275Z",
+    "is_verified": true
+  }
+},
+{
+  "model": "api.emailverification",
+  "pk": 19,
+  "fields": {
+    "user": 81,
+    "token": "cd11257a-e706-4ca1-9229-12ac7ec79e4c",
+    "email": "safeeditpdf@gmail.com",
+    "created_at": "2025-09-08T16:21:42.873Z",
+    "verified_at": "2025-09-08T16:22:13.873Z",
+    "is_verified": true
+  }
+},
+{
+  "model": "education.class",
+  "pk": 15,
+  "fields": {
+    "tenant": 9,
+    "name": "Class 10A",
+    "schedule": "Monday to Friday, 8:00 AM - 2:00 PM"
+  }
+},
+{
+  "model": "education.class",
+  "pk": 16,
+  "fields": {
+    "tenant": 9,
+    "name": "Class 10B",
+    "schedule": "Monday to Friday, 8:00 AM - 2:00 PM"
+  }
+},
+{
+  "model": "education.class",
+  "pk": 17,
+  "fields": {
+    "tenant": 9,
+    "name": "Class 11A",
+    "schedule": "Monday to Friday, 8:00 AM - 2:00 PM"
+  }
+},
+{
+  "model": "education.class",
+  "pk": 18,
+  "fields": {
+    "tenant": 9,
+    "name": "Class 11B",
+    "schedule": "Monday to Friday, 8:00 AM - 2:00 PM"
+  }
+},
+{
+  "model": "education.class",
+  "pk": 19,
+  "fields": {
+    "tenant": 41,
+    "name": "Class 10A",
+    "schedule": ""
+  }
+},
+{
+  "model": "education.student",
+  "pk": 21,
+  "fields": {
+    "tenant": 9,
+    "name": "Alice Johnson",
+    "email": "alice.johnson@school.com",
+    "upper_id": null,
+    "admission_date": "2024-06-01",
+    "assigned_class": null
+  }
+},
+{
+  "model": "education.student",
+  "pk": 22,
+  "fields": {
+    "tenant": 9,
+    "name": "Bob Smith",
+    "email": "bob.smith@school.com",
+    "upper_id": null,
+    "admission_date": "2024-06-01",
+    "assigned_class": null
+  }
+},
+{
+  "model": "education.student",
+  "pk": 23,
+  "fields": {
+    "tenant": 9,
+    "name": "Carol Davis",
+    "email": "carol.davis@school.com",
+    "upper_id": null,
+    "admission_date": "2024-06-01",
+    "assigned_class": null
+  }
+},
+{
+  "model": "education.student",
+  "pk": 24,
+  "fields": {
+    "tenant": 9,
+    "name": "David Wilson",
+    "email": "david.wilson@school.com",
+    "upper_id": null,
+    "admission_date": "2024-06-01",
+    "assigned_class": null
+  }
+},
+{
+  "model": "education.student",
+  "pk": 25,
+  "fields": {
+    "tenant": 9,
+    "name": "Eva Brown",
+    "email": "eva.brown@school.com",
+    "upper_id": null,
+    "admission_date": "2024-06-01",
+    "assigned_class": null
+  }
+},
+{
+  "model": "education.student",
+  "pk": 26,
+  "fields": {
+    "tenant": 41,
+    "name": "Test Student",
+    "email": "student@test.com",
+    "upper_id": null,
+    "admission_date": "2024-01-01",
+    "assigned_class": 19
+  }
+},
+{
+  "model": "education.feestructure",
+  "pk": 12,
+  "fields": {
+    "tenant": 9,
+    "class_obj": 15,
+    "fee_type": "TUITION",
+    "amount": "12500.00",
+    "description": "Tuition fee for Class 10A",
+    "is_optional": false,
+    "due_date": "2025-08-30",
+    "academic_year": "2024-25"
+  }
+},
+{
+  "model": "education.feestructure",
+  "pk": 13,
+  "fields": {
+    "tenant": 9,
+    "class_obj": 16,
+    "fee_type": "TUITION",
+    "amount": "13000.00",
+    "description": "Tuition fee for Class 10B",
+    "is_optional": false,
+    "due_date": "2025-08-30",
+    "academic_year": "2024-25"
+  }
+},
+{
+  "model": "education.feestructure",
+  "pk": 14,
+  "fields": {
+    "tenant": 9,
+    "class_obj": 17,
+    "fee_type": "TUITION",
+    "amount": "13500.00",
+    "description": "Tuition fee for Class 11A",
+    "is_optional": false,
+    "due_date": "2025-08-30",
+    "academic_year": "2024-25"
+  }
+},
+{
+  "model": "education.feestructure",
+  "pk": 15,
+  "fields": {
+    "tenant": 9,
+    "class_obj": 18,
+    "fee_type": "TUITION",
+    "amount": "14000.00",
+    "description": "Tuition fee for Class 11B",
+    "is_optional": false,
+    "due_date": "2025-08-30",
+    "academic_year": "2024-25"
+  }
+},
+{
+  "model": "education.feestructure",
+  "pk": 16,
+  "fields": {
+    "tenant": 41,
+    "class_obj": 19,
+    "fee_type": "TUITION",
+    "amount": "5000.00",
+    "description": "",
+    "is_optional": false,
+    "due_date": null,
+    "academic_year": "2024-25"
+  }
+},
+{
+  "model": "education.attendance",
+  "pk": 35,
+  "fields": {
+    "tenant": 9,
+    "student": 21,
+    "date": "2025-07-31",
+    "present": false
+  }
+},
+{
+  "model": "education.attendance",
+  "pk": 36,
+  "fields": {
+    "tenant": 9,
+    "student": 22,
+    "date": "2025-07-31",
+    "present": true
+  }
+},
+{
+  "model": "education.attendance",
+  "pk": 37,
+  "fields": {
+    "tenant": 9,
+    "student": 23,
+    "date": "2025-07-31",
+    "present": false
+  }
+},
+{
+  "model": "education.attendance",
+  "pk": 38,
+  "fields": {
+    "tenant": 9,
+    "student": 24,
+    "date": "2025-07-31",
+    "present": true
+  }
+},
+{
+  "model": "education.attendance",
+  "pk": 39,
+  "fields": {
+    "tenant": 9,
+    "student": 25,
+    "date": "2025-07-31",
+    "present": false
+  }
+},
+{
+  "model": "education.reportcard",
+  "pk": 7,
+  "fields": {
+    "tenant": 9,
+    "student": 21,
+    "term": "First Term",
+    "grades": "{'Mathematics': 'B', 'Science': 'B', 'English': 'B', 'History': 'B'}",
+    "generated_at": "2025-07-31T12:03:16.465Z"
+  }
+},
+{
+  "model": "education.reportcard",
+  "pk": 8,
+  "fields": {
+    "tenant": 9,
+    "student": 22,
+    "term": "First Term",
+    "grades": "{'Mathematics': 'A', 'Science': 'A', 'English': 'A', 'History': 'A'}",
+    "generated_at": "2025-07-31T12:03:16.471Z"
+  }
+},
+{
+  "model": "education.reportcard",
+  "pk": 9,
+  "fields": {
+    "tenant": 9,
+    "student": 23,
+    "term": "First Term",
+    "grades": "{'Mathematics': 'B', 'Science': 'B', 'English': 'B', 'History': 'B'}",
+    "generated_at": "2025-07-31T12:03:16.477Z"
+  }
+},
+{
+  "model": "education.reportcard",
+  "pk": 10,
+  "fields": {
+    "tenant": 9,
+    "student": 24,
+    "term": "First Term",
+    "grades": "{'Mathematics': 'A', 'Science': 'A', 'English': 'A', 'History': 'A'}",
+    "generated_at": "2025-07-31T12:03:16.481Z"
+  }
+},
+{
+  "model": "education.reportcard",
+  "pk": 11,
+  "fields": {
+    "tenant": 9,
+    "student": 25,
+    "term": "First Term",
+    "grades": "{'Mathematics': 'B', 'Science': 'B', 'English': 'B', 'History': 'B'}",
+    "generated_at": "2025-07-31T12:03:16.485Z"
+  }
+},
+{
+  "model": "education.staffattendance",
+  "pk": 21,
+  "fields": {
+    "staff": 49,
+    "date": "2025-07-31",
+    "check_in_time": "2025-07-31T10:46:10.086Z",
+    "check_out_time": "2025-07-31T13:54:54.567Z",
+    "tenant": 24
+  }
+},
+{
+  "model": "education.staffattendance",
+  "pk": 22,
+  "fields": {
+    "staff": 52,
+    "date": "2025-08-01",
+    "check_in_time": "2025-08-01T05:25:01.606Z",
+    "check_out_time": "2025-08-01T05:25:02.695Z",
+    "tenant": 24
+  }
+},
+{
+  "model": "education.department",
+  "pk": 3,
+  "fields": {
+    "tenant": 9,
+    "name": "Computer Science"
+  }
+},
+{
+  "model": "education.department",
+  "pk": 4,
+  "fields": {
+    "tenant": 9,
+    "name": "Mathematics"
+  }
+},
+{
+  "model": "education.department",
+  "pk": 5,
+  "fields": {
+    "tenant": 9,
+    "name": "Physics"
+  }
+},
+{
+  "model": "education.department",
+  "pk": 6,
+  "fields": {
+    "tenant": 9,
+    "name": "Chemistry"
+  }
+},
+{
+  "model": "education.department",
+  "pk": 7,
+  "fields": {
+    "tenant": 40,
+    "name": "Computer Science"
+  }
+},
+{
+  "model": "education.department",
+  "pk": 8,
+  "fields": {
+    "tenant": 41,
+    "name": "Computer Science"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "name": "Pain Relief",
+    "description": "Medicines for pain and fever"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "name": "Antibiotic",
+    "description": "Antibacterial medications"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 3,
+  "fields": {
+    "tenant": 24,
+    "name": "Antacid",
+    "description": "For acid reflux and ulcers"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 4,
+  "fields": {
+    "tenant": 24,
+    "name": "Antiallergic",
+    "description": "For allergies and hay fever"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 5,
+  "fields": {
+    "tenant": 30,
+    "name": "Pain Relief",
+    "description": "Medicines for pain and fever"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 6,
+  "fields": {
+    "tenant": 30,
+    "name": "Antibiotics",
+    "description": "Antibacterial medications"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 7,
+  "fields": {
+    "tenant": 30,
+    "name": "Vitamins",
+    "description": "Vitamin and mineral supplements"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 8,
+  "fields": {
+    "tenant": 30,
+    "name": "Cough & Cold",
+    "description": "Medicines for respiratory issues"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 9,
+  "fields": {
+    "tenant": 30,
+    "name": "Digestive Health",
+    "description": "Medicines for stomach and digestive issues"
+  }
+},
+{
+  "model": "pharmacy.medicinecategory",
+  "pk": 10,
+  "fields": {
+    "tenant": 41,
+    "name": "Pain Relief",
+    "description": ""
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "name": "ABC Pharmaceuticals",
+    "contact_person": "John Supplier",
+    "phone": "+91 98765 43220",
+    "email": "john@abcpharma.com",
+    "address": "123 Pharma Street, City",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "name": "XYZ Pharma",
+    "contact_person": "Jane Supplier",
+    "phone": "+91 98765 43221",
+    "email": "jane@xyzpharma.com",
+    "address": "456 Medicine Road, Town",
+    "gst_number": "GST987654321",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 3,
+  "fields": {
+    "tenant": 30,
+    "name": "ABC Pharmaceuticals",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "contact@abcpharmaceuticals.com",
+    "address": "123 Main St, ABC Pharmaceuticals",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 4,
+  "fields": {
+    "tenant": 30,
+    "name": "XYZ Pharma Ltd",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "contact@xyzpharmaltd.com",
+    "address": "123 Main St, XYZ Pharma Ltd",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 5,
+  "fields": {
+    "tenant": 30,
+    "name": "HealthCare Solutions",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "contact@healthcaresolutions.com",
+    "address": "123 Main St, HealthCare Solutions",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 6,
+  "fields": {
+    "tenant": 30,
+    "name": "Kissan Foods",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "contact@kissanfoods.com",
+    "address": "123 Main St, Kissan Foods",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 7,
+  "fields": {
+    "tenant": 24,
+    "name": "azba",
+    "contact_person": "ms azba",
+    "phone": "456789127",
+    "email": "",
+    "address": "gadchorali",
+    "gst_number": "",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.supplier",
+  "pk": 8,
+  "fields": {
+    "tenant": 41,
+    "name": "Pharma Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@pharma.com",
+    "address": "Pharma Address",
+    "gst_number": "",
+    "payment_terms": "Net 30"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "name": "Paracetamol 500mg",
+    "generic_name": "Acetaminophen",
+    "category": 1,
+    "manufacturer": "ABC Pharmaceuticals",
+    "strength": "500mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "Used for fever and pain relief",
+    "side_effects": "Rare side effects include nausea",
+    "storage_conditions": "Store in a cool, dry place",
+    "expiry_alert_days": 30,
+    "barcode": null
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "name": "Amoxicillin 250mg",
+    "generic_name": "Amoxicillin",
+    "category": 2,
+    "manufacturer": "XYZ Pharma",
+    "strength": "250mg",
+    "dosage_form": "CAPSULE",
+    "prescription_required": true,
+    "description": "Broad spectrum antibiotic",
+    "side_effects": "May cause stomach upset",
+    "storage_conditions": "Store in refrigerator",
+    "expiry_alert_days": 30,
+    "barcode": null
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 3,
+  "fields": {
+    "tenant": 24,
+    "name": "Omeprazole 20mg",
+    "generic_name": "Omeprazole",
+    "category": 3,
+    "manufacturer": "DEF Pharmaceuticals",
+    "strength": "20mg",
+    "dosage_form": "CAPSULE",
+    "prescription_required": false,
+    "description": "For acid reflux and ulcers",
+    "side_effects": "May cause headache",
+    "storage_conditions": "Store at room temperature",
+    "expiry_alert_days": 30,
+    "barcode": null
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 4,
+  "fields": {
+    "tenant": 24,
+    "name": "Cetirizine 10mg",
+    "generic_name": "Cetirizine",
+    "category": 4,
+    "manufacturer": "GHI Pharma",
+    "strength": "10mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "For allergies and hay fever",
+    "side_effects": "May cause drowsiness",
+    "storage_conditions": "Store in a cool, dry place",
+    "expiry_alert_days": 30,
+    "barcode": null
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 5,
+  "fields": {
+    "tenant": 30,
+    "name": "Paracetamol 500mg",
+    "generic_name": "Acetaminophen",
+    "category": 5,
+    "manufacturer": "ABC Pharmaceuticals",
+    "strength": "500mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "Fever and pain relief",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "1234567890123"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 6,
+  "fields": {
+    "tenant": 30,
+    "name": "Amoxicillin 250mg",
+    "generic_name": "Amoxicillin",
+    "category": 6,
+    "manufacturer": "XYZ Pharma Ltd",
+    "strength": "250mg",
+    "dosage_form": "CAPSULE",
+    "prescription_required": false,
+    "description": "Antibiotic for bacterial infections",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "2345678901234"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 7,
+  "fields": {
+    "tenant": 30,
+    "name": "Vitamin C 1000mg",
+    "generic_name": "Ascorbic Acid",
+    "category": 7,
+    "manufacturer": "HealthCare Solutions",
+    "strength": "1000mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "Vitamin C supplement for immunity",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "3456789012345"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 8,
+  "fields": {
+    "tenant": 30,
+    "name": "Omeprazole 20mg",
+    "generic_name": "Omeprazole",
+    "category": 9,
+    "manufacturer": "ABC Pharmaceuticals",
+    "strength": "20mg",
+    "dosage_form": "CAPSULE",
+    "prescription_required": false,
+    "description": "Acid reflux and stomach ulcer treatment",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "4567890123456"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 9,
+  "fields": {
+    "tenant": 30,
+    "name": "Cetirizine 10mg",
+    "generic_name": "Cetirizine",
+    "category": 8,
+    "manufacturer": "XYZ Pharma Ltd",
+    "strength": "10mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "Antihistamine for allergies",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "5678901234567"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 10,
+  "fields": {
+    "tenant": 30,
+    "name": "Kissan Peanut Butter",
+    "generic_name": "Peanut Butter",
+    "category": 7,
+    "manufacturer": "Kissan Foods",
+    "strength": "500g",
+    "dosage_form": "OTHER",
+    "prescription_required": false,
+    "description": "Nutritious peanut butter spread",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": "8901234567890"
+  }
+},
+{
+  "model": "pharmacy.medicine",
+  "pk": 11,
+  "fields": {
+    "tenant": 41,
+    "name": "Test Medicine",
+    "generic_name": "Test Generic",
+    "category": 10,
+    "manufacturer": "Test Manufacturer",
+    "strength": "500mg",
+    "dosage_form": "TABLET",
+    "prescription_required": false,
+    "description": "",
+    "side_effects": "",
+    "storage_conditions": "",
+    "expiry_alert_days": 30,
+    "barcode": null
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "medicine": 1,
+    "batch_number": "BATCH001",
+    "supplier": 1,
+    "manufacturing_date": "2025-07-01",
+    "expiry_date": "2026-07-31",
+    "cost_price": "3.00",
+    "selling_price": "5.00",
+    "mrp": "8.00",
+    "quantity_received": 200,
+    "quantity_available": 150,
+    "location": "Shelf A"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "medicine": 2,
+    "batch_number": "BATCH002",
+    "supplier": 2,
+    "manufacturing_date": "2025-07-01",
+    "expiry_date": "2026-07-31",
+    "cost_price": "5.00",
+    "selling_price": "8.00",
+    "mrp": "12.00",
+    "quantity_received": 180,
+    "quantity_available": 135,
+    "location": "Shelf A"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 3,
+  "fields": {
+    "tenant": 24,
+    "medicine": 3,
+    "batch_number": "BATCH003",
+    "supplier": 1,
+    "manufacturing_date": "2025-07-01",
+    "expiry_date": "2026-07-31",
+    "cost_price": "7.00",
+    "selling_price": "11.00",
+    "mrp": "16.00",
+    "quantity_received": 160,
+    "quantity_available": 120,
+    "location": "Shelf A"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 4,
+  "fields": {
+    "tenant": 24,
+    "medicine": 4,
+    "batch_number": "BATCH004",
+    "supplier": 2,
+    "manufacturing_date": "2025-07-01",
+    "expiry_date": "2026-07-31",
+    "cost_price": "9.00",
+    "selling_price": "14.00",
+    "mrp": "20.00",
+    "quantity_received": 140,
+    "quantity_available": 105,
+    "location": "Shelf A"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 5,
+  "fields": {
+    "tenant": 30,
+    "medicine": 5,
+    "batch_number": "BATCH005",
+    "supplier": 3,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "7.35",
+    "selling_price": "10.50",
+    "mrp": "12.60",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 6,
+  "fields": {
+    "tenant": 30,
+    "medicine": 6,
+    "batch_number": "BATCH006",
+    "supplier": 4,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "10.50",
+    "selling_price": "15.00",
+    "mrp": "18.00",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 7,
+  "fields": {
+    "tenant": 30,
+    "medicine": 7,
+    "batch_number": "BATCH007",
+    "supplier": 5,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "17.50",
+    "selling_price": "25.00",
+    "mrp": "30.00",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 8,
+  "fields": {
+    "tenant": 30,
+    "medicine": 8,
+    "batch_number": "BATCH008",
+    "supplier": 3,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "21.00",
+    "selling_price": "30.00",
+    "mrp": "36.00",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 9,
+  "fields": {
+    "tenant": 30,
+    "medicine": 9,
+    "batch_number": "BATCH009",
+    "supplier": 4,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "8.40",
+    "selling_price": "12.00",
+    "mrp": "14.40",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 10,
+  "fields": {
+    "tenant": 30,
+    "medicine": 10,
+    "batch_number": "BATCH010",
+    "supplier": 6,
+    "manufacturing_date": "2025-07-02",
+    "expiry_date": "2026-08-01",
+    "cost_price": "105.00",
+    "selling_price": "150.00",
+    "mrp": "180.00",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.medicinebatch",
+  "pk": 11,
+  "fields": {
+    "tenant": 41,
+    "medicine": 11,
+    "batch_number": "BATCH1754127413",
+    "supplier": 8,
+    "manufacturing_date": "2024-01-01",
+    "expiry_date": "2026-01-01",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "quantity_received": 100,
+    "quantity_available": 100,
+    "location": "Main Store"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "name": "John Doe",
+    "phone": "+91 98765 43210",
+    "email": "john.doe@email.com",
+    "address": "123 Main Street, City",
+    "date_of_birth": "1985-05-15",
+    "allergies": "",
+    "medical_history": "",
+    "created_at": "2025-07-31T10:38:59.991Z"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "name": "Jane Smith",
+    "phone": "+91 98765 43211",
+    "email": "jane.smith@email.com",
+    "address": "456 Oak Avenue, Town",
+    "date_of_birth": "1990-08-22",
+    "allergies": "",
+    "medical_history": "",
+    "created_at": "2025-07-31T10:39:00.006Z"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 3,
+  "fields": {
+    "tenant": 24,
+    "name": "Mike Johnson",
+    "phone": "+91 98765 43212",
+    "email": "mike.johnson@email.com",
+    "address": "789 Pine Road, Village",
+    "date_of_birth": "1978-12-10",
+    "allergies": "",
+    "medical_history": "",
+    "created_at": "2025-07-31T10:39:00.018Z"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 4,
+  "fields": {
+    "tenant": 24,
+    "name": "vinode",
+    "phone": "7896541235",
+    "email": "vinode12@gmail.com",
+    "address": "sdcdv",
+    "date_of_birth": "2025-08-04",
+    "allergies": "cSD",
+    "medical_history": "",
+    "created_at": "2025-08-02T08:26:04.180Z"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 5,
+  "fields": {
+    "tenant": 41,
+    "name": "Pharmacy Customer",
+    "phone": "9876543210",
+    "email": "customer@pharma.com",
+    "address": "Customer Address",
+    "date_of_birth": null,
+    "allergies": "",
+    "medical_history": "",
+    "created_at": "2025-08-02T09:36:53.986Z"
+  }
+},
+{
+  "model": "pharmacy.customer",
+  "pk": 6,
+  "fields": {
+    "tenant": 8,
+    "name": "Test Customer",
+    "phone": "1234567890",
+    "email": "",
+    "address": "",
+    "date_of_birth": null,
+    "allergies": "",
+    "medical_history": "",
+    "created_at": "2025-08-04T12:38:47.072Z"
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 1,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV001",
+    "customer": 1,
+    "prescription": null,
+    "sale_date": "2025-07-31T10:39:00.020Z",
+    "subtotal": "0.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "0.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 2,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV024001",
+    "customer": 1,
+    "prescription": null,
+    "sale_date": "2025-07-31T10:42:17.205Z",
+    "subtotal": "10.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "10.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 3,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV024002",
+    "customer": 2,
+    "prescription": null,
+    "sale_date": "2025-07-31T10:42:17.217Z",
+    "subtotal": "32.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "32.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 4,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV024003",
+    "customer": 3,
+    "prescription": null,
+    "sale_date": "2025-07-31T10:42:17.224Z",
+    "subtotal": "66.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "66.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 5,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV1754124188452",
+    "customer": null,
+    "prescription": null,
+    "sale_date": "2025-08-02T08:43:08.460Z",
+    "subtotal": "100.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "100.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 6,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV1754124465199",
+    "customer": null,
+    "prescription": null,
+    "sale_date": "2025-08-02T08:47:45.210Z",
+    "subtotal": "0.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "0.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 7,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV1754150016905",
+    "customer": null,
+    "prescription": null,
+    "sale_date": "2025-08-02T15:53:36.941Z",
+    "subtotal": "80.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "80.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 8,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV1754152689463",
+    "customer": null,
+    "prescription": null,
+    "sale_date": "2025-08-02T16:38:09.508Z",
+    "subtotal": "20.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "20.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 9,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV1754153281902",
+    "customer": null,
+    "prescription": null,
+    "sale_date": "2025-08-02T16:48:01.923Z",
+    "subtotal": "90.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "90.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 10,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV20250804180847",
+    "customer": 6,
+    "prescription": null,
+    "sale_date": "2025-08-04T12:38:47.093Z",
+    "subtotal": "10.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "10.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 65,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 11,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV20250804180951",
+    "customer": 6,
+    "prescription": null,
+    "sale_date": "2025-08-04T12:39:51.700Z",
+    "subtotal": "10.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "10.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 65,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 12,
+  "fields": {
+    "tenant": 24,
+    "invoice_number": "INV20250804181107",
+    "customer": 2,
+    "prescription": null,
+    "sale_date": "2025-08-04T12:41:07.234Z",
+    "subtotal": "50.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "50.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 13,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "INV20250804181242",
+    "customer": 6,
+    "prescription": null,
+    "sale_date": "2025-08-04T12:42:42.666Z",
+    "subtotal": "10.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "10.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 65,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.sale",
+  "pk": 14,
+  "fields": {
+    "tenant": 24,
+    "invoice_number": "INV20250804181628",
+    "customer": 4,
+    "prescription": null,
+    "sale_date": "2025-08-04T12:46:28.930Z",
+    "subtotal": "25.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "25.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 49,
+    "notes": ""
+  }
+},
+{
+  "model": "pharmacy.saleitem",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "sale": 2,
+    "medicine_batch": 1,
+    "quantity": 2,
+    "unit_price": "5.00",
+    "total_price": "10.00"
+  }
+},
+{
+  "model": "pharmacy.saleitem",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "sale": 3,
+    "medicine_batch": 2,
+    "quantity": 4,
+    "unit_price": "8.00",
+    "total_price": "32.00"
+  }
+},
+{
+  "model": "pharmacy.saleitem",
+  "pk": 3,
+  "fields": {
+    "tenant": 24,
+    "sale": 4,
+    "medicine_batch": 3,
+    "quantity": 6,
+    "unit_price": "11.00",
+    "total_price": "66.00"
+  }
+},
+{
+  "model": "pharmacy.saleitem",
+  "pk": 4,
+  "fields": {
+    "tenant": 8,
+    "sale": 13,
+    "medicine_batch": 1,
+    "quantity": 1,
+    "unit_price": "10.00",
+    "total_price": "10.00"
+  }
+},
+{
+  "model": "pharmacy.saleitem",
+  "pk": 5,
+  "fields": {
+    "tenant": 24,
+    "sale": 14,
+    "medicine_batch": 3,
+    "quantity": 5,
+    "unit_price": "5.00",
+    "total_price": "25.00"
+  }
+},
+{
+  "model": "pharmacy.stockadjustment",
+  "pk": 1,
+  "fields": {
+    "tenant": 24,
+    "medicine_batch": 3,
+    "adjustment_type": "ADD",
+    "quantity": 5,
+    "reason": "ADD",
+    "adjustment_date": "2025-08-01T17:57:12.553Z",
+    "adjusted_by": 49
+  }
+},
+{
+  "model": "pharmacy.stockadjustment",
+  "pk": 2,
+  "fields": {
+    "tenant": 24,
+    "medicine_batch": 3,
+    "adjustment_type": "REMOVE",
+    "quantity": 5,
+    "reason": "added mistaken",
+    "adjustment_date": "2025-08-02T09:01:31.998Z",
+    "adjusted_by": 49
+  }
+},
+{
+  "model": "pharmacy.staffattendance",
+  "pk": 1,
+  "fields": {
+    "staff": 49,
+    "date": "2025-08-01",
+    "check_in_time": "2025-08-01T10:06:21.997Z",
+    "check_out_time": "2025-08-01T14:07:38.054Z",
+    "tenant": 24
+  }
+},
+{
+  "model": "pharmacy.staffattendance",
+  "pk": 2,
+  "fields": {
+    "staff": 53,
+    "date": "2025-08-01",
+    "check_in_time": "2025-08-01T14:03:18.478Z",
+    "check_out_time": "2025-08-01T14:03:20.506Z",
+    "tenant": 30
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 2,
+  "fields": {
+    "tenant": 26,
+    "name": "Clothing",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 3,
+  "fields": {
+    "tenant": 26,
+    "name": "Home & Garden",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 4,
+  "fields": {
+    "tenant": 26,
+    "name": "Sports & Outdoors",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 5,
+  "fields": {
+    "tenant": 33,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 6,
+  "fields": {
+    "tenant": 34,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 7,
+  "fields": {
+    "tenant": 35,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 8,
+  "fields": {
+    "tenant": 36,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 9,
+  "fields": {
+    "tenant": 37,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 10,
+  "fields": {
+    "tenant": 38,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 11,
+  "fields": {
+    "tenant": 39,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.productcategory",
+  "pk": 12,
+  "fields": {
+    "tenant": 41,
+    "name": "Electronics",
+    "description": "",
+    "parent_category": null
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "name": "ABC Electronics",
+    "contact_person": "John Supplier",
+    "phone": "+91 98765 43220",
+    "email": "john@abcelectronics.com",
+    "address": "123 Electronics Street, City",
+    "gst_number": "GST123456789",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 2,
+  "fields": {
+    "tenant": 26,
+    "name": "XYZ Clothing",
+    "contact_person": "Jane Supplier",
+    "phone": "+91 98765 43221",
+    "email": "jane@xyzclothing.com",
+    "address": "456 Clothing Road, Town",
+    "gst_number": "GST987654321",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 3,
+  "fields": {
+    "tenant": 33,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 4,
+  "fields": {
+    "tenant": 34,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 5,
+  "fields": {
+    "tenant": 35,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 6,
+  "fields": {
+    "tenant": 36,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 7,
+  "fields": {
+    "tenant": 37,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 8,
+  "fields": {
+    "tenant": 38,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 9,
+  "fields": {
+    "tenant": 39,
+    "name": "Test Supplier",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "email": "supplier@test.com",
+    "address": "",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.supplier",
+  "pk": 10,
+  "fields": {
+    "tenant": 41,
+    "name": "Retail Supplier",
+    "contact_person": "Jane Doe",
+    "phone": "1234567890",
+    "email": "supplier@retail.com",
+    "address": "Retail Address",
+    "gst_number": "",
+    "payment_terms": "Net 30",
+    "credit_limit": "0.00"
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "name": "Smartphone X1",
+    "sku": "PHONE001",
+    "category": 1,
+    "brand": "TechCorp",
+    "description": "Latest smartphone with advanced features",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "12000.00",
+    "selling_price": "15000.00",
+    "mrp": "16000.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 2,
+  "fields": {
+    "tenant": 26,
+    "name": "Laptop Pro",
+    "sku": "LAPTOP001",
+    "category": 1,
+    "brand": "TechCorp",
+    "description": "Professional laptop for work and gaming",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "38000.00",
+    "selling_price": "45000.00",
+    "mrp": "48000.00",
+    "reorder_level": 5,
+    "max_stock_level": 50,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 3,
+  "fields": {
+    "tenant": 26,
+    "name": "Cotton T-Shirt",
+    "sku": "TSHIRT001",
+    "category": 2,
+    "brand": "FashionBrand",
+    "description": "Comfortable cotton t-shirt",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "300.00",
+    "selling_price": "500.00",
+    "mrp": "600.00",
+    "reorder_level": 20,
+    "max_stock_level": 200,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 4,
+  "fields": {
+    "tenant": 26,
+    "name": "Running Shoes",
+    "sku": "SHOES001",
+    "category": 4,
+    "brand": "SportBrand",
+    "description": "Professional running shoes",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "1800.00",
+    "selling_price": "2500.00",
+    "mrp": "2800.00",
+    "reorder_level": 8,
+    "max_stock_level": 80,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 5,
+  "fields": {
+    "tenant": 34,
+    "name": "Test Product",
+    "sku": "TEST001",
+    "category": 6,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 6,
+  "fields": {
+    "tenant": 36,
+    "name": "Test Product 1754126819",
+    "sku": "TESTSKU1754126819",
+    "category": 8,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 7,
+  "fields": {
+    "tenant": 37,
+    "name": "Test Product 1754127115",
+    "sku": "TESTSKU1754127115",
+    "category": 9,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 8,
+  "fields": {
+    "tenant": 38,
+    "name": "Test Product 1754127197",
+    "sku": "TESTSKU1754127197",
+    "category": 10,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 9,
+  "fields": {
+    "tenant": 39,
+    "name": "Test Product 1754127227",
+    "sku": "TESTSKU1754127227",
+    "category": 11,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.product",
+  "pk": 10,
+  "fields": {
+    "tenant": 41,
+    "name": "Test Product 1754127413",
+    "sku": "PROD1754127413",
+    "category": 12,
+    "brand": "Test Brand",
+    "description": "",
+    "image": "",
+    "unit_of_measure": "PCS",
+    "cost_price": "50.00",
+    "selling_price": "75.00",
+    "mrp": "80.00",
+    "reorder_level": 10,
+    "max_stock_level": 100,
+    "is_active": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "name": "Main Warehouse",
+    "address": "123 Warehouse Street, City",
+    "contact_person": "Warehouse Manager",
+    "phone": "+91 98765 43230",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 2,
+  "fields": {
+    "tenant": 26,
+    "name": "Store Warehouse",
+    "address": "456 Store Road, Town",
+    "contact_person": "Store Manager",
+    "phone": "+91 98765 43231",
+    "is_primary": false
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 3,
+  "fields": {
+    "tenant": 34,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 4,
+  "fields": {
+    "tenant": 35,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 5,
+  "fields": {
+    "tenant": 36,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 6,
+  "fields": {
+    "tenant": 37,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 7,
+  "fields": {
+    "tenant": 38,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 8,
+  "fields": {
+    "tenant": 39,
+    "name": "Main Warehouse",
+    "address": "Test Location",
+    "contact_person": "John Doe",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.warehouse",
+  "pk": 9,
+  "fields": {
+    "tenant": 41,
+    "name": "Main Warehouse",
+    "address": "Warehouse Address",
+    "contact_person": "Warehouse Manager",
+    "phone": "1234567890",
+    "is_primary": true
+  }
+},
+{
+  "model": "retail.inventory",
+  "pk": 1,
+  "fields": {
+    "tenant": 36,
+    "product": 6,
+    "warehouse": 5,
+    "quantity_on_hand": 50,
+    "quantity_reserved": 0,
+    "quantity_available": 50,
+    "last_updated": "2025-08-02T09:26:59.561Z"
+  }
+},
+{
+  "model": "retail.inventory",
+  "pk": 2,
+  "fields": {
+    "tenant": 37,
+    "product": 7,
+    "warehouse": 6,
+    "quantity_on_hand": 50,
+    "quantity_reserved": 0,
+    "quantity_available": 50,
+    "last_updated": "2025-08-02T09:31:56.090Z"
+  }
+},
+{
+  "model": "retail.inventory",
+  "pk": 3,
+  "fields": {
+    "tenant": 38,
+    "product": 8,
+    "warehouse": 7,
+    "quantity_on_hand": 50,
+    "quantity_reserved": 0,
+    "quantity_available": 50,
+    "last_updated": "2025-08-02T09:33:17.927Z"
+  }
+},
+{
+  "model": "retail.inventory",
+  "pk": 4,
+  "fields": {
+    "tenant": 39,
+    "product": 9,
+    "warehouse": 8,
+    "quantity_on_hand": 50,
+    "quantity_reserved": 0,
+    "quantity_available": 50,
+    "last_updated": "2025-08-02T09:33:47.934Z"
+  }
+},
+{
+  "model": "retail.inventory",
+  "pk": 5,
+  "fields": {
+    "tenant": 41,
+    "product": 10,
+    "warehouse": 9,
+    "quantity_on_hand": 50,
+    "quantity_reserved": 0,
+    "quantity_available": 50,
+    "last_updated": "2025-08-02T09:36:54.002Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "name": "John Customer",
+    "phone": "+91 98765 43210",
+    "email": "john.customer@email.com",
+    "address": "123 Customer Street, City",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-07-31T12:24:33.073Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 2,
+  "fields": {
+    "tenant": 26,
+    "name": "Jane Customer",
+    "phone": "+91 98765 43211",
+    "email": "jane.customer@email.com",
+    "address": "456 Customer Avenue, Town",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-07-31T12:24:33.079Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 3,
+  "fields": {
+    "tenant": 26,
+    "name": "Mike Customer",
+    "phone": "+91 98765 43212",
+    "email": "mike.customer@email.com",
+    "address": "789 Customer Road, Village",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-07-31T12:24:33.085Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 4,
+  "fields": {
+    "tenant": 34,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:26:29.445Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 5,
+  "fields": {
+    "tenant": 35,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:26:44.629Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 6,
+  "fields": {
+    "tenant": 36,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:26:59.555Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 7,
+  "fields": {
+    "tenant": 37,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:31:56.083Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 8,
+  "fields": {
+    "tenant": 38,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:33:17.923Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 9,
+  "fields": {
+    "tenant": 39,
+    "name": "Test Customer",
+    "phone": "9876543210",
+    "email": "customer@test.com",
+    "address": "",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:33:47.927Z"
+  }
+},
+{
+  "model": "retail.customer",
+  "pk": 10,
+  "fields": {
+    "tenant": 41,
+    "name": "Retail Customer",
+    "phone": "9876543210",
+    "email": "customer@retail.com",
+    "address": "Customer Address",
+    "customer_type": "RETAIL",
+    "credit_limit": "0.00",
+    "payment_terms": "Cash",
+    "gst_number": "",
+    "created_at": "2025-08-02T09:36:54.007Z"
+  }
+},
+{
+  "model": "retail.sale",
+  "pk": 1,
+  "fields": {
+    "tenant": 26,
+    "invoice_number": "INV026001",
+    "customer": 1,
+    "sale_date": "2025-07-31T12:24:33.091Z",
+    "warehouse": 1,
+    "subtotal": "0.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "0.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": null,
+    "notes": ""
+  }
+},
+{
+  "model": "retail.sale",
+  "pk": 2,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "RINV20250804185508",
+    "customer": 1,
+    "sale_date": "2025-08-04T13:25:08.152Z",
+    "warehouse": 1,
+    "subtotal": "15.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "15.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 65,
+    "notes": ""
+  }
+},
+{
+  "model": "retail.sale",
+  "pk": 3,
+  "fields": {
+    "tenant": 8,
+    "invoice_number": "RINV20250804185551",
+    "customer": 1,
+    "sale_date": "2025-08-04T13:25:51.158Z",
+    "warehouse": 1,
+    "subtotal": "25.00",
+    "tax_amount": "0.00",
+    "discount_amount": "0.00",
+    "total_amount": "25.00",
+    "payment_method": "CASH",
+    "payment_status": "PAID",
+    "sold_by": 65,
+    "notes": ""
+  }
+},
+{
+  "model": "retail.saleitem",
+  "pk": 1,
+  "fields": {
+    "tenant": 8,
+    "sale": 2,
+    "product": 5,
+    "quantity": 1,
+    "unit_price": "15.00",
+    "total_price": "15.00"
+  }
+},
+{
+  "model": "retail.saleitem",
+  "pk": 2,
+  "fields": {
+    "tenant": 8,
+    "sale": 3,
+    "product": 1,
+    "quantity": 1,
+    "unit_price": "25.00",
+    "total_price": "25.00"
+  }
+},
+{
+  "model": "retail.staffattendance",
+  "pk": 1,
+  "fields": {
+    "staff": 54,
+    "date": "2025-08-01",
+    "check_in_time": "2025-08-01T10:14:09.766Z",
+    "check_out_time": null,
+    "tenant": 31
+  }
+},
+{
+  "model": "retail.staffattendance",
+  "pk": 2,
+  "fields": {
+    "staff": 53,
+    "date": "2025-08-01",
+    "check_in_time": "2025-08-01T14:03:24.532Z",
+    "check_out_time": "2025-08-01T14:03:26.553Z",
+    "tenant": 30
+  }
+},
+{
+  "model": "salon.servicecategory",
+  "pk": 1,
+  "fields": {
+    "tenant": 44,
+    "name": "hair",
+    "description": "cutting"
+  }
+},
+{
+  "model": "salon.servicecategory",
+  "pk": 2,
+  "fields": {
+    "tenant": 44,
+    "name": "spa",
+    "description": ""
+  }
+},
+{
+  "model": "salon.service",
+  "pk": 1,
+  "fields": {
+    "tenant": 44,
+    "category": 1,
+    "name": "ham cutting",
+    "duration_minutes": 30,
+    "price": "150.00",
+    "image": "",
+    "is_active": true
+  }
+},
+{
+  "model": "salon.service",
+  "pk": 2,
+  "fields": {
+    "tenant": 44,
+    "category": 2,
+    "name": "spa of body",
+    "duration_minutes": 1,
+    "price": "100.00",
+    "image": "salon/services/WIN_20250731_22_42_37_Pro.jpg",
+    "is_active": false
+  }
+},
+{
+  "model": "salon.stylist",
+  "pk": 1,
+  "fields": {
+    "tenant": 44,
+    "first_name": "Shadab",
+    "last_name": "Sheikh",
+    "phone": "09763950680",
+    "email": "shadabsheikh314@gmail.com",
+    "is_active": true
+  }
+},
+{
+  "model": "salon.appointment",
+  "pk": 1,
+  "fields": {
+    "tenant": 44,
+    "service": 1,
+    "stylist": 1,
+    "customer_name": "daksh",
+    "customer_phone": "",
+    "start_time": "2025-09-09T19:56:00Z",
+    "end_time": "2025-09-09T20:26:00Z",
+    "status": "cancelled",
+    "price": "0.00",
+    "created_at": "2025-09-09T14:26:22.884Z"
+  }
+},
+{
+  "model": "salon.appointment",
+  "pk": 2,
+  "fields": {
+    "tenant": 44,
+    "service": 1,
+    "stylist": 1,
+    "customer_name": "nahid",
+    "customer_phone": "2587978658",
+    "start_time": "2025-09-12T16:59:00Z",
+    "end_time": "2025-09-12T17:29:00Z",
+    "status": "completed",
+    "price": "0.00",
+    "created_at": "2025-09-12T11:25:42.601Z"
+  }
+}
+]

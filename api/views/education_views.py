@@ -114,7 +114,7 @@ class StudentListCreateView(APIView):
         profile = UserProfile._default_manager.get(user=request.user)
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
-        serializer = StudentSerializer(data=data)
+        serializer = StudentSerializer(data=data, context={'tenant': profile.tenant})
         if serializer.is_valid():
             serializer.save(tenant=profile.tenant)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -138,7 +138,7 @@ class StudentDetailView(APIView):
         profile = UserProfile._default_manager.get(user=request.user)
         try:
             s = Student._default_manager.get(id=pk, tenant=profile.tenant)  # type: ignore
-            serializer = StudentSerializer(s, data=request.data, partial=True)
+            serializer = StudentSerializer(s, data=request.data, partial=True, context={'tenant': profile.tenant})
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
@@ -162,18 +162,6 @@ class StudentDetailView(APIView):
 
 # class FeeDetailView(APIView):
 #     pass
-            serializer = FeeSerializer(f)
-            return Response(serializer.data)
-        except Fee.DoesNotExist:  # type: ignore
-            return Response({'error': 'Fee record not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-    # @role_required('admin', 'principal', 'accountant')
-    # def put(self, request, pk):
-    #     pass
-
-    # @role_required('admin', 'principal', 'accountant')
-    # def delete(self, request, pk):
-    #     pass
 
 class AttendanceListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -877,8 +865,8 @@ class FeeStructureListView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
-            return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant']:
+            return Response({'error': 'Only admins and accountants can view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
         fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
         serializer = FeeStructureSerializer(fee_structures, many=True)
         return Response(serializer.data) 
@@ -1306,4 +1294,521 @@ class FeeDiscountExportView(APIView):
                     "Yes" if fd.is_active else "No",
                     fd.description or ""
                 ])
-            return response 
+            return response
+
+class StudentFeeStatusView(APIView):
+    """Get comprehensive fee status for a specific student"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, student_id):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get all fee structures for the student's class
+        fee_structures = FeeStructure._default_manager.filter(
+            tenant=profile.tenant, 
+            class_obj=student.assigned_class
+        )
+        
+        # Get all payments made by this student
+        payments = FeePayment._default_manager.filter(
+            tenant=profile.tenant,
+            student=student
+        )
+        
+        # Calculate fee status
+        fee_status = []
+        total_due = 0
+        total_paid = 0
+        
+        for fee_structure in fee_structures:
+            # Calculate total paid for this fee type
+            paid_amount = payments.filter(fee_structure=fee_structure).aggregate(
+                total=Sum('amount_paid')
+            )['total'] or 0
+            
+            # Calculate discount applied
+            discount_amount = payments.filter(fee_structure=fee_structure).aggregate(
+                total=Sum('discount_amount')
+            )['total'] or 0
+            
+            remaining_amount = fee_structure.amount - paid_amount
+            is_paid = remaining_amount <= 0
+            
+            fee_status.append({
+                'fee_structure_id': fee_structure.id,
+                'fee_type': fee_structure.fee_type,
+                'total_amount': fee_structure.amount,
+                'paid_amount': paid_amount,
+                'discount_amount': discount_amount,
+                'remaining_amount': max(0, remaining_amount),
+                'is_paid': is_paid,
+                'due_date': fee_structure.due_date,
+                'is_overdue': fee_structure.due_date and fee_structure.due_date < timezone.now().date() and not is_paid
+            })
+            
+            total_due += fee_structure.amount
+            total_paid += paid_amount
+        
+        # Calculate overall status
+        overall_remaining = total_due - total_paid
+        payment_percentage = (total_paid / total_due * 100) if total_due > 0 else 0
+        
+        return Response({
+            'student': {
+                'id': student.id,
+                'name': student.name,
+                'email': student.email,
+                'upper_id': student.upper_id,
+                'assigned_class': student.assigned_class.name if student.assigned_class else None
+            },
+            'fee_summary': {
+                'total_due': total_due,
+                'total_paid': total_paid,
+                'remaining_amount': overall_remaining,
+                'payment_percentage': round(payment_percentage, 2),
+                'is_fully_paid': overall_remaining <= 0
+            },
+            'fee_breakdown': fee_status,
+            'recent_payments': FeePaymentSerializer(payments.order_by('-payment_date')[:5], many=True).data
+        })
+
+class StudentFeePaymentHistoryView(APIView):
+    """Get payment history for a specific student"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, student_id):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        payments = FeePayment._default_manager.filter(
+            tenant=profile.tenant,
+            student=student
+        ).order_by('-payment_date')
+        
+        # Filtering
+        payment_method = request.query_params.get('payment_method')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        
+        if payment_method:
+            payments = payments.filter(payment_method=payment_method)
+        if date_from:
+            payments = payments.filter(payment_date__gte=date_from)
+        if date_to:
+            payments = payments.filter(payment_date__lte=date_to)
+        
+        serializer = FeePaymentSerializer(payments, many=True)
+        return Response(serializer.data)
+
+class StudentFeeReminderView(APIView):
+    """Send fee reminder for overdue payments"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def post(self, request, student_id):
+        profile = UserProfile._default_manager.get(user=request.user)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can send fee reminders.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get overdue fees
+        today = timezone.now().date()
+        overdue_fees = FeeStructure._default_manager.filter(
+            tenant=profile.tenant,
+            class_obj=student.assigned_class,
+            due_date__lt=today
+        )
+        
+        # Check which fees are still unpaid
+        unpaid_overdue = []
+        for fee_structure in overdue_fees:
+            paid_amount = FeePayment._default_manager.filter(
+                tenant=profile.tenant,
+                student=student,
+                fee_structure=fee_structure
+            ).aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            if paid_amount < fee_structure.amount:
+                unpaid_overdue.append({
+                    'fee_type': fee_structure.fee_type,
+                    'amount': fee_structure.amount,
+                    'paid_amount': paid_amount,
+                    'remaining': fee_structure.amount - paid_amount,
+                    'due_date': fee_structure.due_date
+                })
+        
+        if not unpaid_overdue:
+            return Response({'message': 'No overdue fees found for this student.'})
+        
+        # Here you would typically send an email or SMS
+        # For now, we'll just return the reminder details
+        return Response({
+            'message': 'Fee reminder prepared successfully.',
+            'student': {
+                'name': student.name,
+                'email': student.email,
+                'upper_id': student.upper_id
+            },
+            'overdue_fees': unpaid_overdue,
+            'total_overdue': sum(fee['remaining'] for fee in unpaid_overdue)
+        })
+
+class ClassFeeSummaryView(APIView):
+    """Get fee summary for all students in a class"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, class_id):
+        profile = UserProfile._default_manager.get(user=request.user)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can view class fee summaries.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            class_obj = Class._default_manager.get(id=class_id, tenant=profile.tenant)
+        except Class.DoesNotExist:
+            return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        students = Student._default_manager.filter(
+            tenant=profile.tenant,
+            assigned_class=class_obj
+        )
+        
+        class_summary = {
+            'class_id': class_obj.id,
+            'class_name': class_obj.name,
+            'total_students': students.count(),
+            'fee_collection_summary': {
+                'total_due': 0,
+                'total_collected': 0,
+                'total_pending': 0,
+                'collection_percentage': 0
+            },
+            'students': []
+        }
+        
+        total_due = 0
+        total_collected = 0
+        
+        for student in students:
+            # Get fee structures for this class
+            fee_structures = FeeStructure._default_manager.filter(
+                tenant=profile.tenant,
+                class_obj=class_obj
+            )
+            
+            student_total_due = sum(fs.amount for fs in fee_structures)
+            student_payments = FeePayment._default_manager.filter(
+                tenant=profile.tenant,
+                student=student
+            )
+            student_total_paid = student_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            student_remaining = student_total_due - student_total_paid
+            student_percentage = (student_total_paid / student_total_due * 100) if student_total_due > 0 else 0
+            
+            class_summary['students'].append({
+                'student_id': student.id,
+                'name': student.name,
+                'upper_id': student.upper_id,
+                'email': student.email,
+                'total_due': student_total_due,
+                'total_paid': student_total_paid,
+                'remaining': student_remaining,
+                'payment_percentage': round(student_percentage, 2),
+                'is_fully_paid': student_remaining <= 0
+            })
+            
+            total_due += student_total_due
+            total_collected += student_total_paid
+        
+        class_summary['fee_collection_summary'] = {
+            'total_due': total_due,
+            'total_collected': total_collected,
+            'total_pending': total_due - total_collected,
+            'collection_percentage': round((total_collected / total_due * 100) if total_due > 0 else 0, 2)
+        }
+        
+        return Response(class_summary)
+
+
+class ComprehensiveAnalyticsView(APIView):
+    """Comprehensive analytics for admin and principal"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        if not profile.role or profile.role.name not in ['admin', 'principal']:
+            return Response({'error': 'Only admins and principals can view comprehensive analytics.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        tenant = profile.tenant
+        today = timezone.now().date()
+        
+        # Basic statistics
+        total_students = Student._default_manager.filter(tenant=tenant, is_active=True).count()
+        total_classes = Class._default_manager.filter(tenant=tenant).count()
+        total_teachers = UserProfile._default_manager.filter(tenant=tenant, role__name='teacher').count()
+        total_staff = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student').count()
+        
+        # Today's attendance
+        staff_present = StaffAttendance._default_manager.filter(
+            tenant=tenant, date=today, check_in_time__isnull=False
+        ).count()
+        student_present = Attendance._default_manager.filter(
+            tenant=tenant, date=today, present=True
+        ).count()
+        
+        # Fee analytics
+        total_fees_due = FeeStructure._default_manager.filter(tenant=tenant).aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        
+        total_fees_collected = FeePayment._default_manager.filter(tenant=tenant).aggregate(
+            total=Sum('amount_paid')
+        )['total'] or 0
+        
+        # Class-wise analytics
+        class_analytics = []
+        classes = Class._default_manager.filter(tenant=tenant)
+        
+        for class_obj in classes:
+            students_in_class = Student._default_manager.filter(
+                tenant=tenant, assigned_class=class_obj, is_active=True
+            )
+            
+            # Student count
+            student_count = students_in_class.count()
+            
+            # Teachers assigned to this class
+            teachers = UserProfile._default_manager.filter(
+                tenant=tenant, assigned_classes=class_obj, role__name='teacher'
+            )
+            
+            # Fee collection for this class
+            class_fee_structures = FeeStructure._default_manager.filter(
+                tenant=tenant, class_obj=class_obj
+            )
+            class_total_due = class_fee_structures.aggregate(total=Sum('amount'))['total'] or 0
+            
+            class_payments = FeePayment._default_manager.filter(
+                tenant=tenant, student__assigned_class=class_obj
+            )
+            class_collected = class_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            # Attendance for this class
+            class_attendance = Attendance._default_manager.filter(
+                tenant=tenant, student__assigned_class=class_obj, date=today
+            )
+            present_today = class_attendance.filter(present=True).count()
+            absent_today = class_attendance.filter(present=False).count()
+            
+            class_analytics.append({
+                'class_id': class_obj.id,
+                'class_name': class_obj.name,
+                'student_count': student_count,
+                'teachers': [
+                    {
+                        'id': teacher.id,
+                        'name': teacher.user.get_full_name() or teacher.user.username,
+                        'email': teacher.user.email
+                    } for teacher in teachers
+                ],
+                'fee_summary': {
+                    'total_due': float(class_total_due),
+                    'collected': float(class_collected),
+                    'pending': float(class_total_due - class_collected),
+                    'collection_percentage': round((class_collected / class_total_due * 100) if class_total_due > 0 else 0, 2)
+                },
+                'attendance_today': {
+                    'present': present_today,
+                    'absent': absent_today,
+                    'total': present_today + absent_today,
+                    'percentage': round((present_today / (present_today + absent_today) * 100) if (present_today + absent_today) > 0 else 0, 2)
+                }
+            })
+        
+        # Student-wise analytics
+        student_analytics = []
+        students = Student._default_manager.filter(tenant=tenant, is_active=True)[:50]  # Limit for performance
+        
+        for student in students:
+            # Fee status for this student
+            student_fee_structures = FeeStructure._default_manager.filter(
+                tenant=tenant, class_obj=student.assigned_class
+            )
+            student_total_due = student_fee_structures.aggregate(total=Sum('amount'))['total'] or 0
+            
+            student_payments = FeePayment._default_manager.filter(
+                tenant=tenant, student=student
+            )
+            student_paid = student_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            # Attendance percentage for this student
+            student_attendance = Attendance._default_manager.filter(
+                tenant=tenant, student=student
+            )
+            total_attendance = student_attendance.count()
+            present_attendance = student_attendance.filter(present=True).count()
+            attendance_percentage = round((present_attendance / total_attendance * 100) if total_attendance > 0 else 0, 2)
+            
+            student_analytics.append({
+                'student_id': student.id,
+                'name': student.name,
+                'upper_id': student.upper_id,
+                'email': student.email,
+                'class_name': student.assigned_class.name if student.assigned_class else 'Not Assigned',
+                'fee_status': {
+                    'total_due': float(student_total_due),
+                    'paid': float(student_paid),
+                    'pending': float(student_total_due - student_paid),
+                    'percentage': round((student_paid / student_total_due * 100) if student_total_due > 0 else 0, 2)
+                },
+                'attendance_percentage': attendance_percentage,
+                'admission_date': student.admission_date
+            })
+        
+        # Teacher-wise analytics
+        teacher_analytics = []
+        teachers = UserProfile._default_manager.filter(tenant=tenant, role__name='teacher')
+        
+        for teacher in teachers:
+            assigned_classes = teacher.assigned_classes.all()
+            students_taught = Student._default_manager.filter(
+                tenant=tenant, assigned_class__in=assigned_classes, is_active=True
+            ).count()
+            
+            # Attendance records created by this teacher
+            attendance_records = Attendance._default_manager.filter(
+                tenant=tenant, student__assigned_class__in=assigned_classes
+            ).count()
+            
+            teacher_analytics.append({
+                'teacher_id': teacher.id,
+                'name': teacher.user.get_full_name() or teacher.user.username,
+                'email': teacher.user.email,
+                'assigned_classes': [cls.name for cls in assigned_classes],
+                'students_taught': students_taught,
+                'attendance_records': attendance_records
+            })
+        
+        # Monthly fee collection trends
+        monthly_fees = []
+        for i in range(12):
+            month_date = today.replace(day=1) - timezone.timedelta(days=30*i)
+            month_start = month_date.replace(day=1)
+            if month_date.month == 12:
+                month_end = month_date.replace(year=month_date.year+1, month=1, day=1) - timezone.timedelta(days=1)
+            else:
+                month_end = month_date.replace(month=month_date.month+1, day=1) - timezone.timedelta(days=1)
+            
+            month_fees = FeePayment._default_manager.filter(
+                tenant=tenant, payment_date__range=(month_start, month_end)
+            ).aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            monthly_fees.append({
+                'month': month_start.strftime('%Y-%m'),
+                'amount': float(month_fees)
+            })
+        
+        return Response({
+            'overview': {
+                'total_students': total_students,
+                'total_classes': total_classes,
+                'total_teachers': total_teachers,
+                'total_staff': total_staff,
+                'staff_present_today': staff_present,
+                'student_present_today': student_present,
+                'total_fees_due': float(total_fees_due),
+                'total_fees_collected': float(total_fees_collected),
+                'fees_pending': float(total_fees_due - total_fees_collected),
+                'collection_percentage': round((total_fees_collected / total_fees_due * 100) if total_fees_due > 0 else 0, 2)
+            },
+            'class_analytics': class_analytics,
+            'student_analytics': student_analytics,
+            'teacher_analytics': teacher_analytics,
+            'monthly_fee_trends': monthly_fees
+        })
+
+class EducationAnalyticsView(APIView):
+    """Main analytics dashboard endpoint"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            tenant = profile.tenant
+            
+            # Get basic statistics
+            total_students = Student._default_manager.filter(tenant=tenant).count()
+            total_classes = Class._default_manager.filter(tenant=tenant).count()
+            total_staff = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student').count()
+            
+            # Get today's attendance
+            today = timezone.now().date()
+            staff_present = StaffAttendance._default_manager.filter(
+                tenant=tenant, 
+                date=today, 
+                check_in_time__isnull=False
+            ).count()
+            
+            student_present = Attendance._default_manager.filter(
+                tenant=tenant, 
+                date=today, 
+                present=True
+            ).count()
+            
+            # Get fee collection stats
+            total_fees_collected = FeePayment._default_manager.filter(tenant=tenant).aggregate(
+                total=Sum('amount_paid')
+            )['total'] or 0
+            
+            # Get recent activity (last 7 days)
+            week_ago = timezone.now() - timezone.timedelta(days=7)
+            recent_admissions = Student._default_manager.filter(
+                tenant=tenant,
+                admission_date__gte=week_ago.date()
+            ).count()
+            
+            recent_fee_payments = FeePayment._default_manager.filter(
+                tenant=tenant,
+                payment_date__gte=week_ago.date()
+            ).count()
+            
+            data = {
+                'overview': {
+                    'total_students': total_students,
+                    'total_classes': total_classes,
+                    'total_staff': total_staff,
+                    'staff_present_today': staff_present,
+                    'student_present_today': student_present,
+                    'total_fees_collected': float(total_fees_collected),
+                    'recent_admissions': recent_admissions,
+                    'recent_fee_payments': recent_fee_payments
+                },
+                'endpoints': {
+                    'class_stats': '/api/education/analytics/class-stats/',
+                    'monthly_report': '/api/education/analytics/monthly-report/',
+                    'attendance_trends': '/api/education/analytics/attendance-trends/',
+                    'staff_distribution': '/api/education/analytics/staff-distribution/',
+                    'fee_collection': '/api/education/analytics/fee-collection/',
+                    'class_performance': '/api/education/analytics/class-performance/'
+                }
+            }
+            
+            return Response(data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

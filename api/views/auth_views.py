@@ -40,12 +40,12 @@ class RegisterView(APIView):
                 plan=plan
             )
             
-            # Create user but set as inactive until email verification
+            # Create user and activate immediately (email verification disabled)
             user = User.objects.create_user(
                 username=data["username"],
                 email=data["email"],
                 password=data["password"],
-                is_active=False  # User will be activated after email verification
+                is_active=True  # User is active immediately
             )
             
             # Always assign admin role to the first user of a new tenant
@@ -67,7 +67,7 @@ class RegisterView(APIView):
             self.send_verification_email(email_verification)
             
             return Response({
-                "message": "Registration successful! Please check your email to verify your account.",
+                "message": "Registration successful! You can now log in.",
                 "email": data["email"]
             }, status=status.HTTP_201_CREATED)
             
@@ -77,7 +77,7 @@ class RegisterView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         try:
-            verification_url = f"https://erp-frontend-psi-six.vercel.app/verify-email?token={email_verification.token}"
+            verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
             subject = "Verify Your Zenith ERP Account"
             # HTML email body
             html_message = f"""
@@ -191,7 +191,7 @@ class ResendVerificationEmailView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         try:
-            verification_url = f"https://erp-frontend-psi-six.vercel.app/verify-email?token={email_verification.token}"
+            verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
             
             subject = "Verify Your Zenith ERP Account"
             message = f"""
