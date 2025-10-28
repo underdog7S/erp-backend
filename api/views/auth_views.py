@@ -64,40 +64,71 @@ class RegisterView(APIView):
             )
             
             # Send verification email
-            self.send_verification_email(email_verification)
+            email_sent = False
+            email_error = None
+            try:
+                self.send_verification_email(email_verification)
+                email_sent = True
+            except Exception as e:
+                email_error = str(e)
+                print(f"Failed to send verification email: {e}")
             
-            return Response({
+            response_data = {
                 "message": "Registration successful! You can now log in.",
                 "email": data["email"]
-            }, status=status.HTTP_201_CREATED)
+            }
+            
+            if email_error:
+                response_data["warning"] = f"Account created but verification email failed: {email_error}"
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
-        try:
-            verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
-            subject = "Verify Your Zenith ERP Account"
-            # HTML email body
-            html_message = f"""
-            <div style='font-family: Arial, sans-serif; background: #f9f9f9; padding: 32px;'>
-                <div style='max-width: 480px; margin: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;'>
-                    <h2 style='color: #1a237e; text-align: center;'>Welcome to <span style='color: #4caf50;'>Zenith ERP</span>!</h2>
-                    <p style='font-size: 16px; color: #333;'>Thank you for registering. To activate your account, please verify your email address by clicking the button below:</p>
-                    <div style='text-align: center; margin: 32px 0;'>
-                        <a href='{verification_url}' style='background: #4caf50; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 4px; font-size: 18px; font-weight: bold; display: inline-block;'>Verify Email</a>
-                    </div>
-                    <p style='font-size: 15px; color: #555;'>Or copy and paste this link into your browser:</p>
-                    <p style='word-break: break-all; color: #1a237e; font-size: 14px;'>{verification_url}</p>
-                    <p style='font-size: 14px; color: #888; margin-top: 32px;'>This link will expire in 24 hours.<br>If you did not create this account, you can safely ignore this email.</p>
-                    <hr style='margin: 32px 0; border: none; border-top: 1px solid #eee;'>
-                    <p style='text-align: center; color: #888; font-size: 13px;'>Best regards,<br><b>Zenith ERP Team</b></p>
+        # DEBUG: Log what Django sees (helps diagnose environment variable issues)
+        print(f"DEBUG: EMAIL_HOST_USER set: {bool(settings.EMAIL_HOST_USER)}, value: {settings.EMAIL_HOST_USER[:10] if settings.EMAIL_HOST_USER else 'EMPTY'}...")
+        print(f"DEBUG: EMAIL_HOST_PASSWORD set: {bool(settings.EMAIL_HOST_PASSWORD)}, length: {len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 0}")
+        
+        # Check if email is configured
+        if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+            error_msg = f"Email configuration missing. EMAIL_HOST_USER={'SET' if settings.EMAIL_HOST_USER else 'NOT SET'}, EMAIL_HOST_PASSWORD={'SET' if settings.EMAIL_HOST_PASSWORD else 'NOT SET'}."
+            print(f"Failed to send verification email: {error_msg}")
+            raise Exception(error_msg)
+        
+        if not settings.DEFAULT_FROM_EMAIL or settings.DEFAULT_FROM_EMAIL == 'noreply@zenitherp.com':
+            if settings.EMAIL_HOST_USER:
+                from_email = settings.EMAIL_HOST_USER
+            else:
+                error_msg = "DEFAULT_FROM_EMAIL is not configured."
+                print(f"Failed to send verification email: {error_msg}")
+                raise Exception(error_msg)
+        else:
+            from_email = settings.DEFAULT_FROM_EMAIL
+        
+        verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
+        subject = "Verify Your Zenith ERP Account"
+        # HTML email body
+        html_message = f"""
+        <div style='font-family: Arial, sans-serif; background: #f9f9f9; padding: 32px;'>
+            <div style='max-width: 480px; margin: auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #e0e0e0; padding: 32px;'>
+                <h2 style='color: #1a237e; text-align: center;'>Welcome to <span style='color: #4caf50;'>Zenith ERP</span>!</h2>
+                <p style='font-size: 16px; color: #333;'>Thank you for registering. To activate your account, please verify your email address by clicking the button below:</p>
+                <div style='text-align: center; margin: 32px 0;'>
+                    <a href='{verification_url}' style='background: #4caf50; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 4px; font-size: 18px; font-weight: bold; display: inline-block;'>Verify Email</a>
                 </div>
+                <p style='font-size: 15px; color: #555;'>Or copy and paste this link into your browser:</p>
+                <p style='word-break: break-all; color: #1a237e; font-size: 14px;'>{verification_url}</p>
+                <p style='font-size: 14px; color: #888; margin-top: 32px;'>This link will expire in 24 hours.<br>If you did not create this account, you can safely ignore this email.</p>
+                <hr style='margin: 32px 0; border: none; border-top: 1px solid #eee;'>
+                <p style='text-align: center; color: #888; font-size: 13px;'>Best regards,<br><b>Zenith ERP Team</b></p>
             </div>
-            """
-            # Plain text fallback
-            message = f"""
+        </div>
+        """
+        # Plain text fallback
+        message = f"""
 Welcome to Zenith ERP!
 
 Thank you for registering. To activate your account, please verify your email address by clicking the link below:
@@ -108,17 +139,15 @@ If you did not create this account, you can safely ignore this email.
 
 Best regards,
 Zenith ERP Team
-            """
-            email = EmailMultiAlternatives(
-                subject=subject,
-                body=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[email_verification.email],
-            )
-            email.attach_alternative(html_message, "text/html")
-            email.send(fail_silently=False)
-        except Exception as e:
-            print(f"Failed to send verification email: {e}")
+        """
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=message,
+            from_email=from_email,
+            to=[email_verification.email],
+        )
+        email.attach_alternative(html_message, "text/html")
+        email.send(fail_silently=False)
 
 class EmailVerificationView(APIView):
     permission_classes = [AllowAny]
