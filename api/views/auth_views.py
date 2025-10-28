@@ -108,7 +108,7 @@ class RegisterView(APIView):
         else:
             from_email = settings.DEFAULT_FROM_EMAIL
         
-        verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={email_verification.token}"
         subject = "Verify Your Zenith ERP Account"
         # HTML email body
         html_message = f"""
@@ -158,7 +158,17 @@ class EmailVerificationView(APIView):
             return Response({"error": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            email_verification = EmailVerification.objects.get(token=token)
+            # Try to convert token to UUID format if it's a string
+            import uuid
+            try:
+                token_uuid = uuid.UUID(str(token))
+            except (ValueError, AttributeError):
+                print(f"DEBUG: Invalid token format: {token}")
+                return Response({"error": "Invalid token format."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(f"DEBUG: Looking for token: {token_uuid}")
+            email_verification = EmailVerification.objects.get(token=token_uuid)
+            print(f"DEBUG: Found verification for: {email_verification.email}")
             
             if email_verification.is_verified:
                 return Response({"error": "Email already verified."}, status=status.HTTP_400_BAD_REQUEST)
@@ -179,8 +189,13 @@ class EmailVerificationView(APIView):
             }, status=status.HTTP_200_OK)
             
         except EmailVerification.DoesNotExist:
+            print(f"DEBUG: Token not found in database: {token}")
+            # Check if any tokens exist (for debugging)
+            count = EmailVerification.objects.count()
+            print(f"DEBUG: Total email verifications in DB: {count}")
             return Response({"error": "Invalid verification token."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            print(f"DEBUG: Verification error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ResendVerificationEmailView(APIView):
@@ -220,7 +235,7 @@ class ResendVerificationEmailView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         try:
-            verification_url = f"https://erp-frontend-lyart.vercel.app/verify-email?token={email_verification.token}"
+            verification_url = f"{settings.FRONTEND_URL}/verify-email?token={email_verification.token}"
             
             subject = "Verify Your Zenith ERP Account"
             message = f"""

@@ -187,3 +187,6 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # Your Gmail address
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # Your Gmail app password
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'noreply@zenitherp.com')
+
+# Frontend URL for email verification links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
