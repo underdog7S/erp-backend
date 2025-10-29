@@ -186,7 +186,23 @@ class AddUserView(APIView):
                     # Assign classes if provided (after creation)
                     class_ids = data.get("assigned_classes", [])
                     if class_ids:
-                        user_profile.assigned_classes.set(class_ids)
+                        try:
+                            # Validate that all class IDs exist and belong to the tenant
+                            from education.models import Class
+                            valid_classes = Class.objects.filter(id__in=class_ids, tenant=tenant)
+                            if valid_classes.count() != len(class_ids):
+                                invalid_ids = set(class_ids) - set(valid_classes.values_list('id', flat=True))
+                                user.delete()
+                                error_msg = f"Invalid class IDs: {list(invalid_ids)}. These classes do not exist or belong to a different tenant."
+                                logger.error(f"AddUserView: {error_msg}")
+                                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+                            user_profile.assigned_classes.set(class_ids)
+                            logger.info(f"Assigned {len(class_ids)} classes to user {user.username}")
+                        except Exception as e:
+                            user.delete()
+                            error_msg = f"Error assigning classes: {str(e)}"
+                            logger.error(f"AddUserView: {error_msg}", exc_info=True)
+                            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
                     logger.info(f"User profile created successfully: {user.username}")
                     return Response(UserProfileSerializer(user_profile).data, status=status.HTTP_201_CREATED)
                 except Exception as e:
@@ -195,6 +211,7 @@ class AddUserView(APIView):
                     return Response({"error": f"Failed to create user profile: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 logger.error(f"Serializer validation failed: {serializer.errors}")
+                logger.error(f"Serializer errors detail: {type(serializer.errors)} - {serializer.errors}")
                 user.delete()
                 # Format serializer errors nicely
                 error_details = []
@@ -205,6 +222,7 @@ class AddUserView(APIView):
                         error_details.append(f"{field}: {errors}")
                 error_msg = f"Invalid user data: {'; '.join(error_details)}"
                 logger.error(f"AddUserView serializer error: {error_msg}")
+                logger.error(f"About to return error response: {error_msg}")
                 return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"AddUserView exception: {type(e).__name__}: {str(e)}", exc_info=True)
