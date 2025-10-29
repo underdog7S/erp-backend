@@ -1,5 +1,6 @@
 
 import socket
+import threading
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -64,31 +65,32 @@ class RegisterView(APIView):
                 email=data["email"]
             )
             
-            # Send verification email (with timeout to prevent hanging)
-            email_sent = False
-            email_error = None
-            try:
-                self.send_verification_email(email_verification)
-                email_sent = True
-            except socket.timeout as e:
-                email_error = "Email sending timed out. Please check your email configuration or try again later."
-                print(f"Email send timeout: {e}")
-            except Exception as e:
-                email_error = str(e)
-                print(f"Failed to send verification email: {type(e).__name__}: {e}")
+            # Send verification email asynchronously (don't block registration)
+            # This prevents timeout issues on slow email servers like SendGrid
+            email_thread = threading.Thread(
+                target=self.send_verification_email_async,
+                args=(email_verification,),
+                daemon=True
+            )
+            email_thread.start()
             
+            # Return success immediately - email will be sent in background
             response_data = {
-                "message": "Registration successful! You can now log in.",
+                "message": "Registration successful! Please check your email for verification link.",
                 "email": data["email"]
             }
-            
-            if email_error:
-                response_data["warning"] = f"Account created but verification email failed: {email_error}"
             
             return Response(response_data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def send_verification_email_async(self, email_verification):
+        """Send verification email asynchronously (in background thread)"""
+        try:
+            self.send_verification_email(email_verification)
+        except Exception as e:
+            print(f"❌ Background email sending failed for {email_verification.email}: {type(e).__name__}: {e}")
     
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
