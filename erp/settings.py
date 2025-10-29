@@ -189,4 +189,4 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # Your Gmail app passwor
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'noreply@zenitherp.com')
 
 # Frontend URL for email verification links
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://erp-frontend-lyart.vercel.app')
