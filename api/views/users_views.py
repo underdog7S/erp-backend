@@ -502,6 +502,68 @@ class RoleListView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+class CreateRolesView(APIView):
+    """
+    Create default roles for the system.
+    Only admins can call this endpoint.
+    This is a one-time setup endpoint.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @role_required('admin')
+    def post(self, request):
+        """Create default education roles if they don't exist"""
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            tenant = profile.tenant
+            industry = tenant.industry.lower() if tenant else 'education'
+            
+            # Define roles based on industry
+            if industry == 'education':
+                roles_to_create = [
+                    ('admin', 'Administrator - Full system access'),
+                    ('principal', 'Principal - School administration access'),
+                    ('teacher', 'Teacher - Can manage classes and students'),
+                    ('staff', 'Staff - Basic staff access'),
+                    ('student', 'Student - Student access only'),
+                    ('accountant', 'Accountant - Financial management access')
+                ]
+            else:
+                # For other industries, create basic roles
+                roles_to_create = [
+                    ('admin', 'Administrator - Full system access'),
+                    ('staff', 'Staff - Basic staff access')
+                ]
+            
+            created_roles = []
+            existing_roles = []
+            
+            for role_name, role_description in roles_to_create:
+                role, created = Role.objects.get_or_create(
+                    name=role_name,
+                    defaults={'description': role_description}
+                )
+                if created:
+                    created_roles.append(role_name)
+                    logger.info(f"Created role: {role_name}")
+                else:
+                    existing_roles.append(role_name)
+            
+            all_roles = Role.objects.all().values_list('name', flat=True)
+            
+            return Response({
+                "success": True,
+                "message": f"Created {len(created_roles)} new roles. {len(existing_roles)} roles already existed.",
+                "created": created_roles,
+                "existing": existing_roles,
+                "all_roles": list(all_roles)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"CreateRolesView exception: {type(e).__name__}: {str(e)}", exc_info=True)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class IsAdminOrPrincipalForWrite(permissions.BasePermission):
     def has_permission(self, request, view):
         # Allow safe methods for all authenticated users

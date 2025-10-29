@@ -83,6 +83,7 @@ urlpatterns = [
     path('users/toggle-status/', users_views.UserToggleStatusView.as_view(), name='user-toggle-status'),
     path('users/delete/<int:user_id>/', users_views.DeleteUserView.as_view(), name='delete-user'),
     path('roles/', users_views.RoleListView.as_view(), name='role-list'),
+    path('roles/create/', users_views.CreateRolesView.as_view(), name='create-roles'),
     
     # Education
     path('education/staff/', education_views.StaffListView.as_view(), name='education-staff'),
