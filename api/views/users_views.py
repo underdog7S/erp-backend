@@ -1,3 +1,4 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
@@ -18,6 +19,8 @@ from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from rest_framework import viewsets
 from api.models.serializers import UserProfileSerializer
+
+logger = logging.getLogger(__name__)
 
 # --- UserProfileSerializer ---
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -91,26 +94,39 @@ class AddUserView(APIView):
 
     @role_required('admin', 'principal')
     def post(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        tenant = profile.tenant
-        # Enforce user limit
-        current_user_count = UserProfile._default_manager.filter(tenant=tenant).count()
-        if tenant.plan and hasattr(tenant.plan, 'max_users'):
-            max_users = tenant.plan.max_users
-            if current_user_count >= max_users:
-                return Response({"error": f"User limit reached for your plan ({max_users}). Upgrade your plan to add more users."}, status=status.HTTP_403_FORBIDDEN)
-        data = request.data.copy()
+        logger.info(f"AddUserView: Request received. Data keys: {list(request.data.keys())}")
         try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            tenant = profile.tenant
+            # Enforce user limit
+            current_user_count = UserProfile._default_manager.filter(tenant=tenant).count()
+            if tenant.plan and hasattr(tenant.plan, 'max_users'):
+                max_users = tenant.plan.max_users
+                if current_user_count >= max_users:
+                    logger.warning(f"User limit reached: {current_user_count}/{max_users}")
+                    return Response({"error": f"User limit reached for your plan ({max_users}). Upgrade your plan to add more users."}, status=status.HTTP_403_FORBIDDEN)
+            data = request.data.copy()
+            
             # Validate required fields
+            logger.info(f"Validating fields: username={data.get('username')}, email={data.get('email')}, password={'SET' if data.get('password') else 'NOT SET'}")
             if not data.get("username") or not data.get("email") or not data.get("password"):
-                return Response({"error": "Username, email, and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+                missing = []
+                if not data.get("username"): missing.append("username")
+                if not data.get("email"): missing.append("email")
+                if not data.get("password"): missing.append("password")
+                error_msg = f"Missing required fields: {', '.join(missing)}"
+                logger.error(f"AddUserView validation failed: {error_msg}")
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if username or email already exists
             if User.objects.filter(username=data["username"]).exists():
+                logger.warning(f"Username already exists: {data['username']}")
                 return Response({"error": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
             if User.objects.filter(email=data["email"]).exists():
+                logger.warning(f"Email already exists: {data['email']}")
                 return Response({"error": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
             
+            logger.info(f"Creating user: {data['username']} ({data['email']})")
             user = User.objects.create_user(
                 username=data["username"],
                 email=data["email"],
@@ -118,11 +134,16 @@ class AddUserView(APIView):
             )
             # Make role assignment case-insensitive
             role_name = data.get("role", "staff")
+            logger.info(f"Looking for role: {role_name}")
             try:
                 role = Role._default_manager.get(name__iexact=role_name)
+                logger.info(f"Found role: {role.name}")
             except Role._default_manager.model.DoesNotExist:
                 user.delete()
-                return Response({"error": f"Role '{role_name}' does not exist. Available roles: {list(Role._default_manager.values_list('name', flat=True))}"}, status=status.HTTP_400_BAD_REQUEST)
+                available_roles = list(Role._default_manager.values_list('name', flat=True))
+                error_msg = f"Role '{role_name}' does not exist. Available roles: {available_roles}"
+                logger.error(f"AddUserView: {error_msg}")
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
             # Prepare UserProfile data
             profile_data = {
                 'user': user.id,
@@ -144,6 +165,7 @@ class AddUserView(APIView):
             serializer = UserProfileSerializer(data=profile_data)
             if serializer.is_valid():
                 try:
+                    logger.info(f"Creating user profile for {user.username}")
                     user_profile = UserProfile._default_manager.create(
                         user=user,
                         tenant=tenant,
@@ -165,15 +187,32 @@ class AddUserView(APIView):
                     class_ids = data.get("assigned_classes", [])
                     if class_ids:
                         user_profile.assigned_classes.set(class_ids)
+                    logger.info(f"User profile created successfully: {user.username}")
                     return Response(UserProfileSerializer(user_profile).data, status=status.HTTP_201_CREATED)
                 except Exception as e:
+                    logger.error(f"Failed to create user profile: {type(e).__name__}: {str(e)}", exc_info=True)
                     user.delete()
                     return Response({"error": f"Failed to create user profile: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             else:
+                logger.error(f"Serializer validation failed: {serializer.errors}")
                 user.delete()
-                return Response({"error": f"Invalid user data: {serializer.errors}"}, status=status.HTTP_400_BAD_REQUEST)
+                # Format serializer errors nicely
+                error_details = []
+                for field, errors in serializer.errors.items():
+                    if isinstance(errors, list):
+                        error_details.append(f"{field}: {', '.join(str(e) for e in errors)}")
+                    else:
+                        error_details.append(f"{field}: {errors}")
+                error_msg = f"Invalid user data: {'; '.join(error_details)}"
+                logger.error(f"AddUserView serializer error: {error_msg}")
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            logger.error(f"AddUserView exception: {type(e).__name__}: {str(e)}", exc_info=True)
+            error_msg = f"Error creating user: {str(e)}"
+            # Ensure error message is not truncated
+            if len(error_msg) > 500:
+                error_msg = error_msg[:500] + "..."
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
 class RemoveUserView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -302,11 +341,14 @@ class UserEditView(APIView):
 
     @role_required('admin', 'principal')
     def post(self, request):
+        logger.info(f"UserEditView: Request received. Data keys: {list(request.data.keys())}")
         profile = UserProfile._default_manager.get(user=request.user)
         tenant = profile.tenant
         data = request.data.copy()
         user_id = data.get('id')
+        logger.info(f"UserEditView: Editing user profile ID: {user_id}")
         if not user_id:
+            logger.error("UserEditView: User ID is missing")
             return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
@@ -350,9 +392,20 @@ class UserEditView(APIView):
                 user_profile.phone = data['phone']
             if data.get('job_title'):
                 user_profile.job_title = data['job_title']
-            if data.get('is_active') is not None:
-                user.is_active = data['is_active']
+            
+            # Handle is_active - FormData sends strings "true"/"false", convert to boolean
+            if 'is_active' in data:
+                is_active_value = data.get('is_active')
+                # Convert string to boolean if needed
+                if isinstance(is_active_value, str):
+                    is_active_value = is_active_value.lower() in ('true', '1', 'yes', 'on')
+                elif isinstance(is_active_value, bool):
+                    pass  # Already boolean
+                else:
+                    is_active_value = bool(is_active_value)
+                user.is_active = is_active_value
                 user.save()
+                logger.info(f"Updated user {user.username} is_active to: {is_active_value}")
 
             # Update assigned_classes if provided
             if 'assigned_classes' in data or request.FILES.getlist('assigned_classes'):
@@ -364,11 +417,13 @@ class UserEditView(APIView):
                 user_profile.assigned_classes.set(class_ids)
 
             user_profile.save()
-            
+            logger.info(f"UserEditView: Successfully updated user profile {user_profile.id}")
             return Response(UserProfileSerializer(user_profile).data)
         except UserProfile._default_manager.model.DoesNotExist:
+            logger.error(f"UserEditView: UserProfile not found with ID: {user_id}")
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            logger.error(f"UserEditView exception: {type(e).__name__}: {str(e)}", exc_info=True)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class DeleteUserView(APIView):
@@ -490,31 +545,49 @@ class UserToggleStatusView(APIView):
     
     def post(self, request):
         try:
-            print(f"Toggle status request data: {request.data}")
+            logger.info(f"Toggle status request data: {request.data}")
             user_id = request.data.get('user_id')
-            is_active = request.data.get('is_active', True)
             
+            # Also accept 'id' as fallback (if frontend sends UserProfile ID instead of User ID)
+            if not user_id:
+                user_id = request.data.get('id')
+            
+            # Try to get UserProfile if user_id is UserProfile ID
             if not user_id:
                 return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get the user
+            # First try to get UserProfile (in case user_id is UserProfile ID)
             try:
-                user = User.objects.get(id=user_id)
-                print(f"Found user: {user.username}, current is_active: {user.is_active}")
-            except User.DoesNotExist:
-                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+                user_profile = UserProfile._default_manager.get(id=user_id)
+                user = user_profile.user
+                logger.info(f"Found user via UserProfile: {user.username}")
+            except UserProfile._default_manager.model.DoesNotExist:
+                # Try direct User lookup
+                try:
+                    user = User.objects.get(id=user_id)
+                    logger.info(f"Found user directly: {user.username}")
+                except User.DoesNotExist:
+                    logger.error(f"User not found with ID: {user_id}")
+                    return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get is_active value and convert string to boolean if needed
+            is_active = request.data.get('is_active', True)
+            if isinstance(is_active, str):
+                is_active = is_active.lower() in ('true', '1', 'yes', 'on')
+            
+            logger.info(f"Found user: {user.username}, current is_active: {user.is_active}, setting to: {is_active}")
             
             # Update the user's active status
             user.is_active = is_active
             user.save()
-            print(f"Updated user {user.username} is_active to: {user.is_active}")
+            logger.info(f"Updated user {user.username} is_active to: {user.is_active}")
             
             return Response({
                 "message": f"User {'activated' if is_active else 'deactivated'} successfully",
-                "user_id": user_id,
+                "user_id": user.id,
                 "is_active": is_active
             })
             
         except Exception as e:
-            print(f"Error in toggle status: {str(e)}")
+            logger.error(f"Error in toggle status: {type(e).__name__}: {str(e)}", exc_info=True)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST) 
