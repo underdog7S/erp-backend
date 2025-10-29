@@ -89,6 +89,8 @@ class RegisterView(APIView):
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         # DEBUG: Log what Django sees (helps diagnose environment variable issues)
+        print(f"DEBUG: EMAIL_HOST: {settings.EMAIL_HOST}")
+        print(f"DEBUG: EMAIL_PORT: {settings.EMAIL_PORT}")
         print(f"DEBUG: EMAIL_HOST_USER set: {bool(settings.EMAIL_HOST_USER)}, value: {settings.EMAIL_HOST_USER[:10] if settings.EMAIL_HOST_USER else 'EMPTY'}...")
         print(f"DEBUG: EMAIL_HOST_PASSWORD set: {bool(settings.EMAIL_HOST_PASSWORD)}, length: {len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 0}")
         
