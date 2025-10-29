@@ -88,7 +88,11 @@ class RegisterView(APIView):
     def send_verification_email_async(self, email_verification):
         """Send verification email asynchronously (in background thread)"""
         try:
+            print(f"📧 Starting background email send for {email_verification.email}")
             self.send_verification_email(email_verification)
+            print(f"✅ Background email sent successfully to {email_verification.email}")
+        except socket.timeout as e:
+            print(f"⏱️ Email sending timed out for {email_verification.email}: {e}")
         except Exception as e:
             print(f"❌ Background email sending failed for {email_verification.email}: {type(e).__name__}: {e}")
     
