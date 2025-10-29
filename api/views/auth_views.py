@@ -67,12 +67,17 @@ class RegisterView(APIView):
             
             # Send verification email asynchronously (don't block registration)
             # This prevents timeout issues on slow email servers like SendGrid
-            email_thread = threading.Thread(
-                target=self.send_verification_email_async,
-                args=(email_verification,),
-                daemon=True
-            )
-            email_thread.start()
+            print(f"🔄 Starting email thread for {data['email']}")
+            try:
+                email_thread = threading.Thread(
+                    target=self.send_verification_email_async,
+                    args=(email_verification,),
+                    daemon=True
+                )
+                email_thread.start()
+                print(f"✅ Email thread started for {data['email']}")
+            except Exception as e:
+                print(f"❌ Failed to start email thread for {data['email']}: {e}")
             
             # Return success immediately - email will be sent in background
             response_data = {
@@ -179,7 +184,11 @@ class EmailVerificationView(APIView):
 
     def post(self, request):
         token = request.data.get('token')
+        print(f"DEBUG: Verification request received. Token: {token}, Type: {type(token)}")
+        print(f"DEBUG: Request data: {request.data}")
+        
         if not token:
+            print("DEBUG: No token provided in request")
             return Response({"error": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
@@ -187,13 +196,15 @@ class EmailVerificationView(APIView):
             import uuid
             try:
                 token_uuid = uuid.UUID(str(token))
-            except (ValueError, AttributeError):
-                print(f"DEBUG: Invalid token format: {token}")
-                return Response({"error": "Invalid token format."}, status=status.HTTP_400_BAD_REQUEST)
+                print(f"DEBUG: Token converted to UUID: {token_uuid}")
+            except (ValueError, AttributeError) as e:
+                print(f"DEBUG: Invalid token format: {token}, Error: {e}")
+                return Response({"error": f"Invalid token format: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             
             print(f"DEBUG: Looking for token: {token_uuid}")
             email_verification = EmailVerification.objects.get(token=token_uuid)
             print(f"DEBUG: Found verification for: {email_verification.email}")
+            print(f"DEBUG: Is verified: {email_verification.is_verified}, Is expired: {email_verification.is_expired}")
             
             if email_verification.is_verified:
                 return Response({"error": "Email already verified."}, status=status.HTTP_400_BAD_REQUEST)
