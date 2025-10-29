@@ -1,6 +1,7 @@
 
 import socket
 import threading
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,6 +15,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.conf import settings
 from django.template.loader import render_to_string
+
+logger = logging.getLogger(__name__)
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
@@ -67,7 +70,7 @@ class RegisterView(APIView):
             
             # Send verification email asynchronously (don't block registration)
             # This prevents timeout issues on slow email servers like SendGrid
-            print(f"🔄 Starting email thread for {data['email']}")
+            logger.info(f"🔄 Starting email thread for {data['email']}")
             try:
                 email_thread = threading.Thread(
                     target=self.send_verification_email_async,
@@ -75,9 +78,9 @@ class RegisterView(APIView):
                     daemon=True
                 )
                 email_thread.start()
-                print(f"✅ Email thread started for {data['email']}")
+                logger.info(f"✅ Email thread started for {data['email']}")
             except Exception as e:
-                print(f"❌ Failed to start email thread for {data['email']}: {e}")
+                logger.error(f"❌ Failed to start email thread for {data['email']}: {e}")
             
             # Return success immediately - email will be sent in background
             response_data = {
@@ -93,26 +96,26 @@ class RegisterView(APIView):
     def send_verification_email_async(self, email_verification):
         """Send verification email asynchronously (in background thread)"""
         try:
-            print(f"📧 Starting background email send for {email_verification.email}")
+            logger.info(f"📧 Starting background email send for {email_verification.email}")
             self.send_verification_email(email_verification)
-            print(f"✅ Background email sent successfully to {email_verification.email}")
+            logger.info(f"✅ Background email sent successfully to {email_verification.email}")
         except socket.timeout as e:
-            print(f"⏱️ Email sending timed out for {email_verification.email}: {e}")
+            logger.error(f"⏱️ Email sending timed out for {email_verification.email}: {e}")
         except Exception as e:
-            print(f"❌ Background email sending failed for {email_verification.email}: {type(e).__name__}: {e}")
+            logger.error(f"❌ Background email sending failed for {email_verification.email}: {type(e).__name__}: {e}")
     
     def send_verification_email(self, email_verification):
         """Send verification email to user"""
         # DEBUG: Log what Django sees (helps diagnose environment variable issues)
-        print(f"DEBUG: EMAIL_HOST: {settings.EMAIL_HOST}")
-        print(f"DEBUG: EMAIL_PORT: {settings.EMAIL_PORT}")
-        print(f"DEBUG: EMAIL_HOST_USER set: {bool(settings.EMAIL_HOST_USER)}, value: {settings.EMAIL_HOST_USER[:10] if settings.EMAIL_HOST_USER else 'EMPTY'}...")
-        print(f"DEBUG: EMAIL_HOST_PASSWORD set: {bool(settings.EMAIL_HOST_PASSWORD)}, length: {len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 0}")
+        logger.info(f"DEBUG: EMAIL_HOST: {settings.EMAIL_HOST}")
+        logger.info(f"DEBUG: EMAIL_PORT: {settings.EMAIL_PORT}")
+        logger.info(f"DEBUG: EMAIL_HOST_USER set: {bool(settings.EMAIL_HOST_USER)}, value: {settings.EMAIL_HOST_USER[:10] if settings.EMAIL_HOST_USER else 'EMPTY'}...")
+        logger.info(f"DEBUG: EMAIL_HOST_PASSWORD set: {bool(settings.EMAIL_HOST_PASSWORD)}, length: {len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 0}")
         
         # Check if email is configured
         if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
             error_msg = f"Email configuration missing. EMAIL_HOST_USER={'SET' if settings.EMAIL_HOST_USER else 'NOT SET'}, EMAIL_HOST_PASSWORD={'SET' if settings.EMAIL_HOST_PASSWORD else 'NOT SET'}."
-            print(f"Failed to send verification email: {error_msg}")
+            logger.error(f"Failed to send verification email: {error_msg}")
             raise Exception(error_msg)
         
         if not settings.DEFAULT_FROM_EMAIL or settings.DEFAULT_FROM_EMAIL == 'noreply@zenitherp.com':
@@ -120,7 +123,7 @@ class RegisterView(APIView):
                 from_email = settings.EMAIL_HOST_USER
             else:
                 error_msg = "DEFAULT_FROM_EMAIL is not configured."
-                print(f"Failed to send verification email: {error_msg}")
+                logger.error(f"Failed to send verification email: {error_msg}")
                 raise Exception(error_msg)
         else:
             from_email = settings.DEFAULT_FROM_EMAIL
@@ -169,12 +172,12 @@ Zenith ERP Team
         socket.setdefaulttimeout(30)  # 30 second timeout (increased for SendGrid)
         try:
             email.send(fail_silently=False)
-            print(f"✅ Verification email sent successfully to {email_verification.email}")
+            logger.info(f"✅ Verification email sent successfully to {email_verification.email}")
         except socket.timeout:
-            print(f"⚠️ Email sending timed out for {email_verification.email}")
+            logger.error(f"⚠️ Email sending timed out for {email_verification.email}")
             raise Exception("Email sending timed out. Please check your email configuration or try again later.")
         except Exception as e:
-            print(f"❌ Failed to send verification email to {email_verification.email}: {str(e)}")
+            logger.error(f"❌ Failed to send verification email to {email_verification.email}: {str(e)}")
             raise Exception(f"Failed to send verification email: {str(e)}")
         finally:
             socket.setdefaulttimeout(None)  # Reset timeout
@@ -184,11 +187,11 @@ class EmailVerificationView(APIView):
 
     def post(self, request):
         token = request.data.get('token')
-        print(f"DEBUG: Verification request received. Token: {token}, Type: {type(token)}")
-        print(f"DEBUG: Request data: {request.data}")
+        logger.info(f"DEBUG: Verification request received. Token: {token}, Type: {type(token)}")
+        logger.info(f"DEBUG: Request data: {request.data}")
         
         if not token:
-            print("DEBUG: No token provided in request")
+            logger.warning("DEBUG: No token provided in request")
             return Response({"error": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
@@ -196,15 +199,15 @@ class EmailVerificationView(APIView):
             import uuid
             try:
                 token_uuid = uuid.UUID(str(token))
-                print(f"DEBUG: Token converted to UUID: {token_uuid}")
+                logger.info(f"DEBUG: Token converted to UUID: {token_uuid}")
             except (ValueError, AttributeError) as e:
-                print(f"DEBUG: Invalid token format: {token}, Error: {e}")
+                logger.error(f"DEBUG: Invalid token format: {token}, Error: {e}")
                 return Response({"error": f"Invalid token format: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
             
-            print(f"DEBUG: Looking for token: {token_uuid}")
+            logger.info(f"DEBUG: Looking for token: {token_uuid}")
             email_verification = EmailVerification.objects.get(token=token_uuid)
-            print(f"DEBUG: Found verification for: {email_verification.email}")
-            print(f"DEBUG: Is verified: {email_verification.is_verified}, Is expired: {email_verification.is_expired}")
+            logger.info(f"DEBUG: Found verification for: {email_verification.email}")
+            logger.info(f"DEBUG: Is verified: {email_verification.is_verified}, Is expired: {email_verification.is_expired}")
             
             if email_verification.is_verified:
                 return Response({"error": "Email already verified."}, status=status.HTTP_400_BAD_REQUEST)
@@ -225,13 +228,13 @@ class EmailVerificationView(APIView):
             }, status=status.HTTP_200_OK)
             
         except EmailVerification.DoesNotExist:
-            print(f"DEBUG: Token not found in database: {token}")
+            logger.error(f"DEBUG: Token not found in database: {token}")
             # Check if any tokens exist (for debugging)
             count = EmailVerification.objects.count()
-            print(f"DEBUG: Total email verifications in DB: {count}")
+            logger.info(f"DEBUG: Total email verifications in DB: {count}")
             return Response({"error": "Invalid verification token."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"DEBUG: Verification error: {str(e)}")
+            logger.error(f"DEBUG: Verification error: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ResendVerificationEmailView(APIView):
