@@ -155,10 +155,16 @@ Zenith ERP Team
         email.attach_alternative(html_message, "text/html")
         
         # Send email with timeout to prevent hanging
-        socket.setdefaulttimeout(10)  # 10 second timeout
+        socket.setdefaulttimeout(30)  # 30 second timeout (increased for SendGrid)
         try:
             email.send(fail_silently=False)
             print(f"✅ Verification email sent successfully to {email_verification.email}")
+        except socket.timeout:
+            print(f"⚠️ Email sending timed out for {email_verification.email}")
+            raise Exception("Email sending timed out. Please check your email configuration or try again later.")
+        except Exception as e:
+            print(f"❌ Failed to send verification email to {email_verification.email}: {str(e)}")
+            raise Exception(f"Failed to send verification email: {str(e)}")
         finally:
             socket.setdefaulttimeout(None)  # Reset timeout
 
