@@ -1,4 +1,5 @@
 
+import socket
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -63,15 +64,18 @@ class RegisterView(APIView):
                 email=data["email"]
             )
             
-            # Send verification email
+            # Send verification email (with timeout to prevent hanging)
             email_sent = False
             email_error = None
             try:
                 self.send_verification_email(email_verification)
                 email_sent = True
+            except socket.timeout as e:
+                email_error = "Email sending timed out. Please check your email configuration or try again later."
+                print(f"Email send timeout: {e}")
             except Exception as e:
                 email_error = str(e)
-                print(f"Failed to send verification email: {e}")
+                print(f"Failed to send verification email: {type(e).__name__}: {e}")
             
             response_data = {
                 "message": "Registration successful! You can now log in.",
@@ -149,7 +153,14 @@ Zenith ERP Team
             to=[email_verification.email],
         )
         email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
+        
+        # Send email with timeout to prevent hanging
+        socket.setdefaulttimeout(10)  # 10 second timeout
+        try:
+            email.send(fail_silently=False)
+            print(f"✅ Verification email sent successfully to {email_verification.email}")
+        finally:
+            socket.setdefaulttimeout(None)  # Reset timeout
 
 class EmailVerificationView(APIView):
     permission_classes = [AllowAny]
