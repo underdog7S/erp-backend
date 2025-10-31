@@ -229,9 +229,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     
-    # Cookie Security
-    SESSION_COOKIE_SECURE = True  # Only send cookies over HTTPS
-    CSRF_COOKIE_SECURE = True  # Only send CSRF cookies over HTTPS
+    # Cookie Security (read from environment, default to False for HTTP)
+    SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'False').lower() == 'true'
     CSRF_COOKIE_HTTPONLY = True  # Prevent JavaScript access to CSRF cookie
     SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookie
     SESSION_COOKIE_SAMESITE = 'Strict'  # Prevent CSRF attacks
