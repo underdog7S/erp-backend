@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
-    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views
+    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics
 )
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
 from api.views.users_views import UserProfileViewSet
@@ -82,6 +82,7 @@ urlpatterns = [
     path('users/edit/', users_views.UserEditView.as_view(), name='user-edit'),
     path('users/toggle-status/', users_views.UserToggleStatusView.as_view(), name='user-toggle-status'),
     path('users/delete/<int:user_id>/', users_views.DeleteUserView.as_view(), name='delete-user'),
+    path('users/employee-analytics/', employee_analytics.EmployeeAnalyticsView.as_view(), name='employee-analytics'),
     path('roles/', users_views.RoleListView.as_view(), name='role-list'),
     path('roles/create/', users_views.CreateRolesView.as_view(), name='create-roles'),
     
@@ -107,10 +108,41 @@ urlpatterns = [
     path('education/attendance/<int:pk>/', education_views.AttendanceDetailView.as_view(), name='education-attendance-detail'),
     path('education/reportcards/', education_views.ReportCardListCreateView.as_view(), name='education-reportcards'),
     path('education/reportcards/<int:pk>/', education_views.ReportCardDetailView.as_view(), name='education-reportcard-detail'),
+    path('education/reportcards/<int:pk>/pdf/', education_views.ReportCardPDFView.as_view(), name='education-reportcard-pdf'),
+    path('education/reportcards/generate/', education_views.ReportCardGenerateView.as_view(), name='education-reportcard-generate'),
+    
+    # Academic Structure endpoints
+    path('education/academic-years/', education_views.AcademicYearListCreateView.as_view(), name='education-academic-years'),
+    path('education/academic-years/<int:pk>/', education_views.AcademicYearDetailView.as_view(), name='education-academic-year-detail'),
+    path('education/terms/', education_views.TermListCreateView.as_view(), name='education-terms'),
+    path('education/subjects/', education_views.SubjectListCreateView.as_view(), name='education-subjects'),
+    path('education/units/', education_views.UnitListCreateView.as_view(), name='education-units'),
+    path('education/assessment-types/', education_views.AssessmentTypeListCreateView.as_view(), name='education-assessment-types'),
+    path('education/assessments/', education_views.AssessmentListCreateView.as_view(), name='education-assessments'),
+    path('education/marks-entries/', education_views.MarksEntryListCreateView.as_view(), name='education-marks-entries'),
+    path('education/marks-entries/<int:pk>/', education_views.MarksEntryDetailView.as_view(), name='education-marks-entry-detail'),
     path('education/fees/', education_views.ClassFeeStructureListCreateView.as_view(), name='education-fees'),
     path('education/fees/<int:pk>/', education_views.ClassFeeStructureDetailView.as_view(), name='education-fee-detail'),
     path('education/fee-payments/', education_views.FeePaymentListCreateView.as_view(), name='education-fee-payments'),
     path('education/fee-payments/<int:pk>/', education_views.FeePaymentDetailView.as_view(), name='education-fee-payment-detail'),
+    
+    # Installment Management endpoints
+    path('education/installment-plans/', education_views.FeeInstallmentPlanListCreateView.as_view(), name='education-installment-plans'),
+    path('education/installment-plans/<int:pk>/', education_views.FeeInstallmentPlanDetailView.as_view(), name='education-installment-plan-detail'),
+    path('education/installments/', education_views.FeeInstallmentListCreateView.as_view(), name='education-installments'),
+    path('education/installments/generate/', education_views.FeeInstallmentGenerateView.as_view(), name='education-installments-generate'),
+    path('education/installments/regenerate/', education_views.FeeInstallmentRegenerateView.as_view(), name='education-installments-regenerate'),
+    path('education/installments/<int:pk>/', education_views.FeeInstallmentDetailView.as_view(), name='education-installment-detail'),
+    path('education/students/<int:student_id>/installments/', education_views.StudentInstallmentsView.as_view(), name='education-student-installments'),
+    path('education/installments/overdue/', education_views.OverdueInstallmentsView.as_view(), name='education-overdue-installments'),
+    
+    # Old Balance Management
+    path('education/old-balances/', education_views.OldBalanceListCreateView.as_view(), name='education-old-balances'),
+    path('education/old-balances/<int:pk>/', education_views.OldBalanceDetailView.as_view(), name='education-old-balance-detail'),
+    path('education/old-balances/carry-forward/', education_views.CarryForwardBalancesView.as_view(), name='education-carry-forward-balances'),
+    path('education/old-balances/summary/', education_views.OldBalanceSummaryView.as_view(), name='education-old-balance-summary'),
+    path('education/balance-adjustments/', education_views.BalanceAdjustmentListCreateView.as_view(), name='education-balance-adjustments'),
+    
     path('education/fee-discounts/', education_views.FeeDiscountViewSet.as_view({'get': 'list', 'post': 'create'}), name='education-fee-discounts'),
     path('education/fee-discounts/<int:pk>/', education_views.FeeDiscountViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='education-fee-discount-detail'),
     path('education/departments/', education_views.DepartmentViewSet.as_view({'get': 'list', 'post': 'create'}), name='education-departments'),

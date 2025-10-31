@@ -136,7 +136,10 @@ class AddUserView(APIView):
             role_name = data.get("role", "staff")
             logger.info(f"Looking for role: {role_name}")
             try:
-                role = Role._default_manager.get(name__iexact=role_name)
+                # Use filter().first() instead of get() to handle multiple roles with same name
+                role = Role._default_manager.filter(name__iexact=role_name).first()
+                if not role:
+                    raise Role._default_manager.model.DoesNotExist(f"Role '{role_name}' does not exist.")
                 logger.info(f"Found role: {role.name}")
             except Role._default_manager.model.DoesNotExist:
                 user.delete()
@@ -394,10 +397,14 @@ class UserEditView(APIView):
             # Update profile fields
             if data.get('role'):
                 try:
-                    role = Role._default_manager.get(name__iexact=data['role'])
+                    # Use filter().first() instead of get() to handle multiple roles with same name
+                    role = Role._default_manager.filter(name__iexact=data['role']).first()
+                    if not role:
+                        return Response({"error": f"Role '{data['role']}' does not exist."}, status=status.HTTP_400_BAD_REQUEST)
                     user_profile.role = role
-                except Role._default_manager.model.DoesNotExist:
-                    return Response({"error": f"Role '{data['role']}' does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    logger.error(f"Error finding role '{data['role']}': {str(e)}")
+                    return Response({"error": f"Error finding role '{data['role']}'."}, status=status.HTTP_400_BAD_REQUEST)
             
             # Department: set to None if not provided or empty
             if 'department' in data:
@@ -410,6 +417,24 @@ class UserEditView(APIView):
                 user_profile.phone = data['phone']
             if data.get('job_title'):
                 user_profile.job_title = data['job_title']
+            
+            # Update Personal Info fields
+            if 'address' in data:
+                user_profile.address = data.get('address', '')
+            if 'date_of_birth' in data:
+                user_profile.date_of_birth = data.get('date_of_birth') or None
+            if 'gender' in data:
+                user_profile.gender = data.get('gender', '')
+            if 'emergency_contact' in data:
+                user_profile.emergency_contact = data.get('emergency_contact', '')
+            if 'joining_date' in data:
+                user_profile.joining_date = data.get('joining_date') or None
+            if 'qualifications' in data:
+                user_profile.qualifications = data.get('qualifications', '')
+            if 'bio' in data:
+                user_profile.bio = data.get('bio', '')
+            if 'linkedin' in data:
+                user_profile.linkedin = data.get('linkedin', '')
             
             # Handle is_active - FormData sends strings "true"/"false", convert to boolean
             if 'is_active' in data:

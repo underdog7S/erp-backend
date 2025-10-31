@@ -1,0 +1,3 @@
+"""Education app management package."""
+
+

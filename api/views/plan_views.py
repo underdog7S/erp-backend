@@ -12,17 +12,19 @@ PLANS = [
         "key": "free",
         "name": "Free",
         "description": "Perfect for small organizations getting started.",
-        "max_users": 5,
+        "max_users": 2,
         "storage_limit_mb": 500,
         "price": 0,
         "billing_cycle": "monthly",
         "features": [
             "1 Industry Module",
             "Basic Dashboard",
-            "Up to 5 Users",
+            "Up to 2 Users",
             "500 MB Storage",
             "Email Support",
-            "Basic Reports"
+            "Basic Reports",
+            "Core ERP Features",
+            "Mobile Access"
         ],
         "color": "#4CAF50",
         "popular": False
@@ -31,18 +33,19 @@ PLANS = [
         "key": "starter",
         "name": "Starter",
         "description": "Great for growing businesses.",
-        "max_users": 20,
-        "storage_limit_mb": 2048,  # 2 GB
-        "price": 999,
+        "max_users": 25,
+        "storage_limit_mb": 5120,  # 5 GB
+        "price": 4500,
         "billing_cycle": "annual",
         "features": [
             "1 Industry Module",
             "Advanced Dashboard",
-            "Up to 20 Users",
-            "2 GB Storage",
-            "Email Support",
+            "Up to 25 Users",
+            "5 GB Storage",
+            "Priority Support",
             "Daily Backups",
-            "Enhanced Reports"
+            "Advanced Reports",
+            "API Access"
         ],
         "color": "#2196F3",
         "popular": False
@@ -51,20 +54,20 @@ PLANS = [
         "key": "pro",
         "name": "Pro",
         "description": "Perfect for established teams and organizations.",
-        "max_users": 50,
-        "storage_limit_mb": 10240,  # 10 GB
-        "price": 2499,
+        "max_users": 100,
+        "storage_limit_mb": 20480,  # 20 GB
+        "price": 8999,
         "billing_cycle": "annual",
         "features": [
             "1 Industry Module",
             "Advanced Analytics",
-            "Up to 50 Users",
-            "10 GB Storage",
-            "Priority Email Support",
-            "Audit Logs",
+            "Up to 100 Users",
+            "20 GB Storage",
+            "Priority Support",
+            "Advanced Analytics",
             "API Access",
-            "Quality Control",
-            "Billing Management",
+            "Custom Integrations",
+            "White-label Options",
             "Daily Backups"
         ],
         "color": "#9C27B0",
@@ -74,21 +77,20 @@ PLANS = [
         "key": "business_annual",
         "name": "Business",
         "description": "Best value for growing businesses with annual commitment.",
-        "max_users": 150,
-        "storage_limit_mb": 20480,  # 20 GB
-        "price": 4999,
+        "max_users": None,  # Unlimited
+        "storage_limit_mb": 51200,  # 50 GB
+        "price": 19999,
         "billing_cycle": "annual",
         "features": [
-            "1 Industry Module",
+            "All Industry Modules",
             "Advanced Analytics & Reports",
-            "Up to 150 Users",
-            "20 GB Storage",
-            "Email + Chat Support",
-            "Priority Onboarding",
-            "Audit Logs",
-            "API Access",
-            "Quality Control",
-            "Billing Management",
+            "Unlimited Users",
+            "50 GB Storage",
+            "24/7 Priority Support",
+            "Dedicated Account Manager",
+            "Custom Development",
+            "SLA Guarantee",
+            "On-premise Option",
             "Daily Backups"
         ],
         "annual_bonus": [

@@ -5,9 +5,21 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.user import UserProfile
-from education.models import Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, StaffAttendance, Department
+from education.models import (
+    Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
+    ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
+    Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
+    OldBalance, BalanceAdjustment
+)
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
-from api.models.serializers_education import ClassSerializer, StudentSerializer, FeeStructureSerializer, FeePaymentSerializer, FeeDiscountSerializer, AttendanceSerializer, ReportCardSerializer, StaffAttendanceSerializer, DepartmentSerializer
+from api.models.serializers_education import (
+    ClassSerializer, StudentSerializer, FeeStructureSerializer, FeePaymentSerializer, 
+    FeeDiscountSerializer, AttendanceSerializer, ReportCardSerializer, 
+    StaffAttendanceSerializer, DepartmentSerializer, AcademicYearSerializer, 
+    TermSerializer, SubjectSerializer, UnitSerializer, AssessmentTypeSerializer, 
+    AssessmentSerializer, MarksEntrySerializer, FeeInstallmentPlanSerializer, 
+    FeeInstallmentSerializer, OldBalanceSerializer, BalanceAdjustmentSerializer
+)
 from django.http import HttpResponse
 import csv
 from io import BytesIO
@@ -86,10 +98,10 @@ class StudentListCreateView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if profile.role and profile.role.name in ['admin', 'accountant']:
+        if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
             students = Student._default_manager.filter(tenant=profile.tenant)  # type: ignore
         else:
-            # Staff: only students in their assigned classes
+            # Staff/Teachers: only students in their assigned classes
             students = Student._default_manager.filter(tenant=profile.tenant, assigned_class__in=profile.assigned_classes.all())  # type: ignore
         # Filtering
         search = request.query_params.get('search')
@@ -133,11 +145,24 @@ class StudentDetailView(APIView):
         except Student.DoesNotExist:  # type: ignore
             return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    @role_required('admin', 'principal')
     def put(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)
+        # Check role-based permissions
+        user_role = profile.role.name if profile.role else None
+        
+        # Only admin, principal, teacher, staff, and accountant can update students
+        if user_role not in ['admin', 'principal', 'teacher', 'staff', 'accountant']:
+            return Response({'error': 'You do not have permission to update students.'}, status=status.HTTP_403_FORBIDDEN)
+        
         try:
             s = Student._default_manager.get(id=pk, tenant=profile.tenant)  # type: ignore
+            
+            # Teachers and staff can only update students in their assigned classes
+            if user_role in ['teacher', 'staff']:
+                assigned_class_ids = list(profile.assigned_classes.values_list('id', flat=True))
+                if not s.assigned_class or s.assigned_class.id not in assigned_class_ids:
+                    return Response({'error': 'You can only update students in your assigned classes.'}, status=status.HTTP_403_FORBIDDEN)
+            
             serializer = StudentSerializer(s, data=request.data, partial=True, context={'tenant': profile.tenant})
             if serializer.is_valid():
                 serializer.save()
@@ -238,11 +263,45 @@ class ReportCardListCreateView(APIView):
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
         data = request.data.copy()
-        data['tenant'] = profile.tenant.id
+        # Accept either *_id or plain FK keys and map to serializer fields
+        if 'student' in data and 'student_id' not in data:
+            data['student_id'] = data.get('student')
+        if 'academic_year' in data and 'academic_year_id' not in data:
+            data['academic_year_id'] = data.get('academic_year')
+        if 'term' in data and 'term_id' not in data:
+            data['term_id'] = data.get('term')
+        if 'class_obj' in data and 'class_obj_id' not in data:
+            data['class_obj_id'] = data.get('class_obj')
+        # Handle uniqueness gracefully: upsert by (tenant, student, academic_year, term)
         serializer = ReportCardSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(tenant=profile.tenant)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            student = serializer.validated_data.get('student')
+            academic_year = serializer.validated_data.get('academic_year')
+            term = serializer.validated_data.get('term')
+            class_obj = serializer.validated_data.get('class_obj')
+            # Try get_or_create
+            from education.models import ReportCard as RC
+            rc, created = RC._default_manager.get_or_create(
+                tenant=profile.tenant,
+                student=student,
+                academic_year=academic_year,
+                term=term,
+                defaults={
+                    'class_obj': class_obj,
+                    'teacher_remarks': serializer.validated_data.get('teacher_remarks', ''),
+                    'principal_remarks': serializer.validated_data.get('principal_remarks', ''),
+                    'conduct_grade': serializer.validated_data.get('conduct_grade', ''),
+                    'issued_date': serializer.validated_data.get('issued_date'),
+                }
+            )
+            if not created:
+                # Update optional fields if provided
+                for f in ['class_obj', 'teacher_remarks', 'principal_remarks', 'conduct_grade', 'issued_date']:
+                    val = serializer.validated_data.get(f, None)
+                    if val is not None:
+                        setattr(rc, f, val)
+                rc.save()
+            return Response(ReportCardSerializer(rc).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ReportCardDetailView(APIView):
@@ -280,6 +339,528 @@ class ReportCardDetailView(APIView):
             return Response({'message': 'Report card deleted.'})
         except ReportCard.DoesNotExist:  # type: ignore
             return Response({'error': 'Report card not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+# Academic Structure Views
+class AcademicYearListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        academic_years = AcademicYear._default_manager.filter(tenant=profile.tenant)
+        serializer = AcademicYearSerializer(academic_years, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = AcademicYearSerializer(data=data)
+        if serializer.is_valid():
+            # If this is set as current, unset others
+            if data.get('is_current'):
+                AcademicYear._default_manager.filter(tenant=profile.tenant).update(is_current=False)
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AcademicYearDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            ay = AcademicYear._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = AcademicYearSerializer(ay)
+            return Response(serializer.data)
+        except AcademicYear.DoesNotExist:
+            return Response({'error': 'Academic year not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal')
+    def put(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            ay = AcademicYear._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = AcademicYearSerializer(ay, data=request.data, partial=True)
+            if serializer.is_valid():
+                # If setting as current, unset others
+                if request.data.get('is_current'):
+                    AcademicYear._default_manager.filter(tenant=profile.tenant).exclude(id=pk).update(is_current=False)
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except AcademicYear.DoesNotExist:
+            return Response({'error': 'Academic year not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal')
+    def delete(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            ay = AcademicYear._default_manager.get(id=pk, tenant=profile.tenant)
+            ay.delete()
+            return Response({'message': 'Academic year deleted.'})
+        except AcademicYear.DoesNotExist:
+            return Response({'error': 'Academic year not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class TermListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        academic_year_id = request.query_params.get('academic_year')
+        terms = Term._default_manager.filter(tenant=profile.tenant)
+        if academic_year_id:
+            terms = terms.filter(academic_year_id=academic_year_id)
+        serializer = TermSerializer(terms, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = TermSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class SubjectListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        class_id = request.query_params.get('class')
+        subjects = Subject._default_manager.filter(tenant=profile.tenant)
+        if class_id:
+            subjects = subjects.filter(class_obj_id=class_id)
+        serializer = SubjectSerializer(subjects, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = SubjectSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UnitListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        subject_id = request.query_params.get('subject')
+        units = Unit._default_manager.filter(tenant=profile.tenant)
+        if subject_id:
+            units = units.filter(subject_id=subject_id)
+        serializer = UnitSerializer(units, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal', 'teacher')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = UnitSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AssessmentTypeListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        assessment_types = AssessmentType._default_manager.filter(tenant=profile.tenant)
+        serializer = AssessmentTypeSerializer(assessment_types, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = AssessmentTypeSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AssessmentListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        term_id = request.query_params.get('term')
+        subject_id = request.query_params.get('subject')
+        assessments = Assessment._default_manager.filter(tenant=profile.tenant)
+        if term_id:
+            assessments = assessments.filter(term_id=term_id)
+        if subject_id:
+            assessments = assessments.filter(subject_id=subject_id)
+        serializer = AssessmentSerializer(assessments, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal', 'teacher')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = AssessmentSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class MarksEntryListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        student_id = request.query_params.get('student')
+        assessment_id = request.query_params.get('assessment')
+        term_id = request.query_params.get('term')
+        
+        marks_entries = MarksEntry._default_manager.filter(tenant=profile.tenant)
+        if student_id:
+            marks_entries = marks_entries.filter(student_id=student_id)
+        if assessment_id:
+            marks_entries = marks_entries.filter(assessment_id=assessment_id)
+        if term_id:
+            marks_entries = marks_entries.filter(assessment__term_id=term_id)
+        
+        serializer = MarksEntrySerializer(marks_entries, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal', 'teacher')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        data['entered_by'] = profile.id
+        
+        # Set max_marks from assessment if not provided
+        if 'max_marks' not in data and 'assessment_id' in data:
+            try:
+                assessment = Assessment._default_manager.get(id=data['assessment_id'], tenant=profile.tenant)
+                data['max_marks'] = assessment.max_marks
+            except Assessment.DoesNotExist:
+                pass
+        
+        serializer = MarksEntrySerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant, entered_by=profile)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class MarksEntryDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            me = MarksEntry._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = MarksEntrySerializer(me)
+            return Response(serializer.data)
+        except MarksEntry.DoesNotExist:
+            return Response({'error': 'Marks entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'teacher')
+    def put(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            me = MarksEntry._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = MarksEntrySerializer(me, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except MarksEntry.DoesNotExist:
+            return Response({'error': 'Marks entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'teacher')
+    def delete(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            me = MarksEntry._default_manager.get(id=pk, tenant=profile.tenant)
+            me.delete()
+            return Response({'message': 'Marks entry deleted.'})
+        except MarksEntry.DoesNotExist:
+            return Response({'error': 'Marks entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class ReportCardGenerateView(APIView):
+    """Generate or regenerate report card with auto-calculation"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    @role_required('admin', 'principal', 'teacher')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        # Accept either *_id or plain FK keys
+        student_id = data.get('student_id') or data.get('student')
+        academic_year_id = data.get('academic_year_id') or data.get('academic_year')
+        term_id = data.get('term_id') or data.get('term')
+        
+        if not all([student_id, academic_year_id, term_id]):
+            return Response(
+                {'error': 'student_id, academic_year_id, and term_id are required.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+            academic_year = AcademicYear._default_manager.get(id=academic_year_id, tenant=profile.tenant)
+            term = Term._default_manager.get(id=term_id, tenant=profile.tenant)
+            class_obj = student.assigned_class
+            
+            if not class_obj:
+                return Response(
+                    {'error': 'Student must be assigned to a class.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get or create report card
+            report_card, created = ReportCard._default_manager.get_or_create(
+                tenant=profile.tenant,
+                student=student,
+                academic_year=academic_year,
+                term=term,
+                defaults={'class_obj': class_obj}
+            )
+            
+            # Update class if changed
+            if report_card.class_obj != class_obj:
+                report_card.class_obj = class_obj
+            
+            # Auto-calculate totals
+            report_card.calculate_totals()
+            
+            # Calculate rank
+            from django.db.models import F, Window
+            same_class_term = ReportCard._default_manager.filter(
+                tenant=profile.tenant,
+                academic_year=academic_year,
+                term=term,
+                class_obj=class_obj
+            ).order_by('-percentage')
+            
+            rank = 1
+            for rc in same_class_term:
+                if rc.id == report_card.id:
+                    report_card.rank_in_class = rank
+                    report_card.save()
+                    break
+                rank += 1
+            
+            # Update remarks if provided
+            if 'teacher_remarks' in data:
+                report_card.teacher_remarks = data['teacher_remarks']
+            if 'principal_remarks' in data:
+                report_card.principal_remarks = data['principal_remarks']
+            if 'conduct_grade' in data:
+                report_card.conduct_grade = data['conduct_grade']
+            if 'issued_date' in data:
+                report_card.issued_date = data['issued_date']
+            
+            report_card.save()
+            
+            serializer = ReportCardSerializer(report_card)
+            return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+            
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except AcademicYear.DoesNotExist:
+            return Response({'error': 'Academic year not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Term.DoesNotExist:
+            return Response({'error': 'Term not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error generating report card: {str(e)}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ReportCardPDFView(APIView):
+    """Generate PDF for a specific report card"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            report_card = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)
+        except ReportCard.DoesNotExist:
+            return Response({'error': 'Report card not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.lib import colors
+            from reportlab.lib.units import mm
+            from io import BytesIO
+
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+
+            # Header banner with school name
+            school_name = getattr(profile.tenant, 'name', '') or 'School'
+            p.setFillColor(colors.HexColor('#0F62FE'))
+            p.rect(0, height - 50, width, 50, stroke=0, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 18)
+            p.drawString(20 * mm, height - 22, school_name)
+            p.setFont('Helvetica', 10)
+            p.drawString(20 * mm, height - 34, 'Powered by ZENITH ERP')
+            p.setFont('Helvetica-Bold', 12)
+            p.drawRightString(width - 20 * mm, height - 28, 'Report Card')
+
+            y = height - 60
+            p.setFillColor(colors.black)
+
+            # Student block
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(20 * mm, y, 'Student Details')
+            y -= 8
+            p.setStrokeColor(colors.HexColor('#E0E0E0'))
+            p.line(20 * mm, y, width - 20 * mm, y)
+            y -= 10
+            p.setFont('Helvetica', 10)
+            p.drawString(20 * mm, y, f"Name: {report_card.student.name}")
+            roll_val = getattr(report_card.student, 'roll_number', None) or getattr(report_card.student, 'admission_number', None) or report_card.student.id
+            # Upper/Admission ID if available
+            upper_val = getattr(report_card.student, 'upper_id', None) or getattr(report_card.student, 'admission_number', None)
+            p.drawString(90 * mm, y, f"Roll: {roll_val}")
+            y -= 14
+            p.drawString(20 * mm, y, f"Class: {report_card.class_obj.name if report_card.class_obj else 'N/A'}")
+            p.drawString(90 * mm, y, f"Academic Year: {report_card.academic_year.name if report_card.academic_year else 'N/A'}")
+            y -= 14
+            p.drawString(20 * mm, y, f"Term: {report_card.term.name if report_card.term else 'N/A'}")
+            issued_str = report_card.issued_date or report_card.generated_at.strftime('%Y-%m-%d')
+            right_meta = f"Issued: {issued_str}"
+            if upper_val:
+                right_meta = f"ID: {upper_val}    |    {right_meta}"
+            p.drawString(90 * mm, y, right_meta)
+            y -= 18
+
+            # Subject marks table headers
+            p.setFont('Helvetica-Bold', 11)
+            headers = ['Subject', 'Marks', 'Max', 'Percent']
+            col_x = [20 * mm, 110 * mm, 140 * mm, 165 * mm]
+            for i, htxt in enumerate(headers):
+                p.drawString(col_x[i], y, htxt)
+            y -= 6
+            p.setStrokeColor(colors.black)
+            p.line(20 * mm, y, width - 20 * mm, y)
+            y -= 10
+
+            # Table rows
+            from education.models import MarksEntry
+            marks_entries = MarksEntry.objects.filter(
+                tenant=report_card.tenant,
+                student=report_card.student,
+                assessment__term=report_card.term
+            ).select_related('assessment', 'assessment__subject')
+
+            p.setFont('Helvetica', 10)
+            for entry in marks_entries:
+                if y < 50:
+                    # new page
+                    p.showPage()
+                    y = height - 40
+                subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
+                percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
+                p.drawString(col_x[0], y, subject_name[:28])
+                p.drawRightString(col_x[1] + 20, y, str(entry.marks_obtained))
+                p.drawRightString(col_x[2] + 20, y, str(entry.max_marks))
+                p.drawRightString(col_x[3] + 20, y, f"{percent:.1f}%")
+                y -= 14
+
+            # Overall summary box
+            y -= 8
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(20 * mm, y, 'Overall Performance')
+            y -= 8
+            p.setStrokeColor(colors.HexColor('#E0E0E0'))
+            p.line(20 * mm, y, width - 20 * mm, y)
+            y -= 12
+            p.setFont('Helvetica', 10)
+            p.drawString(20 * mm, y, f"Total: {report_card.total_marks} / {report_card.max_total_marks}")
+            p.drawString(90 * mm, y, f"Percentage: {report_card.percentage}%")
+            y -= 14
+            p.drawString(20 * mm, y, f"Grade: {report_card.grade}")
+            if report_card.rank_in_class:
+                p.drawString(90 * mm, y, f"Rank: {report_card.rank_in_class}")
+            y -= 18
+
+            # Attendance and Conduct
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(20 * mm, y, 'Attendance & Conduct')
+            y -= 8
+            p.setStrokeColor(colors.HexColor('#E0E0E0'))
+            p.line(20 * mm, y, width - 20 * mm, y)
+            y -= 12
+            p.setFont('Helvetica', 10)
+            p.drawString(20 * mm, y, f"Present: {report_card.days_present}")
+            p.drawString(60 * mm, y, f"Absent: {report_card.days_absent}")
+            p.drawString(100 * mm, y, f"Attendance: {report_card.attendance_percentage}%")
+            if report_card.conduct_grade:
+                p.drawString(155 * mm, y, f"Conduct: {report_card.conduct_grade}")
+            y -= 18
+
+            # Remarks
+            if report_card.teacher_remarks or report_card.principal_remarks:
+                p.setFont('Helvetica-Bold', 12)
+                p.drawString(20 * mm, y, 'Remarks')
+                y -= 8
+                p.setStrokeColor(colors.HexColor('#E0E0E0'))
+                p.line(20 * mm, y, width - 20 * mm, y)
+                y -= 12
+                p.setFont('Helvetica', 10)
+                def wrap(text, max_chars=95):
+                    return [text[i:i+max_chars] for i in range(0, len(text), max_chars)] if text else []
+                for line in wrap(report_card.teacher_remarks):
+                    p.drawString(20 * mm, y, line)
+                    y -= 12
+                for line in wrap(report_card.principal_remarks):
+                    p.drawString(20 * mm, y, line)
+                    y -= 12
+                y -= 6
+
+            # Signature lines
+            p.setStrokeColor(colors.black)
+            p.line(20 * mm, 30 * mm, 70 * mm, 30 * mm)
+            p.drawString(20 * mm, 26 * mm, 'Class Teacher')
+            p.line(85 * mm, 30 * mm, 135 * mm, 30 * mm)
+            p.drawString(85 * mm, 26 * mm, 'Principal')
+            # Footer
+            p.setFont('Helvetica', 8)
+            p.setFillColor(colors.HexColor('#666666'))
+            p.drawString(20 * mm, 15 * mm, f"Generated on {report_card.generated_at.strftime('%Y-%m-%d %H:%M')} — {school_name}")
+
+            p.showPage()
+            p.save()
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="report_card_{report_card.student.name}_{report_card.id}.pdf"'
+            return response
+        except ImportError:
+            return Response({'error': 'Reportlab not installed. Install with: pip install reportlab'}, status=500)
+        except Exception as e:
+            logger.error(f"Error generating PDF: {str(e)}", exc_info=True)
+            return Response({'error': f'PDF generation failed: {str(e)}'}, status=500)
 
 class StudentExportView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -362,8 +943,9 @@ class ClassFeeStructureListCreateView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+        # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
+            return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
         fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)  # type: ignore
         serializer = FeeStructureSerializer(fee_structures, many=True)
         return Response(serializer.data)
@@ -560,8 +1142,8 @@ class AdminEducationSummaryView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can view admin summary.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can view admin summary.'}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         total_students = Student._default_manager.filter(tenant=tenant).count()  # type: ignore
         total_staff = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student').count()  # type: ignore
@@ -592,8 +1174,8 @@ class ClassStatsView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can view class stats.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can view class stats.'}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
         data = []
@@ -620,8 +1202,8 @@ class MonthlyReportView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can view monthly reports.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can view monthly reports.'}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         month = request.query_params.get('month')  # format: YYYY-MM
         if not month:
@@ -648,8 +1230,8 @@ class ExportClassStatsCSVView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can export class stats.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can export class stats.'}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
         response = HttpResponse(content_type='text/csv')
@@ -670,8 +1252,8 @@ class ExportMonthlyReportCSVView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can export monthly reports.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can export monthly reports.'}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         month = request.query_params.get('month')  # format: YYYY-MM
         if not month:
@@ -756,8 +1338,9 @@ class EducationDepartmentListCreateView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'principal']:
-            return Response({'error': 'Only admins and principals can view departments.'}, status=status.HTTP_403_FORBIDDEN)
+        # Allow admin, principal, and teacher to view departments (read-only for teachers)
+        if not profile.role or profile.role.name not in ['admin', 'principal', 'teacher', 'staff']:
+            return Response({'error': 'You do not have permission to view departments.'}, status=status.HTTP_403_FORBIDDEN)
         departments = Department._default_manager.filter(tenant=profile.tenant)
         serializer = DepartmentSerializer(departments, many=True)
         return Response(serializer.data)
@@ -779,8 +1362,8 @@ class FeePaymentListCreateView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if profile.role and profile.role.name in ['admin', 'accountant']:
-            # Admin can see all fee payments
+        if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
+            # Admin/Accountant/Principal can see all fee payments
             payments = FeePayment._default_manager.filter(tenant=profile.tenant)
         else:
             # Staff/teachers can only see payments for their assigned classes
@@ -835,6 +1418,432 @@ class FeePaymentDetailView(APIView):
         payment.delete()
         return Response({'message': 'Fee payment deleted.'}) 
 
+# Installment Management Views
+class FeeInstallmentPlanListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        fee_structure_id = request.query_params.get('fee_structure')
+        plans = FeeInstallmentPlan._default_manager.filter(tenant=profile.tenant)
+        if fee_structure_id:
+            plans = plans.filter(fee_structure_id=fee_structure_id)
+        serializer = FeeInstallmentPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = FeeInstallmentPlanSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class FeeInstallmentPlanDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            plan = FeeInstallmentPlan._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = FeeInstallmentPlanSerializer(plan)
+            return Response(serializer.data)
+        except FeeInstallmentPlan.DoesNotExist:
+            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'accountant')
+    def put(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            plan = FeeInstallmentPlan._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = FeeInstallmentPlanSerializer(plan, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except FeeInstallmentPlan.DoesNotExist:
+            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'accountant')
+    def delete(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            plan = FeeInstallmentPlan._default_manager.get(id=pk, tenant=profile.tenant)
+            plan.delete()
+            return Response({'message': 'Installment plan deleted.'})
+        except FeeInstallmentPlan.DoesNotExist:
+            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class FeeInstallmentListCreateView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        student_id = request.query_params.get('student')
+        fee_structure_id = request.query_params.get('fee_structure')
+        status_filter = request.query_params.get('status')
+        
+        installments = FeeInstallment._default_manager.filter(tenant=profile.tenant)
+        if student_id:
+            installments = installments.filter(student_id=student_id)
+        if fee_structure_id:
+            installments = installments.filter(fee_structure_id=fee_structure_id)
+        if status_filter:
+            installments = installments.filter(status=status_filter)
+        # Recompute paid amounts and status from payments to ensure UI reflects actual payments
+        try:
+            from django.db.models import Sum
+            from education.models import FeePayment
+            from decimal import Decimal
+            # Group installments by (student, fee_structure)
+            groups = {}
+            for inst in installments.order_by('fee_structure', 'installment_number'):
+                key = (inst.student_id, inst.fee_structure_id)
+                groups.setdefault(key, []).append(inst)
+            for (student_id_val, fee_structure_id_val), inst_list in groups.items():
+                # Sum all payments for this student+fee_structure
+                total_paid_all = FeePayment._default_manager.filter(
+                    tenant=profile.tenant,
+                    student_id=student_id_val,
+                    fee_structure_id=fee_structure_id_val
+                ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                total_paid_all = Decimal(str(total_paid_all))
+                # Compute current allocated (direct + split)
+                total_allocated = Decimal('0')
+                per_inst_paid = {}
+                for inst in inst_list:
+                    direct_paid = FeePayment._default_manager.filter(
+                        tenant=profile.tenant,
+                        installment=inst
+                    ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    direct_paid = Decimal(str(direct_paid))
+                    split_paid = Decimal('0')
+                    for p in FeePayment._default_manager.filter(
+                        tenant=profile.tenant,
+                        student_id=student_id_val,
+                        fee_structure_id=fee_structure_id_val
+                    ):
+                        try:
+                            alloc = p.split_installments.get(str(inst.id))
+                            if alloc:
+                                split_paid += Decimal(str(alloc))
+                        except Exception:
+                            continue
+                    per_inst_paid[inst.id] = direct_paid + split_paid
+                    total_allocated += per_inst_paid[inst.id]
+                # Residual from generic payments not tagged to installments
+                residual = total_paid_all - total_allocated
+                # Allocate residual across installments in order
+                for inst in inst_list:
+                    if residual <= 0:
+                        break
+                    due = Decimal(str(inst.due_amount))
+                    current = per_inst_paid.get(inst.id, Decimal('0'))
+                    need = max(Decimal('0'), due - current)
+                    apply = min(residual, need)
+                    if apply > 0:
+                        current += apply
+                        per_inst_paid[inst.id] = current
+                        residual -= apply
+                # Update installments
+                for inst in inst_list:
+                    inst.paid_amount = per_inst_paid.get(inst.id, Decimal('0'))
+                    inst.update_status()
+        except Exception:
+            pass
+        
+        serializer = FeeInstallmentSerializer(installments, many=True)
+        return Response(serializer.data)
+
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        serializer = FeeInstallmentSerializer(data=data)
+        if serializer.is_valid():
+            installment = serializer.save(tenant=profile.tenant)
+            installment.update_status()  # Auto-update status
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class FeeInstallmentDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            installment = FeeInstallment._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = FeeInstallmentSerializer(installment)
+            return Response(serializer.data)
+        except FeeInstallment.DoesNotExist:
+            return Response({'error': 'Installment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'accountant')
+    def put(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            installment = FeeInstallment._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = FeeInstallmentSerializer(installment, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                installment.update_status()  # Auto-update status after change
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except FeeInstallment.DoesNotExist:
+            return Response({'error': 'Installment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class FeeInstallmentGenerateView(APIView):
+    """Generate installments for a student based on installment plan"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        
+        student_id = data.get('student_id')
+        fee_structure_id = data.get('fee_structure_id')
+        installment_plan_id = data.get('installment_plan_id')
+        
+        if not all([student_id, fee_structure_id, installment_plan_id]):
+            return Response(
+                {'error': 'student_id, fee_structure_id, and installment_plan_id are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+            fee_structure = FeeStructure._default_manager.get(id=fee_structure_id, tenant=profile.tenant)
+            installment_plan = FeeInstallmentPlan._default_manager.get(id=installment_plan_id, tenant=profile.tenant)
+            
+            # Check if installments already exist
+            existing = FeeInstallment._default_manager.filter(
+                tenant=profile.tenant,
+                student=student,
+                fee_structure=fee_structure
+            )
+            if existing.exists():
+                return Response(
+                    {'error': 'Installments already exist for this student and fee structure.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Generate installments based on plan
+            installments_data = data.get('installments', [])  # Custom installments if provided
+            created_installments = []
+            
+            if installment_plan.installment_type in ('EQUAL', 'PERCENTAGE'):
+                # Equal split with rounding and proper due dates from start_date
+                from decimal import Decimal, ROUND_HALF_UP
+                from datetime import timedelta, date
+                from django.utils import timezone
+
+                n = int(installment_plan.number_of_installments or 1)
+                total = Decimal(str(fee_structure.amount))
+                base = (total / Decimal(n)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                amounts = [base for _ in range(n)]
+                # Adjust last installment to fix rounding difference
+                diff = total - sum(amounts)
+                if diff != 0:
+                    amounts[-1] = (amounts[-1] + diff).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+                # Start date parsing
+                start_date_str = data.get('start_date')
+                try:
+                    start_dt = date.fromisoformat(start_date_str) if start_date_str else timezone.now().date()
+                except Exception:
+                    start_dt = timezone.now().date()
+
+                for i in range(1, n + 1):
+                    # Approximate month increment by 30-day blocks
+                    due_dt = (start_dt + timedelta(days=30 * (i - 1)))
+                    installment = FeeInstallment._default_manager.create(
+                        tenant=profile.tenant,
+                        student=student,
+                        fee_structure=fee_structure,
+                        installment_plan=installment_plan,
+                        installment_number=i,
+                        due_amount=amounts[i - 1],
+                        due_date=due_dt
+                    )
+                    installment.update_status()
+                    created_installments.append(installment)
+            else:
+                # Custom amounts - use provided installments_data
+                if not installments_data:
+                    return Response(
+                        {'error': 'installments data required for CUSTOM installment type.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                for inst_data in installments_data:
+                    installment = FeeInstallment._default_manager.create(
+                        tenant=profile.tenant,
+                        student=student,
+                        fee_structure=fee_structure,
+                        installment_plan=installment_plan,
+                        installment_number=inst_data['installment_number'],
+                        due_amount=inst_data['due_amount'],
+                        due_date=inst_data['due_date']
+                    )
+                    installment.update_status()
+                    created_installments.append(installment)
+            
+            serializer = FeeInstallmentSerializer(created_installments, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except FeeStructure.DoesNotExist:
+            return Response({'error': 'Fee structure not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except FeeInstallmentPlan.DoesNotExist:
+            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error generating installments: {str(e)}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class FeeInstallmentRegenerateView(APIView):
+    """Delete existing installments for student+fee_structure and regenerate from a plan"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+
+        student_id = data.get('student_id')
+        fee_structure_id = data.get('fee_structure_id')
+        installment_plan_id = data.get('installment_plan_id')
+        if not all([student_id, fee_structure_id, installment_plan_id]):
+            return Response({'error': 'student_id, fee_structure_id, and installment_plan_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+            fee_structure = FeeStructure._default_manager.get(id=fee_structure_id, tenant=profile.tenant)
+            installment_plan = FeeInstallmentPlan._default_manager.get(id=installment_plan_id, tenant=profile.tenant)
+
+            # Delete existing installments
+            FeeInstallment._default_manager.filter(
+                tenant=profile.tenant,
+                student=student,
+                fee_structure=fee_structure
+            ).delete()
+
+            # Reuse generation logic
+            from decimal import Decimal, ROUND_HALF_UP
+            from datetime import timedelta, date
+            from django.utils import timezone
+
+            created_installments = []
+            if installment_plan.installment_type in ('EQUAL', 'PERCENTAGE'):
+                n = int(installment_plan.number_of_installments or 1)
+                total = Decimal(str(fee_structure.amount))
+                base = (total / Decimal(n)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                amounts = [base for _ in range(n)]
+                diff = total - sum(amounts)
+                if diff != 0:
+                    amounts[-1] = (amounts[-1] + diff).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+                start_date_str = data.get('start_date')
+                try:
+                    start_dt = date.fromisoformat(start_date_str) if start_date_str else timezone.now().date()
+                except Exception:
+                    start_dt = timezone.now().date()
+
+                for i in range(1, n + 1):
+                    due_dt = (start_dt + timedelta(days=30 * (i - 1)))
+                    installment = FeeInstallment._default_manager.create(
+                        tenant=profile.tenant,
+                        student=student,
+                        fee_structure=fee_structure,
+                        installment_plan=installment_plan,
+                        installment_number=i,
+                        due_amount=amounts[i - 1],
+                        due_date=due_dt
+                    )
+                    installment.update_status()
+                    created_installments.append(installment)
+            else:
+                installments_data = data.get('installments', [])
+                if not installments_data:
+                    return Response({'error': 'installments data required for CUSTOM installment type.'}, status=status.HTTP_400_BAD_REQUEST)
+                for inst_data in installments_data:
+                    installment = FeeInstallment._default_manager.create(
+                        tenant=profile.tenant,
+                        student=student,
+                        fee_structure=fee_structure,
+                        installment_plan=installment_plan,
+                        installment_number=inst_data['installment_number'],
+                        due_amount=inst_data['due_amount'],
+                        due_date=inst_data['due_date']
+                    )
+                    installment.update_status()
+                    created_installments.append(installment)
+
+            serializer = FeeInstallmentSerializer(created_installments, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except FeeStructure.DoesNotExist:
+            return Response({'error': 'Fee structure not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except FeeInstallmentPlan.DoesNotExist:
+            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error regenerating installments: {str(e)}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class StudentInstallmentsView(APIView):
+    """Get all installments for a specific student"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, student_id):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+            installments = FeeInstallment._default_manager.filter(
+                tenant=profile.tenant,
+                student=student
+            ).order_by('fee_structure', 'installment_number')
+            
+            serializer = FeeInstallmentSerializer(installments, many=True)
+            return Response(serializer.data)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+class OverdueInstallmentsView(APIView):
+    """Get all overdue installments"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        profile = UserProfile._default_manager.get(user=request.user)
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        overdue = FeeInstallment._default_manager.filter(
+            tenant=profile.tenant,
+            status__in=['PENDING', 'PARTIAL'],
+            due_date__lt=today
+        ).order_by('due_date')
+        
+        # Update status to OVERDUE for any that are overdue
+        for inst in overdue.filter(status__in=['PENDING', 'PARTIAL']):
+            inst.update_status()
+        
+        serializer = FeeInstallmentSerializer(overdue, many=True)
+        return Response(serializer.data)
+
 class FeeDiscountViewSet(viewsets.ModelViewSet):
     serializer_class = FeeDiscountSerializer
     permission_classes = [IsAuthenticated]
@@ -865,8 +1874,9 @@ class FeeStructureListView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+        # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
+            return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
         fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
         serializer = FeeStructureSerializer(fee_structures, many=True)
         return Response(serializer.data) 
@@ -878,12 +1888,42 @@ class ClassAttendanceStatusView(APIView):
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
         tenant = profile.tenant
+        class_id = request.query_params.get('class_id')
+        date_str = request.query_params.get('date')
+
+        # If class_id provided, return per-student status for that class/date
+        if class_id:
+            try:
+                class_obj = Class._default_manager.get(id=class_id, tenant=tenant)  # type: ignore
+            except Class.DoesNotExist:  # type: ignore
+                return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            try:
+                query_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.now().date()
+            except Exception:
+                query_date = timezone.now().date()
+
+            students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj)  # type: ignore
+            result = []
+            for s in students:
+                att = Attendance._default_manager.filter(tenant=tenant, student=s, date=query_date).first()  # type: ignore
+                result.append({
+                    'student': {
+                        'id': s.id,
+                        'name': s.name,
+                    },
+                    'present': bool(att.present) if att is not None else False,
+                })
+            return Response(result)
+
+        # Default: return class summary for today
         classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
         data = []
+        today = timezone.now().date()
         for c in classes:
             total_students = Student._default_manager.filter(tenant=tenant, assigned_class=c).count()  # type: ignore
-            present_today = Attendance._default_manager.filter(tenant=tenant, assigned_class=c, date=timezone.now().date(), present=True).count()  # type: ignore
-            absent_today = Attendance._default_manager.filter(tenant=tenant, assigned_class=c, date=timezone.now().date(), present=False).count()  # type: ignore
+            present_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=True).count()  # type: ignore
+            absent_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=False).count()  # type: ignore
             data.append({
                 'class_id': c.id,
                 'class_name': c.name,
@@ -1055,8 +2095,8 @@ class FeeStructureExportView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can export fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can export fee structures.'}, status=status.HTTP_403_FORBIDDEN)
         
         fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
         
@@ -1136,8 +2176,8 @@ class FeePaymentExportView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can export fee payments.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can export fee payments.'}, status=status.HTTP_403_FORBIDDEN)
         
         fee_payments = FeePayment._default_manager.filter(tenant=profile.tenant)
         
@@ -1222,8 +2262,8 @@ class FeeDiscountExportView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'accountant']:
-            return Response({'error': 'Only admins and accountants can export fee discounts.'}, status=status.HTTP_403_FORBIDDEN)
+        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
+            return Response({'error': 'Only admins, accountants, and principals can export fee discounts.'}, status=status.HTTP_403_FORBIDDEN)
         
         fee_discounts = FeeDiscount._default_manager.filter(tenant=profile.tenant)
         
@@ -1551,41 +2591,45 @@ class ComprehensiveAnalyticsView(APIView):
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name not in ['admin', 'principal']:
-            return Response({'error': 'Only admins and principals can view comprehensive analytics.'}, status=status.HTTP_403_FORBIDDEN)
+        # Allow admin, principal, and teacher to view analytics
+        if not profile.role or profile.role.name not in ['admin', 'principal', 'teacher']:
+            return Response({'error': 'Only admins, principals, and teachers can view comprehensive analytics.'}, status=status.HTTP_403_FORBIDDEN)
         
         tenant = profile.tenant
         today = timezone.now().date()
         
         # Basic statistics
-        total_students = Student._default_manager.filter(tenant=tenant, is_active=True).count()
-        total_classes = Class._default_manager.filter(tenant=tenant).count()
-        total_teachers = UserProfile._default_manager.filter(tenant=tenant, role__name='teacher').count()
-        total_staff = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student').count()
+        total_students = Student.objects.filter(tenant=tenant, is_active=True).count()
+        total_classes = Class.objects.filter(tenant=tenant).count()
+        total_teachers = UserProfile.objects.filter(tenant=tenant, role__name='teacher').count()
+        total_staff = UserProfile.objects.filter(tenant=tenant).exclude(role__name='student').count()
         
         # Today's attendance
-        staff_present = StaffAttendance._default_manager.filter(
+        staff_present = StaffAttendance.objects.filter(
             tenant=tenant, date=today, check_in_time__isnull=False
         ).count()
-        student_present = Attendance._default_manager.filter(
-            tenant=tenant, date=today, present=True
+        # Count attendance for today
+        student_present = Attendance.objects.filter(
+            tenant=tenant,
+            date=today,
+            present=True
         ).count()
         
         # Fee analytics
-        total_fees_due = FeeStructure._default_manager.filter(tenant=tenant).aggregate(
+        total_fees_due = FeeStructure.objects.filter(tenant=tenant).aggregate(
             total=Sum('amount')
         )['total'] or 0
         
-        total_fees_collected = FeePayment._default_manager.filter(tenant=tenant).aggregate(
+        total_fees_collected = FeePayment.objects.filter(tenant=tenant).aggregate(
             total=Sum('amount_paid')
         )['total'] or 0
         
         # Class-wise analytics
         class_analytics = []
-        classes = Class._default_manager.filter(tenant=tenant)
+        classes = Class.objects.filter(tenant=tenant)
         
         for class_obj in classes:
-            students_in_class = Student._default_manager.filter(
+            students_in_class = Student.objects.filter(
                 tenant=tenant, assigned_class=class_obj, is_active=True
             )
             
@@ -1608,8 +2652,8 @@ class ComprehensiveAnalyticsView(APIView):
             )
             class_collected = class_payments.aggregate(total=Sum('amount_paid'))['total'] or 0
             
-            # Attendance for this class
-            class_attendance = Attendance._default_manager.filter(
+            # Attendance for this class (Attendance has only 'date', no 'created_at')
+            class_attendance = Attendance.objects.filter(
                 tenant=tenant, student__assigned_class=class_obj, date=today
             )
             present_today = class_attendance.filter(present=True).count()
@@ -1755,6 +2799,7 @@ class EducationAnalyticsView(APIView):
             # Get basic statistics
             total_students = Student._default_manager.filter(tenant=tenant).count()
             total_classes = Class._default_manager.filter(tenant=tenant).count()
+            total_teachers = UserProfile._default_manager.filter(tenant=tenant, role__name='teacher').count()
             total_staff = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student').count()
             
             # Get today's attendance
@@ -1788,9 +2833,100 @@ class EducationAnalyticsView(APIView):
                 payment_date__gte=week_ago.date()
             ).count()
             
+            # Gender distribution per class
+            gender_distribution = []
+            classes = Class._default_manager.filter(tenant=tenant)
+            for class_obj in classes:
+                students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj, is_active=True)
+                male_count = students.filter(gender='Male').count()
+                female_count = students.filter(gender='Female').count()
+                other_count = students.filter(gender='Other').count()
+                total = students.count()
+                
+                gender_distribution.append({
+                    'class_id': class_obj.id,
+                    'class_name': class_obj.name,
+                    'male': male_count,
+                    'female': female_count,
+                    'other': other_count,
+                    'total': total
+                })
+            
+            # Upcoming birthdays (today)
+            today_month = today.month
+            today_day = today.day
+            upcoming_birthdays = []
+            students = Student._default_manager.filter(tenant=tenant, is_active=True, date_of_birth__isnull=False)
+            for student in students:
+                if student.date_of_birth:
+                    if student.date_of_birth.month == today_month and student.date_of_birth.day == today_day:
+                        upcoming_birthdays.append({
+                            'student_id': student.id,
+                            'student_name': student.name,
+                            'upper_id': student.upper_id,
+                            'class_name': student.assigned_class.name if student.assigned_class else 'Not Assigned',
+                            'birthday': student.date_of_birth.strftime('%Y-%m-%d'),
+                            'age': today.year - student.date_of_birth.year
+                        })
+            
+            # Student contact information with parent contacts
+            student_contacts = []
+            all_students = Student._default_manager.filter(tenant=tenant, is_active=True)
+            for student in all_students:
+                student_contacts.append({
+                    'student_id': student.id,
+                    'student_name': student.name,
+                    'upper_id': student.upper_id,
+                    'class_name': student.assigned_class.name if student.assigned_class else 'Not Assigned',
+                    'student_phone': student.phone or '',
+                    'parent_name': student.parent_name or '',
+                    'parent_phone': student.parent_phone or '',
+                    'email': student.email or ''
+                })
+            
+            # Students per class with gender breakdown
+            students_per_class = []
+            for class_obj in classes:
+                students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj, is_active=True)
+                total_count = students.count()
+                male_count = students.filter(gender='Male').count()
+                female_count = students.filter(gender='Female').count()
+                other_count = students.filter(gender='Other').count()
+                students_per_class.append({
+                    'class_name': class_obj.name,
+                    'count': total_count,
+                    'total': total_count,
+                    'male': male_count,
+                    'female': female_count,
+                    'other': other_count
+                })
+            
+            # Cast distribution per class
+            cast_distribution = []
+            for class_obj in classes:
+                students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj, is_active=True)
+                general_count = students.filter(cast='General').count()
+                obc_count = students.filter(cast='OBC').count()
+                sc_count = students.filter(cast='SC').count()
+                st_count = students.filter(cast='ST').count()
+                other_cast_count = students.filter(cast='Other').count()
+                total_count = students.count()
+                
+                cast_distribution.append({
+                    'class_id': class_obj.id,
+                    'class_name': class_obj.name,
+                    'general': general_count,
+                    'obc': obc_count,
+                    'sc': sc_count,
+                    'st': st_count,
+                    'other': other_cast_count,
+                    'total': total_count
+                })
+            
             data = {
                 'overview': {
                     'total_students': total_students,
+                    'total_teachers': total_teachers,
                     'total_classes': total_classes,
                     'total_staff': total_staff,
                     'staff_present_today': staff_present,
@@ -1799,6 +2935,11 @@ class EducationAnalyticsView(APIView):
                     'recent_admissions': recent_admissions,
                     'recent_fee_payments': recent_fee_payments
                 },
+                'gender_distribution_per_class': gender_distribution,
+                'cast_distribution_per_class': cast_distribution,
+                'upcoming_birthdays_today': upcoming_birthdays,
+                'student_contacts': student_contacts,
+                'students_per_class': students_per_class,
                 'endpoints': {
                     'class_stats': '/api/education/analytics/class-stats/',
                     'monthly_report': '/api/education/analytics/monthly-report/',
@@ -1811,4 +2952,252 @@ class EducationAnalyticsView(APIView):
             
             return Response(data)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Old Balance Management Views
+class OldBalanceListCreateView(APIView):
+    """List and create old balances (carry forward from previous years)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request):
+        """Get old balances - filtered by academic year, class, or student"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        balances = OldBalance._default_manager.filter(tenant=profile.tenant)
+        
+        # Filters
+        academic_year = request.query_params.get('academic_year')
+        class_name = request.query_params.get('class_name')
+        student_id = request.query_params.get('student_id')
+        is_settled = request.query_params.get('is_settled')
+        
+        if academic_year:
+            balances = balances.filter(academic_year=academic_year)
+        if class_name:
+            balances = balances.filter(class_name=class_name)
+        if student_id:
+            balances = balances.filter(student_id=student_id)
+        if is_settled is not None:
+            balances = balances.filter(is_settled=is_settled.lower() == 'true')
+        
+        serializer = OldBalanceSerializer(balances.order_by('-academic_year', 'student'), many=True)
+        return Response(serializer.data)
+    
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        """Create old balance entry"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        
+        serializer = OldBalanceSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class OldBalanceDetailView(APIView):
+    """Update or delete old balance"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request, pk):
+        """Get single old balance"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            balance = OldBalance._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = OldBalanceSerializer(balance)
+            return Response(serializer.data)
+        except OldBalance.DoesNotExist:
+            return Response({'error': 'Old balance not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal', 'accountant')
+    def put(self, request, pk):
+        """Update old balance (e.g., mark as settled)"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            balance = OldBalance._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = OldBalanceSerializer(balance, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except OldBalance.DoesNotExist:
+            return Response({'error': 'Old balance not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def delete(self, request, pk):
+        """Delete old balance"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            balance = OldBalance._default_manager.get(id=pk, tenant=profile.tenant)
+            balance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except OldBalance.DoesNotExist:
+            return Response({'error': 'Old balance not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class CarryForwardBalancesView(APIView):
+    """Bulk carry forward balances from one academic year to another"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        """Carry forward outstanding balances from old academic year to new one"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        from_academic_year = request.data.get('from_academic_year')
+        to_academic_year = request.data.get('to_academic_year')
+        class_filter = request.data.get('class_name')  # Optional: filter by class
+        
+        if not from_academic_year or not to_academic_year:
+            return Response(
+                {'error': 'Both from_academic_year and to_academic_year are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Find all unpaid installments for the old academic year
+        unpaid_installments = FeeInstallment._default_manager.filter(
+            tenant=profile.tenant,
+            academic_year=from_academic_year,
+            status__in=['PENDING', 'PARTIAL', 'OVERDUE']
+        )
+        
+        if class_filter:
+            unpaid_installments = unpaid_installments.filter(student__assigned_class__name=class_filter)
+        
+        created_balances = []
+        for installment in unpaid_installments:
+            remaining = float(installment.remaining_amount)
+            if remaining > 0:
+                # Check if old balance already exists for this student and year
+                old_balance, created = OldBalance._default_manager.get_or_create(
+                    tenant=profile.tenant,
+                    student=installment.student,
+                    academic_year=from_academic_year,
+                    defaults={
+                        'class_name': installment.student.assigned_class.name if installment.student.assigned_class else 'Unknown',
+                        'balance_amount': remaining,
+                        'carried_forward_to': to_academic_year,
+                        'notes': f'Carried forward from {installment.fee_structure.fee_type} installments'
+                    }
+                )
+                if not created:
+                    # Update existing balance
+                    old_balance.balance_amount += remaining
+                    old_balance.carried_forward_to = to_academic_year
+                    old_balance.save()
+                created_balances.append(old_balance)
+        
+        serializer = OldBalanceSerializer(created_balances, many=True)
+        return Response({
+            'message': f'Carried forward {len(created_balances)} balances from {from_academic_year} to {to_academic_year}',
+            'balances': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+class BalanceAdjustmentListCreateView(APIView):
+    """List and create balance adjustments (waivers, discounts, corrections)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request):
+        """Get balance adjustments"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        adjustments = BalanceAdjustment._default_manager.filter(tenant=profile.tenant)
+        
+        # Filters
+        student_id = request.query_params.get('student_id')
+        academic_year = request.query_params.get('academic_year')
+        adjustment_type = request.query_params.get('adjustment_type')
+        
+        if student_id:
+            adjustments = adjustments.filter(student_id=student_id)
+        if academic_year:
+            adjustments = adjustments.filter(academic_year=academic_year)
+        if adjustment_type:
+            adjustments = adjustments.filter(adjustment_type=adjustment_type)
+        
+        serializer = BalanceAdjustmentSerializer(adjustments.order_by('-created_at'), many=True)
+        return Response(serializer.data)
+    
+    @role_required('admin', 'principal', 'accountant')
+    def post(self, request):
+        """Create balance adjustment"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        data['created_by'] = profile.id
+        
+        serializer = BalanceAdjustmentSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(tenant=profile.tenant, created_by=profile)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class OldBalanceSummaryView(APIView):
+    """Get summary of old balances by class and academic year"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request):
+        """Get class-wise and academic year-wise old balance summary"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        
+        # Get all old balances
+        balances = OldBalance._default_manager.filter(tenant=profile.tenant, is_settled=False)
+        
+        # Summary by academic year
+        from django.db.models import Sum
+        year_summary = {}
+        student_years = {}  # Track unique students per year
+        
+        for balance in balances:
+            year = balance.academic_year
+            if year not in year_summary:
+                year_summary[year] = {'total_amount': 0, 'student_count': 0, 'class_breakdown': {}}
+                student_years[year] = set()
+            
+            year_summary[year]['total_amount'] += float(balance.balance_amount)
+            student_years[year].add(balance.student.id)
+            
+            class_name = balance.class_name
+            if class_name not in year_summary[year]['class_breakdown']:
+                year_summary[year]['class_breakdown'][class_name] = {'amount': 0, 'count': 0}
+            year_summary[year]['class_breakdown'][class_name]['amount'] += float(balance.balance_amount)
+            year_summary[year]['class_breakdown'][class_name]['count'] += 1
+        
+        # Set student counts
+        for year in year_summary:
+            year_summary[year]['student_count'] = len(student_years[year])
+        
+        # Summary by class (current outstanding)
+        class_summary = {}
+        class_students = {}  # Track unique students per class
+        
+        for balance in balances:
+            class_name = balance.class_name or 'Unknown'
+            if class_name not in class_summary:
+                class_summary[class_name] = {'total_amount': 0, 'student_count': 0, 'years': {}}
+                class_students[class_name] = set()
+            
+            class_summary[class_name]['total_amount'] += float(balance.balance_amount)
+            class_students[class_name].add(balance.student.id)
+            year = balance.academic_year
+            if year not in class_summary[class_name]['years']:
+                class_summary[class_name]['years'][year] = float(balance.balance_amount)
+            else:
+                class_summary[class_name]['years'][year] += float(balance.balance_amount)
+        
+        # Set student counts
+        for class_name in class_summary:
+            class_summary[class_name]['student_count'] = len(class_students[class_name])
+        
+        return Response({
+            'by_academic_year': year_summary,
+            'by_class': class_summary,
+            'total_outstanding': sum(float(b.balance_amount) for b in balances),
+            'total_students_with_balance': len(set(b.student.id for b in balances))
+        }) 

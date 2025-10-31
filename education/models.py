@@ -10,6 +10,20 @@ class Class(models.Model):
         return self.name
 
 class Student(models.Model):
+    GENDER_CHOICES = [
+        ('Male', 'Male'),
+        ('Female', 'Female'),
+        ('Other', 'Other'),
+    ]
+    
+    CAST_CHOICES = [
+        ('General', 'General'),
+        ('OBC', 'Other Backward Class (OBC)'),
+        ('SC', 'Scheduled Caste (SC)'),
+        ('ST', 'Scheduled Tribe (ST)'),
+        ('Other', 'Other'),
+    ]
+    
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     email = models.EmailField()
@@ -19,6 +33,9 @@ class Student(models.Model):
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
+    cast = models.CharField(max_length=20, choices=CAST_CHOICES, default='General', help_text="Student's caste category (required)")
+    religion = models.CharField(max_length=100, blank=True, null=True, help_text="Student's religion")
     parent_name = models.CharField(max_length=100, blank=True, null=True)
     parent_phone = models.CharField(max_length=20, blank=True, null=True)
     is_active = models.BooleanField(default=True)
@@ -77,6 +94,7 @@ class FeeStructure(models.Model):
     is_optional = models.BooleanField(default=False)
     due_date = models.DateField(null=True, blank=True)
     academic_year = models.CharField(max_length=20, default='2024-25')
+    installments_enabled = models.BooleanField(default=False, help_text="Enable installment payments for this fee")
     
     class Meta:
         unique_together = ['class_obj', 'fee_type', 'academic_year']
@@ -84,11 +102,114 @@ class FeeStructure(models.Model):
     def __str__(self):
         return f"{self.class_obj.name} - {self.fee_type}: ₹{self.amount}"
 
+class FeeInstallmentPlan(models.Model):
+    """Installment plan for splitting fees into multiple payments"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    fee_structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE, related_name='installment_plans')
+    name = models.CharField(max_length=100, help_text="e.g., '4 Monthly Installments', 'Quarterly Plan'")
+    number_of_installments = models.IntegerField(help_text="Total number of installments")
+    installment_type = models.CharField(max_length=20, choices=[
+        ('EQUAL', 'Equal Amounts'),
+        ('CUSTOM', 'Custom Amounts'),
+        ('PERCENTAGE', 'Percentage Based'),
+    ], default='EQUAL')
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['tenant', 'fee_structure']  # One plan per fee structure
+    
+    def __str__(self):
+        return f"{self.fee_structure} - {self.name}"
+    
+    def validate_installments_sum(self, installment_amounts):
+        """Validate that installment amounts sum to fee structure amount"""
+        total = sum(installment_amounts)
+        return abs(total - float(self.fee_structure.amount)) < 0.01  # Allow for rounding
+
+class FeeInstallment(models.Model):
+    """Individual installment for a student"""
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PARTIAL', 'Partially Paid'),
+        ('PAID', 'Paid'),
+        ('OVERDUE', 'Overdue'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_installments')
+    fee_structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE, related_name='installments')
+    installment_plan = models.ForeignKey(FeeInstallmentPlan, on_delete=models.SET_NULL, null=True, blank=True)
+    installment_number = models.IntegerField(help_text="Installment number (1, 2, 3...)")
+    due_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Amount due for this installment")
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount paid so far")
+    due_date = models.DateField(help_text="Due date for payment")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    late_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Late fee charged if overdue")
+    payment_date = models.DateField(null=True, blank=True, help_text="Date when fully paid")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    academic_year = models.CharField(max_length=20, blank=True, null=True, help_text="Academic year for this installment")
+    
+    class Meta:
+        unique_together = ['tenant', 'student', 'fee_structure', 'installment_number']
+        ordering = ['fee_structure', 'installment_number']
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.fee_structure.fee_type} Installment {self.installment_number}"
+    
+    def save(self, *args, **kwargs):
+        """Auto-set academic year from fee_structure if not provided"""
+        if not self.academic_year and self.fee_structure:
+            self.academic_year = self.fee_structure.academic_year
+        super().save(*args, **kwargs)
+    
+    @property
+    def remaining_amount(self):
+        """Calculate remaining amount to be paid"""
+        return self.due_amount - self.paid_amount + self.late_fee
+    
+    @property
+    def is_overdue(self):
+        """Check if installment is overdue"""
+        from django.utils import timezone
+        return self.status != 'PAID' and timezone.now().date() > self.due_date
+    
+    def update_status(self):
+        """Auto-update status based on payment and dates"""
+        from django.utils import timezone
+        from datetime import date
+        today = timezone.now().date()
+        # Coerce due_date to date if it was stored as string by older code
+        if isinstance(self.due_date, str):
+            try:
+                self.due_date = date.fromisoformat(self.due_date)
+            except Exception:
+                pass
+        
+        if self.paid_amount >= self.due_amount:
+            self.status = 'PAID'
+            if not self.payment_date:
+                self.payment_date = today
+        elif self.paid_amount > 0:
+            self.status = 'PARTIAL'
+        elif today > self.due_date:
+            self.status = 'OVERDUE'
+        else:
+            self.status = 'PENDING'
+        
+        self.save()
+
 class FeePayment(models.Model):
     """Individual fee payments made by students"""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='fee_payments')
     fee_structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE)
+    installment = models.ForeignKey(FeeInstallment, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments', help_text="If payment is for specific installment")
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discount_reason = models.CharField(max_length=255, blank=True)
@@ -103,8 +224,11 @@ class FeePayment(models.Model):
     receipt_number = models.CharField(max_length=50, unique=True)
     collected_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True)
     notes = models.TextField(blank=True)
+    split_installments = models.JSONField(default=dict, blank=True, help_text="If payment covers multiple installments: {installment_id: amount}")
     
     def __str__(self):
+        if self.installment:
+            return f"{self.student.name} - {self.fee_structure.fee_type} Installment {self.installment.installment_number}: ₹{self.amount_paid}"
         return f"{self.student.name} - {self.fee_structure.fee_type}: ₹{self.amount_paid}"
     
     @property
@@ -116,6 +240,44 @@ class FeePayment(models.Model):
     def original_amount(self):
         """Original fee amount without discount"""
         return self.fee_structure.amount
+    
+    academic_year = models.CharField(max_length=20, blank=True, null=True, help_text="Academic year for this payment")
+    
+    def save(self, *args, **kwargs):
+        """Auto-update installment status when payment is saved"""
+        # Auto-set academic year from fee_structure if not provided
+        if not self.academic_year and self.fee_structure:
+            self.academic_year = self.fee_structure.academic_year
+        
+        super().save(*args, **kwargs)
+        # Update installment paid_amount and status
+        if self.installment:
+            # Recalculate paid_amount from all payments for this installment
+            from django.db.models import Sum
+            total_paid = FeePayment._default_manager.filter(
+                installment=self.installment
+            ).aggregate(total=Sum('amount_paid'))['total'] or 0
+            self.installment.paid_amount = total_paid
+            self.installment.update_status()
+        
+        # Handle split payments across multiple installments
+        if self.split_installments:
+            from django.db.models import Sum
+            # Use string reference to avoid circular import
+            FeeInstallmentModel = self.__class__._meta.apps.get_model('education', 'FeeInstallment')
+            for installment_id, amount in self.split_installments.items():
+                try:
+                    installment = FeeInstallmentModel._default_manager.get(id=installment_id, tenant=self.tenant)
+                    # Recalculate total paid from all payments for this installment
+                    total_paid = FeePayment._default_manager.filter(
+                        installment=installment
+                    ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    # Also add amount from split payments
+                    split_amount = float(amount) if amount else 0
+                    installment.paid_amount = total_paid + split_amount
+                    installment.update_status()
+                except FeeInstallmentModel.DoesNotExist:
+                    pass
 
 class FeeDiscount(models.Model):
     """Discount schemes for fees"""
@@ -163,14 +325,257 @@ class Attendance(models.Model):
     def __str__(self):
         return f"{self.student.name} - {self.date}"
 
-class ReportCard(models.Model):
+# Academic Structure Models
+class AcademicYear(models.Model):
+    """Academic year (e.g., 2024-25, 2025-26)"""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    term = models.CharField(max_length=50)
-    grades = models.TextField(help_text="JSON or CSV of subject:grade")
-    generated_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=20, help_text="e.g., 2024-25")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_current = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'name')
+        ordering = ['-start_date']
+    
     def __str__(self):
-        return f"ReportCard for {self.student.name} - {self.term}"
+        return self.name
+
+class Term(models.Model):
+    """Academic terms (Term 1, Term 2, Term 3)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='terms')
+    name = models.CharField(max_length=50, help_text="e.g., Term 1, Semester 1, Q1")
+    order = models.IntegerField(help_text="Display order (1, 2, 3...)")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'academic_year', 'name')
+        ordering = ['academic_year', 'order']
+    
+    def __str__(self):
+        return f"{self.academic_year.name} - {self.name}"
+
+class Subject(models.Model):
+    """Subjects for each class"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='subjects')
+    name = models.CharField(max_length=100, help_text="e.g., Mathematics, Science, English")
+    code = models.CharField(max_length=20, blank=True, help_text="Subject code (e.g., MATH101)")
+    max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=100, help_text="Maximum marks for this subject")
+    has_practical = models.BooleanField(default=False, help_text="Has practical component")
+    practical_max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Maximum practical marks")
+    order = models.IntegerField(default=0, help_text="Display order")
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'class_obj', 'name')
+        ordering = ['order', 'name']
+    
+    def __str__(self):
+        return f"{self.class_obj.name} - {self.name}"
+
+class Unit(models.Model):
+    """Units/Chapters within a subject"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='units')
+    name = models.CharField(max_length=200, help_text="e.g., Unit 1: Algebra, Chapter 1: Sets")
+    number = models.IntegerField(help_text="Unit number (1, 2, 3...)")
+    description = models.TextField(blank=True)
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'subject', 'number')
+        ordering = ['subject', 'number']
+    
+    def __str__(self):
+        return f"{self.subject.name} - {self.name}"
+
+class AssessmentType(models.Model):
+    """Assessment types (UT1, UT2, PT1, Half-Yearly, Annual, Practical, etc.)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    name = models.CharField(max_length=50, help_text="e.g., UT1, PT1, Half-Yearly, Annual, Practical")
+    code = models.CharField(max_length=20, blank=True, help_text="Short code (e.g., UT1)")
+    max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=100)
+    weightage = models.DecimalField(max_digits=5, decimal_places=2, default=100, help_text="Weightage percentage (e.g., 30 for 30%)")
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'name')
+        ordering = ['order', 'name']
+    
+    def __str__(self):
+        return self.name
+
+class Assessment(models.Model):
+    """Specific assessment/test for a subject in a term"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='assessments')
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='assessments')
+    assessment_type = models.ForeignKey(AssessmentType, on_delete=models.PROTECT, related_name='assessments')
+    unit = models.ForeignKey(Unit, on_delete=models.SET_NULL, null=True, blank=True, help_text="Optional: if assessment is unit-specific")
+    name = models.CharField(max_length=200, help_text="e.g., Mathematics UT1, Science Half-Yearly")
+    date = models.DateField(help_text="Assessment date")
+    max_marks = models.DecimalField(max_digits=10, decimal_places=2)
+    passing_marks = models.DecimalField(max_digits=10, decimal_places=2, default=40)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'subject', 'term', 'assessment_type')
+        ordering = ['term', 'subject', 'date']
+    
+    def __str__(self):
+        return f"{self.subject.name} - {self.assessment_type.name} ({self.term.name})"
+
+class MarksEntry(models.Model):
+    """Individual marks entry for a student in an assessment"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='marks_entries')
+    assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name='marks_entries')
+    marks_obtained = models.DecimalField(max_digits=10, decimal_places=2)
+    max_marks = models.DecimalField(max_digits=10, decimal_places=2, help_text="Max marks for this specific assessment")
+    remarks = models.TextField(blank=True, help_text="Teacher remarks")
+    entered_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True)
+    entered_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'student', 'assessment')
+        ordering = ['-entered_at']
+    
+    @property
+    def percentage(self):
+        """Calculate percentage"""
+        if self.max_marks > 0:
+            return (self.marks_obtained / self.max_marks) * 100
+        return 0
+    
+    @property
+    def grade(self):
+        """Calculate grade based on percentage"""
+        pct = self.percentage
+        if pct >= 90:
+            return 'A+'
+        elif pct >= 80:
+            return 'A'
+        elif pct >= 70:
+            return 'B+'
+        elif pct >= 60:
+            return 'B'
+        elif pct >= 50:
+            return 'C+'
+        elif pct >= 40:
+            return 'C'
+        else:
+            return 'F'
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.assessment.name}: {self.marks_obtained}/{self.max_marks}"
+
+class ReportCard(models.Model):
+    """Enhanced report card with structured data"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='report_cards')
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='report_cards', null=True, blank=True)
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name='report_cards', null=True, blank=True)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='report_cards', null=True, blank=True)
+    
+    # Summary data (auto-calculated)
+    total_marks = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    max_total_marks = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    grade = models.CharField(max_length=10, blank=True)
+    rank_in_class = models.IntegerField(null=True, blank=True)
+    
+    # Attendance data
+    days_present = models.IntegerField(default=0)
+    days_absent = models.IntegerField(default=0)
+    attendance_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    
+    # Remarks
+    teacher_remarks = models.TextField(blank=True)
+    principal_remarks = models.TextField(blank=True)
+    conduct_grade = models.CharField(max_length=10, blank=True, help_text="A+, A, B+, etc.")
+    
+    # Legacy fields for backward compatibility
+    old_term = models.CharField(max_length=50, blank=True, help_text="Legacy term field")
+    old_grades = models.TextField(blank=True, help_text="Legacy grades JSON/CSV")
+    
+    # Timestamps
+    generated_at = models.DateTimeField(auto_now_add=True)
+    issued_date = models.DateField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'student', 'academic_year', 'term')
+        ordering = ['-academic_year', '-term', 'student']
+    
+    def calculate_totals(self):
+        """Auto-calculate total marks, percentage, and grade from marks entries"""
+        from django.db.models import Sum, Count
+        from django.db.models.functions import Coalesce
+        
+        # Get all marks entries for this student in this term
+        marks_entries = MarksEntry._default_manager.filter(
+            tenant=self.tenant,
+            student=self.student,
+            assessment__term=self.term
+        )
+        
+        # Calculate totals
+        self.total_marks = marks_entries.aggregate(
+            total=Coalesce(Sum('marks_obtained'), 0)
+        )['total'] or 0
+        
+        self.max_total_marks = marks_entries.aggregate(
+            total=Coalesce(Sum('max_marks'), 0)
+        )['total'] or 0
+        
+        # Calculate percentage
+        if self.max_total_marks > 0:
+            self.percentage = (self.total_marks / self.max_total_marks) * 100
+        else:
+            self.percentage = 0
+        
+        # Calculate grade
+        pct = self.percentage
+        if pct >= 90:
+            self.grade = 'A+'
+        elif pct >= 80:
+            self.grade = 'A'
+        elif pct >= 70:
+            self.grade = 'B+'
+        elif pct >= 60:
+            self.grade = 'B'
+        elif pct >= 50:
+            self.grade = 'C+'
+        elif pct >= 40:
+            self.grade = 'C'
+        else:
+            self.grade = 'F'
+        
+        # Calculate attendance
+        attendances = Attendance._default_manager.filter(
+            tenant=self.tenant,
+            student=self.student,
+            date__gte=self.term.start_date,
+            date__lte=self.term.end_date
+        )
+        total_days = attendances.count()
+        self.days_present = attendances.filter(present=True).count()
+        self.days_absent = total_days - self.days_present
+        if total_days > 0:
+            self.attendance_percentage = (self.days_present / total_days) * 100
+        
+        self.save()
+    
+    def __str__(self):
+        return f"ReportCard: {self.student.name} - {self.academic_year.name} {self.term.name}"
 
 # Removed old ClassFeeStructure model - replaced with FeeStructure model above
 
@@ -191,4 +596,56 @@ class Department(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='education_departments')
     name = models.CharField(max_length=100)
     def __str__(self):
-        return self.name 
+        return self.name
+
+class OldBalance(models.Model):
+    """Track outstanding balances from previous academic years"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='old_balances')
+    academic_year = models.CharField(max_length=20, help_text="Previous academic year (e.g., 2023-24)")
+    class_name = models.CharField(max_length=100, help_text="Class name when balance was recorded")
+    balance_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Outstanding balance from previous year")
+    carried_forward_to = models.CharField(max_length=20, blank=True, null=True, help_text="New academic year this balance was carried to")
+    is_settled = models.BooleanField(default=False, help_text="Whether this old balance has been cleared")
+    settled_date = models.DateField(null=True, blank=True)
+    settlement_payment = models.ForeignKey('FeePayment', on_delete=models.SET_NULL, null=True, blank=True, related_name='settled_old_balances')
+    notes = models.TextField(blank=True, help_text="Notes about this balance")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-academic_year', 'student']
+        unique_together = ['tenant', 'student', 'academic_year']
+    
+    def __str__(self):
+        status = "Settled" if self.is_settled else "Outstanding"
+        return f"{self.student.name} - {self.academic_year}: ₹{self.balance_amount} ({status})"
+
+class BalanceAdjustment(models.Model):
+    """Track balance adjustments, waivers, and corrections"""
+    ADJUSTMENT_TYPE_CHOICES = [
+        ('WAIVER', 'Fee Waiver'),
+        ('DISCOUNT', 'Discount Applied'),
+        ('CORRECTION', 'Correction/Adjustment'),
+        ('REFUND', 'Refund'),
+        ('LATE_FEE_WAIVER', 'Late Fee Waiver'),
+        ('OTHER', 'Other'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='balance_adjustments')
+    adjustment_type = models.CharField(max_length=20, choices=ADJUSTMENT_TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Positive for reduction, negative for addition")
+    reason = models.TextField(help_text="Reason for adjustment")
+    academic_year = models.CharField(max_length=20, blank=True, null=True)
+    fee_structure = models.ForeignKey(FeeStructure, on_delete=models.SET_NULL, null=True, blank=True)
+    approved_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_adjustments')
+    created_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_adjustments')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.adjustment_type}: ₹{abs(self.amount)}" 

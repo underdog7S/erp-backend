@@ -1,0 +1,3 @@
+"""Commands for education app."""
+
+
