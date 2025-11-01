@@ -36,6 +36,7 @@ class Tenant(models.Model):
     has_restaurant = models.BooleanField(default=False)
     has_salon = models.BooleanField(default=False)
     storage_used_mb = models.FloatField(default=0)
+    logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True, help_text="Organization logo for reports, bills, and documents")
     created_at = models.DateTimeField(auto_now_add=True)
     
     def has_module(self, module_name: str) -> bool:

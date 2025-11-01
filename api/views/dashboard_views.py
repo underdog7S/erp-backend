@@ -49,9 +49,35 @@ class StorageUsageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        profile = UserProfile.objects.get(user=request.user)
+        profile = UserProfile._default_manager.get(user=request.user)
         tenant = profile.tenant
+        plan = tenant.plan if tenant else None
+        
+        # Calculate storage used from uploaded files
+        total_bytes = 0
+        
+        # Calculate from user profile photos
+        profiles = UserProfile._default_manager.filter(tenant=tenant).exclude(photo='').exclude(photo=None)
+        for p in profiles:
+            try:
+                if p.photo and hasattr(p.photo, 'size'):
+                    total_bytes += p.photo.size
+            except Exception:
+                pass  # Skip if file doesn't exist or can't be accessed
+        
+        # Calculate from media files (documents, reports, etc.)
+        # Add more file sources here as needed (students photos, documents, etc.)
+        
+        storage_used_mb = round(total_bytes / (1024 * 1024), 2)
+        storage_limit_mb = plan.storage_limit_mb if plan else None
+        
+        # Update tenant's stored value (optional - for caching)
+        if tenant:
+            tenant.storage_used_mb = storage_used_mb
+            tenant.save(update_fields=['storage_used_mb'])
+        
         return Response({
-            'storage_used_mb': tenant.storage_used_mb,
-            'storage_limit_mb': tenant.plan.storage_limit_mb if tenant.plan else None,
+            'storage_used_mb': storage_used_mb,
+            'storage_limit_mb': storage_limit_mb,
+            'storage_used_bytes': total_bytes,
         }) 

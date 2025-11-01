@@ -33,9 +33,19 @@ class DecimalEncoder(json.JSONEncoder):
 
 # Simple serializers for admin export
 class TenantSerializer(serializers.ModelSerializer):
+	logo_url = serializers.SerializerMethodField()
+	
 	class Meta:
 		model = Tenant
-		fields = ['id', 'name', 'industry', 'created_at', 'plan', 'storage_used_mb', 'has_hotel', 'has_restaurant', 'has_salon']
+		fields = ['id', 'name', 'industry', 'created_at', 'plan', 'storage_used_mb', 'has_hotel', 'has_restaurant', 'has_salon', 'logo', 'logo_url']
+	
+	def get_logo_url(self, obj):
+		if obj.logo:
+			request = self.context.get('request')
+			if request:
+				return request.build_absolute_uri(obj.logo.url)
+			return obj.logo.url
+		return None
 
 class RoleSerializer(serializers.ModelSerializer):
 	class Meta:
@@ -320,14 +330,18 @@ class TenantPublicSettingsView(APIView):
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			tenant = profile.tenant
-			return Response({
+			serializer = TenantSerializer(tenant, context={'request': request})
+			settings_data = {
 				'slug': tenant.slug,
 				'public_booking_enabled': tenant.public_booking_enabled,
 				'public_orders_enabled': tenant.public_orders_enabled,
 				'public_admissions_enabled': tenant.public_admissions_enabled,
 				'has_api_key': bool(tenant.public_api_key),
 				'public_api_key': tenant.public_api_key or '',
-			})
+				'logo': serializer.data.get('logo_url'),
+				'logo_url': serializer.data.get('logo_url'),
+			}
+			return Response(settings_data)
 		except Exception as e:
 			return Response({'error': str(e)}, status=400)
 
@@ -338,6 +352,19 @@ class TenantPublicSettingsView(APIView):
 				return Response({'error': 'Admin access required'}, status=403)
 			tenant = profile.tenant
 			data = request.data or {}
+			
+			# Handle logo upload
+			if 'logo' in request.FILES:
+				tenant.logo = request.FILES['logo']
+				tenant.save(update_fields=['logo'])
+			
+			# Handle logo deletion
+			if data.get('delete_logo') == True:
+				if tenant.logo:
+					tenant.logo.delete(save=False)
+				tenant.logo = None
+				tenant.save(update_fields=['logo'])
+			
 			new_slug = data.get('slug')
 			if new_slug is not None:
 				new_slug = slugify(new_slug)
@@ -356,6 +383,78 @@ class TenantPublicSettingsView(APIView):
 			if data.get('generate_api_key'):
 				tenant.public_api_key = secrets.token_urlsafe(32)
 			tenant.save()
-			return Response({'message': 'Settings updated', 'slug': tenant.slug, 'has_api_key': bool(tenant.public_api_key), 'public_api_key': tenant.public_api_key or ''})
+			serializer = TenantSerializer(tenant, context={'request': request})
+			return Response({
+				'message': 'Settings updated', 
+				'slug': tenant.slug, 
+				'has_api_key': bool(tenant.public_api_key), 
+				'public_api_key': tenant.public_api_key or '',
+				'logo_url': serializer.data.get('logo_url')
+			})
+		except Exception as e:
+			return Response({'error': str(e)}, status=400)
+
+class TenantLogoView(APIView):
+	"""Dedicated endpoint for tenant logo upload/delete"""
+	authentication_classes = [JWTAuthentication]
+	permission_classes = [IsAuthenticated]
+
+	def get(self, request):
+		"""Get current logo URL"""
+		try:
+			profile = UserProfile.objects.get(user=request.user)
+			if not profile.role or profile.role.name != 'admin':
+				return Response({'error': 'Admin access required'}, status=403)
+			tenant = profile.tenant
+			serializer = TenantSerializer(tenant, context={'request': request})
+			return Response({
+				'logo_url': serializer.data.get('logo_url'),
+				'has_logo': bool(tenant.logo)
+			})
+		except Exception as e:
+			return Response({'error': str(e)}, status=400)
+
+	def post(self, request):
+		"""Upload logo"""
+		try:
+			profile = UserProfile.objects.get(user=request.user)
+			if not profile.role or profile.role.name != 'admin':
+				return Response({'error': 'Admin access required'}, status=403)
+			
+			if 'logo' not in request.FILES:
+				return Response({'error': 'No logo file provided'}, status=400)
+			
+			tenant = profile.tenant
+			
+			# Delete old logo if exists
+			if tenant.logo:
+				tenant.logo.delete(save=False)
+			
+			# Save new logo
+			tenant.logo = request.FILES['logo']
+			tenant.save(update_fields=['logo'])
+			
+			serializer = TenantSerializer(tenant, context={'request': request})
+			return Response({
+				'message': 'Logo uploaded successfully',
+				'logo_url': serializer.data.get('logo_url')
+			})
+		except Exception as e:
+			return Response({'error': str(e)}, status=400)
+
+	def delete(self, request):
+		"""Delete logo"""
+		try:
+			profile = UserProfile.objects.get(user=request.user)
+			if not profile.role or profile.role.name != 'admin':
+				return Response({'error': 'Admin access required'}, status=403)
+			
+			tenant = profile.tenant
+			if tenant.logo:
+				tenant.logo.delete(save=False)
+				tenant.logo = None
+				tenant.save(update_fields=['logo'])
+				return Response({'message': 'Logo deleted successfully'})
+			return Response({'message': 'No logo to delete'})
 		except Exception as e:
 			return Response({'error': str(e)}, status=400)

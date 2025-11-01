@@ -81,3 +81,14 @@ class AuditLogAdmin(admin.ModelAdmin):
         return request.user.is_superuser
 
 admin.site.register(AuditLog, AuditLogAdmin)
+
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    """Admin interface for payment transactions"""
+    list_display = ('id', 'user', 'tenant', 'plan', 'amount', 'currency', 'status', 'order_id', 'payment_id', 'created_at', 'verified_at')
+    list_filter = ('status', 'currency', 'created_at', 'verified_at', 'tenant', 'plan')
+    search_fields = ('user__username', 'user__email', 'order_id', 'payment_id', 'tenant__name')
+    readonly_fields = ('order_id', 'payment_id', 'signature', 'created_at', 'verified_at')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+admin.site.register(PaymentTransaction, PaymentTransactionAdmin)

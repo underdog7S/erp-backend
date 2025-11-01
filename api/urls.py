@@ -349,6 +349,7 @@ urlpatterns += [
     path('admin/export-data/', admin_views.AdminExportDataView.as_view(), name='admin-export-data'),
     path('admin/import-data/', admin_views.AdminImportDataView.as_view(), name='admin-import-data'),
     path('admin/tenant-public-settings/', admin_views.TenantPublicSettingsView.as_view(), name='tenant-public-settings'),
+    path('admin/tenant-logo/', admin_views.TenantLogoView.as_view(), name='tenant-logo'),
 
     # WhatsApp manual send
     path('integrations/whatsapp/send/', whatsapp_views.WhatsAppSendView.as_view(), name='whatsapp-send'),

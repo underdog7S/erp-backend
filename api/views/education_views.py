@@ -715,140 +715,287 @@ class ReportCardPDFView(APIView):
             p = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
 
-            # Header banner with school name
-            school_name = getattr(profile.tenant, 'name', '') or 'School'
-            p.setFillColor(colors.HexColor('#0F62FE'))
-            p.rect(0, height - 50, width, 50, stroke=0, fill=1)
+            # Header banner with school name and logo
+            tenant = profile.tenant
+            school_name = getattr(tenant, 'name', '') or 'School'
+            
+            # Draw logo if exists
+            logo_y_offset = 0
+            if tenant.logo:
+                try:
+                    from PIL import Image
+                    import os
+                    from django.conf import settings
+                    logo_path = tenant.logo.path
+                    if os.path.exists(logo_path):
+                        img = Image.open(logo_path)
+                        # Resize logo to fit (max 40mm height)
+                        max_height = 40 * mm
+                        img_width, img_height = img.size
+                        scale = min(max_height / img_height, 40 * mm / img_width)
+                        new_width = int(img_width * scale)
+                        new_height = int(img_height * scale)
+                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                        
+                        # Convert to RGB if needed
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        
+                        from reportlab.lib.utils import ImageReader
+                        logo_reader = ImageReader(img)
+                        p.drawImage(logo_reader, 20 * mm, height - 15 - new_height, width=new_width, height=new_height, preserveAspectRatio=True)
+                        logo_y_offset = new_width + 10 * mm
+                except Exception as e:
+                    logger.warning(f"Could not load tenant logo: {e}")
+                    logo_y_offset = 0
+            
+            # Header banner
+            p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
+            p.rect(0, height - 65, width, 65, stroke=0, fill=1)
             p.setFillColor(colors.white)
-            p.setFont('Helvetica-Bold', 18)
-            p.drawString(20 * mm, height - 22, school_name)
-            p.setFont('Helvetica', 10)
-            p.drawString(20 * mm, height - 34, 'Powered by ZENITH ERP')
-            p.setFont('Helvetica-Bold', 12)
-            p.drawRightString(width - 20 * mm, height - 28, 'Report Card')
+            p.setFont('Helvetica-Bold', 22)
+            p.drawString(20 * mm + logo_y_offset, height - 25, school_name.upper())
+            p.setFont('Helvetica', 11)
+            p.drawString(20 * mm + logo_y_offset, height - 40, 'OFFICIAL REPORT CARD')
+            p.setFont('Helvetica-Bold', 14)
+            p.drawRightString(width - 20 * mm, height - 35, 'ACADEMIC REPORT')
 
             y = height - 60
             p.setFillColor(colors.black)
 
-            # Student block
-            p.setFont('Helvetica-Bold', 12)
-            p.drawString(20 * mm, y, 'Student Details')
-            y -= 8
-            p.setStrokeColor(colors.HexColor('#E0E0E0'))
-            p.line(20 * mm, y, width - 20 * mm, y)
-            y -= 10
-            p.setFont('Helvetica', 10)
-            p.drawString(20 * mm, y, f"Name: {report_card.student.name}")
-            roll_val = getattr(report_card.student, 'roll_number', None) or getattr(report_card.student, 'admission_number', None) or report_card.student.id
-            # Upper/Admission ID if available
-            upper_val = getattr(report_card.student, 'upper_id', None) or getattr(report_card.student, 'admission_number', None)
-            p.drawString(90 * mm, y, f"Roll: {roll_val}")
-            y -= 14
-            p.drawString(20 * mm, y, f"Class: {report_card.class_obj.name if report_card.class_obj else 'N/A'}")
-            p.drawString(90 * mm, y, f"Academic Year: {report_card.academic_year.name if report_card.academic_year else 'N/A'}")
-            y -= 14
-            p.drawString(20 * mm, y, f"Term: {report_card.term.name if report_card.term else 'N/A'}")
-            issued_str = report_card.issued_date or report_card.generated_at.strftime('%Y-%m-%d')
-            right_meta = f"Issued: {issued_str}"
-            if upper_val:
-                right_meta = f"ID: {upper_val}    |    {right_meta}"
-            p.drawString(90 * mm, y, right_meta)
-            y -= 18
-
-            # Subject marks table headers
+            # Classic styled student information box
+            y = height - 80
+            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')
+            y -= 20
+            
+            # Student details in classic two-column layout
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 11)
-            headers = ['Subject', 'Marks', 'Max', 'Percent']
-            col_x = [20 * mm, 110 * mm, 140 * mm, 165 * mm]
-            for i, htxt in enumerate(headers):
-                p.drawString(col_x[i], y, htxt)
-            y -= 6
-            p.setStrokeColor(colors.black)
-            p.line(20 * mm, y, width - 20 * mm, y)
-            y -= 10
+            p.drawString(25 * mm, y, 'Full Name:')
+            p.setFont('Helvetica', 11)
+            p.drawString(70 * mm, y, report_card.student.name.upper())
+            
+            roll_val = getattr(report_card.student, 'roll_number', None) or getattr(report_card.student, 'admission_number', None) or report_card.student.id
+            upper_val = getattr(report_card.student, 'upper_id', None) or getattr(report_card.student, 'admission_number', None)
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(130 * mm, y, 'Roll Number:')
+            p.setFont('Helvetica', 11)
+            p.drawString(160 * mm, y, str(roll_val))
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y, 'Class:')
+            p.setFont('Helvetica', 11)
+            p.drawString(70 * mm, y, report_card.class_obj.name if report_card.class_obj else 'N/A')
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(130 * mm, y, 'Academic Year:')
+            p.setFont('Helvetica', 11)
+            p.drawString(160 * mm, y, report_card.academic_year.name if report_card.academic_year else 'N/A')
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y, 'Term:')
+            p.setFont('Helvetica', 11)
+            p.drawString(70 * mm, y, report_card.term.name if report_card.term else 'N/A')
+            
+            issued_str = report_card.issued_date.strftime('%d-%m-%Y') if report_card.issued_date else report_card.generated_at.strftime('%d-%m-%Y')
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(130 * mm, y, 'Issued Date:')
+            p.setFont('Helvetica', 11)
+            p.drawString(160 * mm, y, issued_str)
+            
+            if upper_val:
+                y -= 15
+                p.setFont('Helvetica-Bold', 11)
+                p.drawString(25 * mm, y, 'Student ID:')
+                p.setFont('Helvetica', 11)
+                p.drawString(70 * mm, y, upper_val)
+            
+            y -= 20
 
-            # Table rows
+            # Classic styled marks table
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(20 * mm, y - 12, width - 40 * mm, 12, stroke=0, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 11)
+            headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
+            col_x = [25 * mm, 110 * mm, 140 * mm, 165 * mm]
+            col_widths = [80 * mm, 25 * mm, 20 * mm, 25 * mm]
+            for i, htxt in enumerate(headers):
+                p.drawString(col_x[i], y - 8, htxt)
+            p.setFillColor(colors.black)
+            y -= 15
+
+            # Table rows with alternating colors
             from education.models import MarksEntry
             marks_entries = MarksEntry.objects.filter(
                 tenant=report_card.tenant,
                 student=report_card.student,
                 assessment__term=report_card.term
-            ).select_related('assessment', 'assessment__subject')
+            ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
 
             p.setFont('Helvetica', 10)
+            row_num = 0
             for entry in marks_entries:
-                if y < 50:
+                if y < 80:
                     # new page
                     p.showPage()
                     y = height - 40
                 subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
                 percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
-                p.drawString(col_x[0], y, subject_name[:28])
-                p.drawRightString(col_x[1] + 20, y, str(entry.marks_obtained))
-                p.drawRightString(col_x[2] + 20, y, str(entry.max_marks))
-                p.drawRightString(col_x[3] + 20, y, f"{percent:.1f}%")
+                
+                # Alternating row background
+                if row_num % 2 == 0:
+                    p.setFillColor(colors.HexColor('#f9f9f9'))
+                    p.rect(20 * mm, y - 2, width - 40 * mm, 14, stroke=0, fill=1)
+                    p.setFillColor(colors.black)
+                
+                p.drawString(col_x[0], y, subject_name[:35])
+                p.drawRightString(col_x[1] + 20, y, str(float(entry.marks_obtained)))
+                p.drawRightString(col_x[2] + 20, y, str(float(entry.max_marks)))
+                p.drawRightString(col_x[3] + 20, y, f"{percent:.2f}%")
                 y -= 14
+                row_num += 1
 
-            # Overall summary box
-            y -= 8
-            p.setFont('Helvetica-Bold', 12)
-            p.drawString(20 * mm, y, 'Overall Performance')
-            y -= 8
-            p.setStrokeColor(colors.HexColor('#E0E0E0'))
-            p.line(20 * mm, y, width - 20 * mm, y)
-            y -= 12
-            p.setFont('Helvetica', 10)
-            p.drawString(20 * mm, y, f"Total: {report_card.total_marks} / {report_card.max_total_marks}")
-            p.drawString(90 * mm, y, f"Percentage: {report_card.percentage}%")
-            y -= 14
-            p.drawString(20 * mm, y, f"Grade: {report_card.grade}")
+            # Classic styled summary box
+            y -= 10
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(25 * mm, y - 12, 'ACADEMIC SUMMARY')
+            p.setFillColor(colors.black)
+            y -= 20
+            
+            # Summary in elegant layout
+            p.setFillColor(colors.white)
+            summary_items = [
+                ('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"),
+                ('Percentage', f"{float(report_card.percentage):.2f}%"),
+                ('Grade', report_card.grade),
+            ]
             if report_card.rank_in_class:
-                p.drawString(90 * mm, y, f"Rank: {report_card.rank_in_class}")
-            y -= 18
+                summary_items.append(('Class Rank', f"#{report_card.rank_in_class}"))
+            
+            x_start = 25 * mm
+            item_width = (width - 50 * mm) / len(summary_items)
+            for i, (label, value) in enumerate(summary_items):
+                x_pos = x_start + (i * item_width)
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(x_pos, y, label + ':')
+                p.setFont('Helvetica', 11)
+                p.drawString(x_pos, y - 12, value)
+            p.setFillColor(colors.black)
+            y -= 25
 
-            # Attendance and Conduct
+            # Attendance and Conduct in styled box
+            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=1)
+            p.setFillColor(colors.HexColor('#1a237e'))
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(20 * mm, y, 'Attendance & Conduct')
-            y -= 8
-            p.setStrokeColor(colors.HexColor('#E0E0E0'))
-            p.line(20 * mm, y, width - 20 * mm, y)
-            y -= 12
-            p.setFont('Helvetica', 10)
-            p.drawString(20 * mm, y, f"Present: {report_card.days_present}")
-            p.drawString(60 * mm, y, f"Absent: {report_card.days_absent}")
-            p.drawString(100 * mm, y, f"Attendance: {report_card.attendance_percentage}%")
-            if report_card.conduct_grade:
-                p.drawString(155 * mm, y, f"Conduct: {report_card.conduct_grade}")
+            p.drawString(25 * mm, y - 10, 'ATTENDANCE & CONDUCT')
+            p.setFillColor(colors.black)
             y -= 18
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Days Present:')
+            p.setFont('Helvetica', 10)
+            p.drawString(75 * mm, y, str(report_card.days_present))
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(100 * mm, y, 'Days Absent:')
+            p.setFont('Helvetica', 10)
+            p.drawString(150 * mm, y, str(report_card.days_absent))
+            y -= 12
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Attendance Percentage:')
+            p.setFont('Helvetica', 10)
+            p.drawString(85 * mm, y, f"{float(report_card.attendance_percentage):.2f}%")
+            
+            if report_card.conduct_grade:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(140 * mm, y, 'Conduct Grade:')
+                p.setFont('Helvetica', 10)
+                p.drawString(165 * mm, y, report_card.conduct_grade)
+            y -= 22
 
-            # Remarks
+            # Remarks in styled sections
             if report_card.teacher_remarks or report_card.principal_remarks:
+                remarks_height = 0
+                if report_card.teacher_remarks:
+                    remarks_height += (len(report_card.teacher_remarks) // 95 + 1) * 12 + 20
+                if report_card.principal_remarks:
+                    remarks_height += (len(report_card.principal_remarks) // 95 + 1) * 12 + 20
+                
+                p.setFillColor(colors.HexColor('#fff9e6'))
+                p.rect(20 * mm, y - remarks_height - 15, width - 40 * mm, remarks_height + 15, stroke=1, fill=1)
+                p.setFillColor(colors.HexColor('#8b6914'))
                 p.setFont('Helvetica-Bold', 12)
-                p.drawString(20 * mm, y, 'Remarks')
-                y -= 8
-                p.setStrokeColor(colors.HexColor('#E0E0E0'))
-                p.line(20 * mm, y, width - 20 * mm, y)
-                y -= 12
+                p.drawString(25 * mm, y - 10, 'REMARKS')
+                p.setFillColor(colors.black)
+                y -= 18
+                
                 p.setFont('Helvetica', 10)
                 def wrap(text, max_chars=95):
                     return [text[i:i+max_chars] for i in range(0, len(text), max_chars)] if text else []
-                for line in wrap(report_card.teacher_remarks):
-                    p.drawString(20 * mm, y, line)
+                
+                if report_card.teacher_remarks:
+                    p.setFont('Helvetica-Bold', 10)
+                    p.drawString(25 * mm, y, 'Class Teacher:')
                     y -= 12
-                for line in wrap(report_card.principal_remarks):
-                    p.drawString(20 * mm, y, line)
+                    p.setFont('Helvetica', 9)
+                    for line in wrap(report_card.teacher_remarks):
+                        p.drawString(25 * mm, y, line)
+                        y -= 12
+                    y -= 6
+                
+                if report_card.principal_remarks:
+                    p.setFont('Helvetica-Bold', 10)
+                    p.drawString(25 * mm, y, 'Principal:')
                     y -= 12
-                y -= 6
+                    p.setFont('Helvetica', 9)
+                    for line in wrap(report_card.principal_remarks):
+                        p.drawString(25 * mm, y, line)
+                        y -= 12
+                y -= 8
 
-            # Signature lines
+            # Classic signature section
+            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.rect(20 * mm, 20 * mm, width - 40 * mm, 35, stroke=1, fill=1)
+            
+            # Signature lines with labels
             p.setStrokeColor(colors.black)
-            p.line(20 * mm, 30 * mm, 70 * mm, 30 * mm)
-            p.drawString(20 * mm, 26 * mm, 'Class Teacher')
-            p.line(85 * mm, 30 * mm, 135 * mm, 30 * mm)
-            p.drawString(85 * mm, 26 * mm, 'Principal')
-            # Footer
+            p.setLineWidth(0.5)
+            
+            # Class Teacher signature
+            p.line(30 * mm, 42 * mm, 75 * mm, 42 * mm)
+            p.setFont('Helvetica-Bold', 9)
+            p.drawString(30 * mm, 38 * mm, 'Class Teacher')
+            p.setFont('Helvetica', 8)
+            p.drawString(30 * mm, 33 * mm, '(Signature & Seal)')
+            
+            # Principal signature
+            p.line(110 * mm, 42 * mm, 165 * mm, 42 * mm)
+            p.setFont('Helvetica-Bold', 9)
+            p.drawString(110 * mm, 38 * mm, 'Principal')
+            p.setFont('Helvetica', 8)
+            p.drawString(110 * mm, 33 * mm, '(Signature & Seal)')
+            
+            # Footer with classic styling
             p.setFont('Helvetica', 8)
             p.setFillColor(colors.HexColor('#666666'))
-            p.drawString(20 * mm, 15 * mm, f"Generated on {report_card.generated_at.strftime('%Y-%m-%d %H:%M')} — {school_name}")
+            footer_text = f"Generated on {report_card.generated_at.strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            p.drawCentredString(width / 2, 20 * mm, footer_text)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFont('Helvetica-Oblique', 7)
+            p.drawCentredString(width / 2, 15 * mm, 'This is a computer-generated document and does not require a physical signature.')
 
             p.showPage()
             p.save()
