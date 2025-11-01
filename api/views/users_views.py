@@ -362,15 +362,29 @@ class UserEditView(APIView):
 
     @role_required('admin', 'principal')
     def post(self, request):
-        logger.info(f"UserEditView: Request received. Data keys: {list(request.data.keys())}")
+        return self._handle_edit(request)
+    
+    @role_required('admin', 'principal')
+    def put(self, request):
+        """Handle PUT requests same as POST"""
+        return self._handle_edit(request)
+    
+    @role_required('admin', 'principal')
+    def patch(self, request):
+        """Handle PATCH requests same as POST"""
+        return self._handle_edit(request)
+    
+    def _handle_edit(self, request):
+        logger.info(f"UserEditView: Request received. Method: {request.method}, Data keys: {list(request.data.keys())}")
+        logger.info(f"UserEditView: Request data: {request.data}")
         profile = UserProfile._default_manager.get(user=request.user)
         tenant = profile.tenant
         data = request.data.copy()
-        user_id = data.get('id')
+        user_id = data.get('id') or data.get('user_id')
         logger.info(f"UserEditView: Editing user profile ID: {user_id}")
         if not user_id:
             logger.error("UserEditView: User ID is missing")
-            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "User ID is required. Provide 'id' or 'user_id' in request data."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             user_profile = UserProfile._default_manager.get(id=user_id, tenant=tenant)

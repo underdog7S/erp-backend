@@ -86,6 +86,7 @@ urlpatterns = [
     path('users/toggle-status/', users_views.UserToggleStatusView.as_view(), name='user-toggle-status'),
     path('users/delete/<int:user_id>/', users_views.DeleteUserView.as_view(), name='delete-user'),
     path('users/employee-analytics/', employee_analytics.EmployeeAnalyticsView.as_view(), name='employee-analytics'),
+    path('users/roles/', users_views.RoleListView.as_view(), name='user-roles'),  # Alias for frontend compatibility
     path('roles/', users_views.RoleListView.as_view(), name='role-list'),
     path('roles/create/', users_views.CreateRolesView.as_view(), name='create-roles'),
     
