@@ -130,6 +130,7 @@ urlpatterns = [
     path('education/fees/<int:pk>/', education_views.ClassFeeStructureDetailView.as_view(), name='education-fee-detail'),
     path('education/fee-payments/', education_views.FeePaymentListCreateView.as_view(), name='education-fee-payments'),
     path('education/fee-payments/<int:pk>/', education_views.FeePaymentDetailView.as_view(), name='education-fee-payment-detail'),
+    path('education/fee-payments/<int:pk>/receipt/', education_views.FeePaymentReceiptPDFView.as_view(), name='education-fee-payment-receipt'),
     
     # Installment Management endpoints
     path('education/installment-plans/', education_views.FeeInstallmentPlanListCreateView.as_view(), name='education-installment-plans'),

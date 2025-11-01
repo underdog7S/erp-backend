@@ -1632,7 +1632,7 @@ class FeePaymentDetailView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @role_required('admin', 'principal', 'accountant')
+    @role_required('admin', 'principal', 'teacher', 'accountant')
     def delete(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)
         try:
@@ -1640,7 +1640,241 @@ class FeePaymentDetailView(APIView):
         except Exception:
             return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
         payment.delete()
-        return Response({'message': 'Fee payment deleted.'}) 
+        return Response({'message': 'Fee payment deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+class FeePaymentReceiptPDFView(APIView):
+    """Generate PDF receipt for a fee payment"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            payment = FeePayment._default_manager.get(id=pk, tenant=profile.tenant)
+        except FeePayment.DoesNotExist:
+            return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.lib import colors
+            from reportlab.lib.units import mm
+            from io import BytesIO
+
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+
+            # Get tenant info
+            tenant = profile.tenant
+            school_name = getattr(tenant, 'name', '') or 'School'
+            
+            # Draw logo if exists
+            logo_y_offset = 0
+            if tenant.logo:
+                try:
+                    from PIL import Image
+                    import os
+                    logo_path = tenant.logo.path
+                    if os.path.exists(logo_path):
+                        img = Image.open(logo_path)
+                        max_height = 35 * mm
+                        img_width, img_height = img.size
+                        scale = min(max_height / img_height, 35 * mm / img_width)
+                        new_width = int(img_width * scale)
+                        new_height = int(img_height * scale)
+                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        from reportlab.lib.utils import ImageReader
+                        logo_reader = ImageReader(img)
+                        p.drawImage(logo_reader, 20 * mm, height - 12 - new_height, width=new_width, height=new_height, preserveAspectRatio=True)
+                        logo_y_offset = new_width + 10 * mm
+                except Exception as e:
+                    logger.warning(f"Could not load tenant logo: {e}")
+                    logo_y_offset = 0
+            
+            # Classic header with deep blue banner
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(0, height - 55, width, 55, stroke=0, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 20)
+            p.drawString(20 * mm + logo_y_offset, height - 20, school_name.upper())
+            p.setFont('Helvetica', 10)
+            p.drawString(20 * mm + logo_y_offset, height - 35, 'OFFICIAL FEE PAYMENT RECEIPT')
+            
+            y = height - 70
+            p.setFillColor(colors.black)
+
+            # Receipt number and date box
+            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'RECEIPT DETAILS')
+            p.setFillColor(colors.black)
+            y -= 18
+            
+            receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
+            payment_date = payment.payment_date.strftime('%d/%m/%Y')
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y, 'Receipt Number:')
+            p.setFont('Helvetica', 11)
+            p.drawString(75 * mm, y, receipt_number)
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(130 * mm, y, 'Date:')
+            p.setFont('Helvetica', 11)
+            p.drawString(150 * mm, y, payment_date)
+            y -= 18
+
+            # Student information box
+            p.setFillColor(colors.HexColor('#f9f9f9'))
+            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'STUDENT INFORMATION')
+            p.setFillColor(colors.black)
+            y -= 18
+            
+            student_name = payment.student.name if payment.student else 'N/A'
+            roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or 'N/A'
+            class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Student Name:')
+            p.setFont('Helvetica', 10)
+            p.drawString(70 * mm, y, student_name.upper())
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(130 * mm, y, 'Roll Number:')
+            p.setFont('Helvetica', 10)
+            p.drawString(165 * mm, y, str(roll_number))
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Class:')
+            p.setFont('Helvetica', 10)
+            p.drawString(70 * mm, y, class_name)
+            
+            fee_type = payment.fee_structure.fee_type if payment.fee_structure else 'N/A'
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(130 * mm, y, 'Fee Type:')
+            p.setFont('Helvetica', 10)
+            p.drawString(165 * mm, y, fee_type)
+            y -= 35
+
+            # Payment details box
+            p.setFillColor(colors.HexColor('#fff9e6'))
+            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
+            p.setFillColor(colors.HexColor('#8b6914'))
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'PAYMENT INFORMATION')
+            p.setFillColor(colors.black)
+            y -= 18
+            
+            payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
+            amount_paid = float(payment.amount_paid)
+            total_fee = float(payment.fee_structure.amount) if payment.fee_structure else amount_paid
+            remaining = max(0, total_fee - amount_paid)
+            discount = float(payment.discount_amount) if payment.discount_amount else 0
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Payment Method:')
+            p.setFont('Helvetica', 10)
+            p.drawString(75 * mm, y, payment_method.upper())
+            
+            if discount > 0:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(130 * mm, y, 'Discount:')
+                p.setFont('Helvetica', 10)
+                p.drawString(165 * mm, y, f"₹{discount:.2f}")
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'Amount Paid:')
+            p.setFont('Helvetica', 11)
+            p.setFillColor(colors.HexColor('#2e7d32'))
+            p.drawString(75 * mm, y, f"₹{amount_paid:.2f}")
+            p.setFillColor(colors.black)
+            
+            if payment.fee_structure:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(130 * mm, y, 'Total Fee:')
+                p.setFont('Helvetica', 10)
+                p.drawString(165 * mm, y, f"₹{total_fee:.2f}")
+            y -= 15
+            
+            if payment.fee_structure and remaining > 0:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Remaining:')
+                p.setFont('Helvetica', 10)
+                p.setFillColor(colors.HexColor('#d32f2f'))
+                p.drawString(75 * mm, y, f"₹{remaining:.2f}")
+                p.setFillColor(colors.black)
+            y -= 25
+
+            # Notes section (if exists)
+            if payment.notes:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Notes:')
+                y -= 12
+                p.setFont('Helvetica', 9)
+                # Wrap notes text
+                notes_lines = [payment.notes[i:i+95] for i in range(0, len(payment.notes), 95)]
+                for line in notes_lines[:3]:  # Max 3 lines
+                    p.drawString(25 * mm, y, line)
+                    y -= 12
+                y -= 8
+            else:
+                y -= 15
+
+            # Total amount highlight box
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
+            p.setFont('Helvetica-Bold', 18)
+            p.drawRightString(width - 25 * mm, y - 10, f"₹{amount_paid:.2f}")
+            p.setFillColor(colors.black)
+            y -= 45
+
+            # Thank you message
+            p.setFont('Helvetica', 11)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.drawCentredString(width / 2, y, 'Thank you for your payment!')
+            y -= 15
+
+            # Footer
+            p.setFont('Helvetica', 8)
+            p.setFillColor(colors.HexColor('#666666'))
+            footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            p.drawCentredString(width / 2, 20 * mm, footer_text)
+            p.setFont('Helvetica-Oblique', 7)
+            p.drawCentredString(width / 2, 15 * mm, 'This is a computer-generated receipt and does not require a physical signature.')
+
+            p.showPage()
+            p.save()
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            receipt_filename = f"fee_receipt_{receipt_number}_{payment.id}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{receipt_filename}"'
+            return response
+        except ImportError as e:
+            logger.error(f"PDF generation import error: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'PDF generation library not installed.',
+                'details': 'Install required packages: pip install reportlab Pillow',
+                'missing': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"Error generating receipt PDF: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Receipt PDF generation failed: {str(e)}',
+                'details': 'Check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Installment Management Views
 class FeeInstallmentPlanListCreateView(APIView):
