@@ -788,8 +788,12 @@ class ReportCardPDFView(APIView):
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Draw logo if exists
-            logo_y_offset = 0
+            # Header banner (draw first)
+            p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
+            p.rect(0, height - 65, width, 65, stroke=0, fill=1)
+            
+            # Draw logo in top-right corner (small, 25mm max)
+            logo_drawn = False
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -798,10 +802,10 @@ class ReportCardPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to fit (max 40mm height)
-                        max_height = 40 * mm
+                        # Resize logo to be small (max 25mm height for corner)
+                        max_height = 25 * mm
                         img_width, img_height = img.size
-                        scale = min(max_height / img_height, 40 * mm / img_width)
+                        scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
                         new_height = int(img_height * scale)
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -812,22 +816,22 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        p.drawImage(logo_reader, 20 * mm, height - 15 - new_height, width=new_width, height=new_height, preserveAspectRatio=True)
-                        logo_y_offset = new_width + 10 * mm
+                        # Position in top-right corner with margin
+                        logo_x = width - 25 * mm - new_width
+                        logo_y = height - 20 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True)
+                        logo_drawn = True
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
-                    logo_y_offset = 0
             
-            # Header banner
-            p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
-            p.rect(0, height - 65, width, 65, stroke=0, fill=1)
-            p.setFillColor(colors.white)
+            # School name and title (left side, white text on blue background)
+            p.setFillColor(colors.white)  # White text for visibility on blue
             p.setFont('Helvetica-Bold', 22)
-            p.drawString(20 * mm + logo_y_offset, height - 25, school_name.upper())
+            p.drawString(20 * mm, height - 25, school_name.upper())
             p.setFont('Helvetica', 11)
-            p.drawString(20 * mm + logo_y_offset, height - 40, 'OFFICIAL REPORT CARD')
+            p.drawString(20 * mm, height - 40, 'OFFICIAL REPORT CARD')
             p.setFont('Helvetica-Bold', 14)
-            p.drawRightString(width - 20 * mm, height - 35, 'ACADEMIC REPORT')
+            p.drawRightString(width - 25 * mm, height - 35, 'ACADEMIC REPORT')
 
             y = height - 60
             p.setFillColor(colors.black)
@@ -836,7 +840,8 @@ class ReportCardPDFView(APIView):
             y = height - 80
             p.setFillColor(colors.HexColor('#f5f5f5'))
             p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))
+            # Header text with proper contrast
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray background
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')
             y -= 20
@@ -888,17 +893,17 @@ class ReportCardPDFView(APIView):
             
             y -= 20
 
-            # Classic styled marks table
-            p.setFillColor(colors.HexColor('#1a237e'))
+            # Classic styled marks table header
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
             p.rect(20 * mm, y - 12, width - 40 * mm, 12, stroke=0, fill=1)
-            p.setFillColor(colors.white)
+            p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 11)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
             col_x = [25 * mm, 110 * mm, 140 * mm, 165 * mm]
             col_widths = [80 * mm, 25 * mm, 20 * mm, 25 * mm]
             for i, htxt in enumerate(headers):
                 p.drawString(col_x[i], y - 8, htxt)
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Black text for table rows
             y -= 15
 
             # Table rows with alternating colors
@@ -934,16 +939,17 @@ class ReportCardPDFView(APIView):
 
             # Classic styled summary box
             y -= 10
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
             p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
-            p.setFillColor(colors.white)
+            p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 12, 'ACADEMIC SUMMARY')
-            p.setFillColor(colors.black)
+            # Summary values in white on blue background
+            p.setFillColor(colors.white)
             y -= 20
             
-            # Summary in elegant layout
-            p.setFillColor(colors.white)
+            # Summary in elegant layout (white text on blue background)
+            p.setFillColor(colors.white)  # Keep white for text on blue
             summary_items = [
                 ('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"),
                 ('Percentage', f"{float(report_card.percentage):.2f}%"),
@@ -960,16 +966,16 @@ class ReportCardPDFView(APIView):
                 p.drawString(x_pos, y, label + ':')
                 p.setFont('Helvetica', 11)
                 p.drawString(x_pos, y - 12, value)
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Switch back to black for rest
             y -= 25
 
             # Attendance and Conduct in styled box
-            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.setFillColor(colors.HexColor('#f5f5f5'))  # Light gray background
             p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 10, 'ATTENDANCE & CONDUCT')
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             p.setFont('Helvetica-Bold', 10)
@@ -1003,12 +1009,12 @@ class ReportCardPDFView(APIView):
                 if report_card.principal_remarks:
                     remarks_height += (len(report_card.principal_remarks) // 95 + 1) * 12 + 20
                 
-                p.setFillColor(colors.HexColor('#fff9e6'))
+                p.setFillColor(colors.HexColor('#fff9e6'))  # Cream background
                 p.rect(20 * mm, y - remarks_height - 15, width - 40 * mm, remarks_height + 15, stroke=1, fill=1)
-                p.setFillColor(colors.HexColor('#8b6914'))
+                p.setFillColor(colors.HexColor('#8b6914'))  # Brown text on cream (good contrast)
                 p.setFont('Helvetica-Bold', 12)
                 p.drawString(25 * mm, y - 10, 'REMARKS')
-                p.setFillColor(colors.black)
+                p.setFillColor(colors.black)  # Black text for remarks content
                 y -= 18
                 
                 p.setFont('Helvetica', 10)
@@ -1669,8 +1675,11 @@ class FeePaymentReceiptPDFView(APIView):
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Draw logo if exists
-            logo_y_offset = 0
+            # Classic header with deep blue banner (draw first)
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(0, height - 55, width, 55, stroke=0, fill=1)
+            
+            # Draw logo in top-right corner (small, 20mm max)
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -1678,9 +1687,10 @@ class FeePaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        max_height = 35 * mm
+                        # Resize logo to be small (max 20mm height for corner)
+                        max_height = 20 * mm
                         img_width, img_height = img.size
-                        scale = min(max_height / img_height, 35 * mm / img_width)
+                        scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
                         new_height = int(img_height * scale)
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -1688,31 +1698,30 @@ class FeePaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        p.drawImage(logo_reader, 20 * mm, height - 12 - new_height, width=new_width, height=new_height, preserveAspectRatio=True)
-                        logo_y_offset = new_width + 10 * mm
+                        # Position in top-right corner with margin
+                        logo_x = width - 20 * mm - new_width
+                        logo_y = height - 17 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True)
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
-                    logo_y_offset = 0
             
-            # Classic header with deep blue banner
-            p.setFillColor(colors.HexColor('#1a237e'))
-            p.rect(0, height - 55, width, 55, stroke=0, fill=1)
-            p.setFillColor(colors.white)
+            # School name and title (left side, white text on blue background)
+            p.setFillColor(colors.white)  # White text for visibility on blue
             p.setFont('Helvetica-Bold', 20)
-            p.drawString(20 * mm + logo_y_offset, height - 20, school_name.upper())
+            p.drawString(20 * mm, height - 20, school_name.upper())
             p.setFont('Helvetica', 10)
-            p.drawString(20 * mm + logo_y_offset, height - 35, 'OFFICIAL FEE PAYMENT RECEIPT')
+            p.drawString(20 * mm, height - 35, 'OFFICIAL FEE PAYMENT RECEIPT')
             
             y = height - 70
             p.setFillColor(colors.black)
 
             # Receipt number and date box
-            p.setFillColor(colors.HexColor('#f5f5f5'))
+            p.setFillColor(colors.HexColor('#f5f5f5'))  # Light gray background
             p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'RECEIPT DETAILS')
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
@@ -1730,12 +1739,12 @@ class FeePaymentReceiptPDFView(APIView):
             y -= 18
 
             # Student information box
-            p.setFillColor(colors.HexColor('#f9f9f9'))
+            p.setFillColor(colors.HexColor('#f9f9f9'))  # Light gray background
             p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'STUDENT INFORMATION')
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             student_name = payment.student.name if payment.student else 'N/A'
@@ -1766,12 +1775,12 @@ class FeePaymentReceiptPDFView(APIView):
             y -= 35
 
             # Payment details box
-            p.setFillColor(colors.HexColor('#fff9e6'))
+            p.setFillColor(colors.HexColor('#fff9e6'))  # Cream background
             p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#8b6914'))
+            p.setFillColor(colors.HexColor('#8b6914'))  # Brown text on cream (good contrast)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'PAYMENT INFORMATION')
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
@@ -1831,19 +1840,19 @@ class FeePaymentReceiptPDFView(APIView):
                 y -= 15
 
             # Total amount highlight box
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
             p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
-            p.setFillColor(colors.white)
+            p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
             p.setFont('Helvetica-Bold', 18)
             p.drawRightString(width - 25 * mm, y - 10, f"₹{amount_paid:.2f}")
-            p.setFillColor(colors.black)
+            p.setFillColor(colors.black)  # Switch back to black
             y -= 45
 
-            # Thank you message
+            # Thank you message (dark blue text on white background)
             p.setFont('Helvetica', 11)
-            p.setFillColor(colors.HexColor('#1a237e'))
+            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on white (good contrast)
             p.drawCentredString(width / 2, y, 'Thank you for your payment!')
             y -= 15
 
