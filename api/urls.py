@@ -121,6 +121,7 @@ urlpatterns = [
     path('education/terms/', education_views.TermListCreateView.as_view(), name='education-terms'),
     path('education/subjects/', education_views.SubjectListCreateView.as_view(), name='education-subjects'),
     path('education/units/', education_views.UnitListCreateView.as_view(), name='education-units'),
+    path('education/units/<int:pk>/', education_views.UnitDetailView.as_view(), name='education-unit-detail'),
     path('education/assessment-types/', education_views.AssessmentTypeListCreateView.as_view(), name='education-assessment-types'),
     path('education/assessments/', education_views.AssessmentListCreateView.as_view(), name='education-assessments'),
     path('education/marks-entries/', education_views.MarksEntryListCreateView.as_view(), name='education-marks-entries'),

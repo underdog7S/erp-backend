@@ -467,14 +467,78 @@ class UnitListCreateView(APIView):
 
     @role_required('admin', 'principal', 'teacher')
     def post(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        data = request.data.copy()
-        data['tenant'] = profile.tenant.id
-        serializer = UnitSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save(tenant=profile.tenant)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            data = request.data.copy()
+            data['tenant'] = profile.tenant.id
+            serializer = UnitSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save(tenant=profile.tenant)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            logger.error(f"Unit creation validation error: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Unit creation error: {str(e)}", exc_info=True)
+            return Response({'error': f'Failed to create unit: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class UnitDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request, pk):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            unit = Unit._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = UnitSerializer(unit)
+            return Response(serializer.data)
+        except Unit.DoesNotExist:
+            return Response({'error': 'Unit not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @role_required('admin', 'principal', 'teacher')
+    def put(self, request, pk):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            unit = Unit._default_manager.get(id=pk, tenant=profile.tenant)
+            data = request.data.copy()
+            data['tenant'] = profile.tenant.id
+            serializer = UnitSerializer(unit, data=data, partial=False)
+            if serializer.is_valid():
+                serializer.save(tenant=profile.tenant)
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Unit.DoesNotExist:
+            return Response({'error': 'Unit not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Unit update error: {str(e)}", exc_info=True)
+            return Response({'error': f'Failed to update unit: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @role_required('admin', 'principal', 'teacher')
+    def patch(self, request, pk):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            unit = Unit._default_manager.get(id=pk, tenant=profile.tenant)
+            data = request.data.copy()
+            data['tenant'] = profile.tenant.id
+            serializer = UnitSerializer(unit, data=data, partial=True)
+            if serializer.is_valid():
+                serializer.save(tenant=profile.tenant)
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Unit.DoesNotExist:
+            return Response({'error': 'Unit not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Unit update error: {str(e)}", exc_info=True)
+            return Response({'error': f'Failed to update unit: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @role_required('admin', 'principal')
+    def delete(self, request, pk):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            unit = Unit._default_manager.get(id=pk, tenant=profile.tenant)
+            unit.delete()
+            return Response({'message': 'Unit deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        except Unit.DoesNotExist:
+            return Response({'error': 'Unit not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 class AssessmentTypeListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -515,14 +579,19 @@ class AssessmentListCreateView(APIView):
 
     @role_required('admin', 'principal', 'teacher')
     def post(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        data = request.data.copy()
-        data['tenant'] = profile.tenant.id
-        serializer = AssessmentSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save(tenant=profile.tenant)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            data = request.data.copy()
+            data['tenant'] = profile.tenant.id
+            serializer = AssessmentSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save(tenant=profile.tenant)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            logger.error(f"Assessment creation validation error: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Assessment creation error: {str(e)}", exc_info=True)
+            return Response({'error': f'Failed to create assessment: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class MarksEntryListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -1003,11 +1072,19 @@ class ReportCardPDFView(APIView):
             response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="report_card_{report_card.student.name}_{report_card.id}.pdf"'
             return response
-        except ImportError:
-            return Response({'error': 'Reportlab not installed. Install with: pip install reportlab'}, status=500)
+        except ImportError as e:
+            logger.error(f"PDF generation import error: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'PDF generation library not installed.',
+                'details': 'Install required packages: pip install reportlab Pillow',
+                'missing': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             logger.error(f"Error generating PDF: {str(e)}", exc_info=True)
-            return Response({'error': f'PDF generation failed: {str(e)}'}, status=500)
+            return Response({
+                'error': f'PDF generation failed: {str(e)}',
+                'details': 'Check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class StudentExportView(APIView):
     authentication_classes = [JWTAuthentication]
