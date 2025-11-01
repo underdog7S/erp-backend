@@ -9,7 +9,7 @@ class Command(BaseCommand):
             {
                 'name': 'Free',
                 'description': 'Perfect for small organizations getting started.',
-                'max_users': 5,
+                'max_users': 2,
                 'storage_limit_mb': 500,
                 'price': 0,
                 'billing_cycle': 'monthly',
