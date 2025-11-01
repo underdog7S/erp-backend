@@ -792,7 +792,7 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
             p.rect(0, height - 65, width, 65, stroke=0, fill=1)
             
-            # Draw logo in top-right corner (small, 25mm max)
+            # Draw logo in top-right corner (small, 20mm max, properly positioned)
             logo_drawn = False
             if tenant.logo:
                 try:
@@ -802,8 +802,8 @@ class ReportCardPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to be small (max 25mm height for corner)
-                        max_height = 25 * mm
+                        # Resize logo to be small (max 20mm height for corner)
+                        max_height = 20 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -816,10 +816,10 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position in top-right corner with margin
-                        logo_x = width - 25 * mm - new_width
-                        logo_y = height - 20 - new_height
-                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True)
+                        # Position in top-right corner with proper margin (avoid text overlap)
+                        logo_x = width - 20 * mm - new_width
+                        logo_y = height - 15 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
@@ -836,7 +836,7 @@ class ReportCardPDFView(APIView):
             y = height - 60
             p.setFillColor(colors.black)
 
-            # Classic styled student information box
+            # Classic styled student information box - properly aligned
             y = height - 80
             p.setFillColor(colors.HexColor('#f5f5f5'))
             p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
@@ -846,43 +846,48 @@ class ReportCardPDFView(APIView):
             p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')
             y -= 20
             
-            # Student details in classic two-column layout
+            # Student details in classic two-column layout - properly aligned
             p.setFillColor(colors.black)
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'Full Name:')
-            p.setFont('Helvetica', 11)
-            p.drawString(70 * mm, y, report_card.student.name.upper())
+            label_x = 25 * mm
+            value_x = 75 * mm
+            label_x2 = 130 * mm
+            value_x2 = 160 * mm
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Full Name:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, report_card.student.name.upper())
             
             roll_val = getattr(report_card.student, 'roll_number', None) or getattr(report_card.student, 'admission_number', None) or report_card.student.id
             upper_val = getattr(report_card.student, 'upper_id', None) or getattr(report_card.student, 'admission_number', None)
             
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(130 * mm, y, 'Roll Number:')
-            p.setFont('Helvetica', 11)
-            p.drawString(160 * mm, y, str(roll_val))
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Roll Number:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, str(roll_val))
             y -= 15
             
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'Class:')
-            p.setFont('Helvetica', 11)
-            p.drawString(70 * mm, y, report_card.class_obj.name if report_card.class_obj else 'N/A')
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Class:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, report_card.class_obj.name if report_card.class_obj else 'N/A')
             
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(130 * mm, y, 'Academic Year:')
-            p.setFont('Helvetica', 11)
-            p.drawString(160 * mm, y, report_card.academic_year.name if report_card.academic_year else 'N/A')
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Academic Year:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, report_card.academic_year.name if report_card.academic_year else 'N/A')
             y -= 15
             
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'Term:')
-            p.setFont('Helvetica', 11)
-            p.drawString(70 * mm, y, report_card.term.name if report_card.term else 'N/A')
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Term:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, report_card.term.name if report_card.term else 'N/A')
             
             issued_str = report_card.issued_date.strftime('%d-%m-%Y') if report_card.issued_date else report_card.generated_at.strftime('%d-%m-%Y')
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(130 * mm, y, 'Issued Date:')
-            p.setFont('Helvetica', 11)
-            p.drawString(160 * mm, y, issued_str)
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Issued Date:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, issued_str)
             
             if upper_val:
                 y -= 15
@@ -893,20 +898,26 @@ class ReportCardPDFView(APIView):
             
             y -= 20
 
-            # Classic styled marks table header
+            # Classic styled marks table header - properly aligned
             p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
             p.rect(20 * mm, y - 12, width - 40 * mm, 12, stroke=0, fill=1)
             p.setFillColor(colors.white)  # White text on blue background
-            p.setFont('Helvetica-Bold', 11)
+            p.setFont('Helvetica-Bold', 10)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            col_x = [25 * mm, 110 * mm, 140 * mm, 165 * mm]
-            col_widths = [80 * mm, 25 * mm, 20 * mm, 25 * mm]
+            # Better column positions for proper alignment
+            col_x = [25 * mm, 120 * mm, 150 * mm, 175 * mm]
+            col_widths = [90 * mm, 25 * mm, 20 * mm, 20 * mm]
             for i, htxt in enumerate(headers):
-                p.drawString(col_x[i], y - 8, htxt)
+                if i == 0:
+                    # Left align subject
+                    p.drawString(col_x[i], y - 8, htxt)
+                else:
+                    # Right align numbers
+                    p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
             p.setFillColor(colors.black)  # Black text for table rows
             y -= 15
 
-            # Table rows with alternating colors
+            # Table rows with alternating colors - properly aligned
             from education.models import MarksEntry
             marks_entries = MarksEntry.objects.filter(
                 tenant=report_card.tenant,
@@ -918,22 +929,43 @@ class ReportCardPDFView(APIView):
             row_num = 0
             for entry in marks_entries:
                 if y < 80:
-                    # new page
+                    # New page - reset background
                     p.showPage()
-                    y = height - 40
+                    # Redraw header on new page
+                    p.setFillColor(colors.HexColor('#1a237e'))
+                    p.rect(20 * mm, height - 40 - 12, width - 40 * mm, 12, stroke=0, fill=1)
+                    p.setFillColor(colors.white)
+                    p.setFont('Helvetica-Bold', 10)
+                    for i, htxt in enumerate(headers):
+                        if i == 0:
+                            p.drawString(col_x[i], height - 40 - 8, htxt)
+                        else:
+                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)
+                    p.setFillColor(colors.black)
+                    p.setFont('Helvetica', 10)
+                    y = height - 40 - 15
+                    row_num = 0  # Reset row number for alternating
+                
                 subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
                 percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
                 
-                # Alternating row background
+                # Alternating row background - ensure it doesn't bleed
                 if row_num % 2 == 0:
                     p.setFillColor(colors.HexColor('#f9f9f9'))
-                    p.rect(20 * mm, y - 2, width - 40 * mm, 14, stroke=0, fill=1)
+                    # Ensure rectangle stays within page bounds
+                    rect_y = max(y - 12, 30 * mm)  # Don't go below 30mm from bottom
+                    p.rect(20 * mm, rect_y, width - 40 * mm, 12, stroke=0, fill=1)
                     p.setFillColor(colors.black)
                 
-                p.drawString(col_x[0], y, subject_name[:35])
-                p.drawRightString(col_x[1] + 20, y, str(float(entry.marks_obtained)))
-                p.drawRightString(col_x[2] + 20, y, str(float(entry.max_marks)))
-                p.drawRightString(col_x[3] + 20, y, f"{percent:.2f}%")
+                # Properly aligned values
+                p.drawString(col_x[0], y, subject_name[:30])  # Left align subject
+                # Right align numbers for proper alignment
+                marks_str = str(int(float(entry.marks_obtained)))
+                p.drawRightString(col_x[1] + col_widths[1], y, marks_str)
+                max_marks_str = str(int(float(entry.max_marks)))
+                p.drawRightString(col_x[2] + col_widths[2], y, max_marks_str)
+                percent_str = f"{percent:.1f}%"
+                p.drawRightString(col_x[3] + col_widths[3], y, percent_str)
                 y -= 14
                 row_num += 1
 
@@ -1679,7 +1711,7 @@ class FeePaymentReceiptPDFView(APIView):
             p.setFillColor(colors.HexColor('#1a237e'))
             p.rect(0, height - 55, width, 55, stroke=0, fill=1)
             
-            # Draw logo in top-right corner (small, 20mm max)
+            # Draw logo in top-right corner (small, 18mm max, properly positioned)
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -1687,8 +1719,8 @@ class FeePaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to be small (max 20mm height for corner)
-                        max_height = 20 * mm
+                        # Resize logo to be small (max 18mm height for corner)
+                        max_height = 18 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -1698,10 +1730,10 @@ class FeePaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position in top-right corner with margin
-                        logo_x = width - 20 * mm - new_width
-                        logo_y = height - 17 - new_height
-                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True)
+                        # Position in top-right corner with proper margin (avoid text overlap)
+                        logo_x = width - 18 * mm - new_width
+                        logo_y = height - 12 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
@@ -1738,7 +1770,7 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(150 * mm, y, payment_date)
             y -= 18
 
-            # Student information box
+            # Student information box - properly aligned
             p.setFillColor(colors.HexColor('#f9f9f9'))  # Light gray background
             p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
             p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
@@ -1751,30 +1783,36 @@ class FeePaymentReceiptPDFView(APIView):
             roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
-            p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Student Name:')
-            p.setFont('Helvetica', 10)
-            p.drawString(70 * mm, y, student_name.upper())
+            # Properly aligned labels and values
+            label_x = 25 * mm
+            value_x = 75 * mm
+            label_x2 = 130 * mm
+            value_x2 = 160 * mm
             
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(130 * mm, y, 'Roll Number:')
+            p.drawString(label_x, y, 'Student Name:')
             p.setFont('Helvetica', 10)
-            p.drawString(165 * mm, y, str(roll_number))
+            p.drawString(value_x, y, student_name.upper())
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Roll Number:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, str(roll_number))
             y -= 15
             
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Class:')
+            p.drawString(label_x, y, 'Class:')
             p.setFont('Helvetica', 10)
-            p.drawString(70 * mm, y, class_name)
+            p.drawString(value_x, y, class_name)
             
             fee_type = payment.fee_structure.fee_type if payment.fee_structure else 'N/A'
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(130 * mm, y, 'Fee Type:')
+            p.drawString(label_x2, y, 'Fee Type:')
             p.setFont('Helvetica', 10)
-            p.drawString(165 * mm, y, fee_type)
+            p.drawString(value_x2, y, fee_type)
             y -= 35
 
-            # Payment details box
+            # Payment details box - properly aligned
             p.setFillColor(colors.HexColor('#fff9e6'))  # Cream background
             p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
             p.setFillColor(colors.HexColor('#8b6914'))  # Brown text on cream (good contrast)
@@ -1789,38 +1827,44 @@ class FeePaymentReceiptPDFView(APIView):
             remaining = max(0, total_fee - amount_paid)
             discount = float(payment.discount_amount) if payment.discount_amount else 0
             
+            # Properly aligned labels and values
+            label_x = 25 * mm
+            value_x = 75 * mm
+            label_x2 = 130 * mm
+            value_x2 = 165 * mm
+            
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Payment Method:')
+            p.drawString(label_x, y, 'Payment Method:')
             p.setFont('Helvetica', 10)
-            p.drawString(75 * mm, y, payment_method.upper())
+            p.drawString(value_x, y, payment_method.upper())
             
             if discount > 0:
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(130 * mm, y, 'Discount:')
+                p.drawString(label_x2, y, 'Discount:')
                 p.setFont('Helvetica', 10)
-                p.drawString(165 * mm, y, f"₹{discount:.2f}")
+                p.drawRightString(value_x2, y, f"₹{discount:.2f}")  # Right align currency
             y -= 15
             
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Amount Paid:')
+            p.drawString(label_x, y, 'Amount Paid:')
             p.setFont('Helvetica', 11)
             p.setFillColor(colors.HexColor('#2e7d32'))
-            p.drawString(75 * mm, y, f"₹{amount_paid:.2f}")
+            p.drawRightString(value_x2, y, f"₹{amount_paid:.2f}")  # Right align currency
             p.setFillColor(colors.black)
             
             if payment.fee_structure:
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(130 * mm, y, 'Total Fee:')
+                p.drawString(label_x2, y, 'Total Fee:')
                 p.setFont('Helvetica', 10)
-                p.drawString(165 * mm, y, f"₹{total_fee:.2f}")
+                p.drawRightString(value_x2, y, f"₹{total_fee:.2f}")  # Right align currency
             y -= 15
             
             if payment.fee_structure and remaining > 0:
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(25 * mm, y, 'Remaining:')
+                p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
                 p.setFillColor(colors.HexColor('#d32f2f'))
-                p.drawString(75 * mm, y, f"₹{remaining:.2f}")
+                p.drawRightString(value_x2, y, f"₹{remaining:.2f}")  # Right align currency
                 p.setFillColor(colors.black)
             y -= 25
 
