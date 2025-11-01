@@ -784,13 +784,29 @@ class ReportCardPDFView(APIView):
             p = canvas.Canvas(buffer, pagesize=A4)
             width, height = A4
 
+            # Classic border frame around entire page
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(2)
+            p.rect(15 * mm, 15 * mm, width - 30 * mm, height - 30 * mm, stroke=1, fill=0)
+            
+            # Inner decorative border
+            p.setStrokeColor(colors.HexColor('#666666'))
+            p.setLineWidth(0.5)
+            p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
+
             # Header banner with school name and logo
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Header banner (draw first)
+            # Classic header banner with double border
+            header_y_start = height - 70
             p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
-            p.rect(0, height - 65, width, 65, stroke=0, fill=1)
+            p.rect(20 * mm, header_y_start, width - 40 * mm, 55, stroke=0, fill=1)
+            
+            # Decorative border on header
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(1)
+            p.rect(20 * mm, header_y_start, width - 40 * mm, 55, stroke=1, fill=0)
             
             # Draw logo in top-right corner (small, 20mm max, properly positioned)
             logo_drawn = False
@@ -824,27 +840,54 @@ class ReportCardPDFView(APIView):
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and title (left side, white text on blue background)
+            # School name and title (centered, formal styling)
             p.setFillColor(colors.white)  # White text for visibility on blue
-            p.setFont('Helvetica-Bold', 22)
-            p.drawString(20 * mm, height - 25, school_name.upper())
-            p.setFont('Helvetica', 11)
-            p.drawString(20 * mm, height - 40, 'OFFICIAL REPORT CARD')
-            p.setFont('Helvetica-Bold', 14)
-            p.drawRightString(width - 25 * mm, height - 35, 'ACADEMIC REPORT')
+            p.setFont('Helvetica-Bold', 24)
+            school_y = height - 30
+            p.drawCentredString(width / 2, school_y, school_name.upper())
+            
+            # Decorative line under school name
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(1.5)
+            p.line(60 * mm, school_y - 8, width - 60 * mm, school_y - 8)
+            
+            p.setFont('Helvetica', 12)
+            p.drawCentredString(width / 2, school_y - 18, 'OFFICIAL REPORT CARD')
+            p.setFont('Helvetica-Bold', 10)
+            p.drawCentredString(width / 2, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
 
-            y = height - 60
+            # Decorative separator line
+            y = height - 75
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1)
+            p.line(20 * mm, y, width - 20 * mm, y)
+            
+            y -= 10
             p.setFillColor(colors.black)
 
-            # Classic styled student information box - properly aligned
-            y = height - 80
-            p.setFillColor(colors.HexColor('#f5f5f5'))
-            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
+            # Classic styled student information box - with formal borders
+            y = height - 90
+            # Outer border
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1.5)
+            p.rect(22 * mm, y - 65, width - 44 * mm, 65, stroke=1, fill=0)
+            # Background
+            p.setFillColor(colors.HexColor('#f9f9f9'))
+            p.rect(22 * mm, y - 65, width - 44 * mm, 65, stroke=0, fill=1)
+            # Header section with background
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
             # Header text with proper contrast
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray background
-            p.setFont('Helvetica-Bold', 14)
-            p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')
-            y -= 20
+            p.setFillColor(colors.white)  # White text on blue background
+            p.setFont('Helvetica-Bold', 13)
+            p.drawCentredString(width / 2, y - 7, 'STUDENT INFORMATION')
+            # Decorative line under header
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(0.5)
+            p.line(25 * mm, y - 12, width - 25 * mm, y - 12)
+            
+            y -= 18
+            p.setFillColor(colors.black)
             
             # Student details in classic two-column layout - properly aligned
             p.setFillColor(colors.black)
@@ -898,15 +941,38 @@ class ReportCardPDFView(APIView):
             
             y -= 20
 
-            # Classic styled marks table header - properly aligned
+            # Classic styled marks table - with formal borders
+            y -= 5
+            # Get marks entries first to calculate table height
+            from education.models import MarksEntry
+            marks_entries = MarksEntry.objects.filter(
+                tenant=report_card.tenant,
+                student=report_card.student,
+                assessment__term=report_card.term
+            ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
+            
+            # Table outer border - calculate height based on entries
+            table_height = len(marks_entries) * 14 + 15
+            if table_height > y - 80:
+                table_height = y - 80
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1.5)
+            p.rect(22 * mm, y - table_height, width - 44 * mm, table_height, stroke=1, fill=0)
+            
+            # Table header with classic styling
             p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
-            p.rect(20 * mm, y - 12, width - 40 * mm, 12, stroke=0, fill=1)
+            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
+            # Decorative line in header
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(0.5)
+            p.line(22 * mm, y - 6, width - 22 * mm, y - 6)
+            
             p.setFillColor(colors.white)  # White text on blue background
-            p.setFont('Helvetica-Bold', 10)
+            p.setFont('Helvetica-Bold', 11)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
             # Better column positions for proper alignment
-            col_x = [25 * mm, 120 * mm, 150 * mm, 175 * mm]
-            col_widths = [90 * mm, 25 * mm, 20 * mm, 20 * mm]
+            col_x = [28 * mm, 120 * mm, 150 * mm, 175 * mm]
+            col_widths = [88 * mm, 25 * mm, 20 * mm, 20 * mm]
             for i, htxt in enumerate(headers):
                 if i == 0:
                     # Left align subject
@@ -916,15 +982,16 @@ class ReportCardPDFView(APIView):
                     p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
             p.setFillColor(colors.black)  # Black text for table rows
             y -= 15
+            
+            # Vertical column separators
+            p.setStrokeColor(colors.HexColor('#cccccc'))
+            p.setLineWidth(0.3)
+            for i in range(1, len(col_x)):
+                sep_x = col_x[i] - 2
+                p.line(sep_x, y, sep_x, y - table_height + 12)
 
             # Table rows with alternating colors - properly aligned
-            from education.models import MarksEntry
-            marks_entries = MarksEntry.objects.filter(
-                tenant=report_card.tenant,
-                student=report_card.student,
-                assessment__term=report_card.term
-            ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
-
+            # (marks_entries already fetched above)
             p.setFont('Helvetica', 10)
             row_num = 0
             for entry in marks_entries:
@@ -951,11 +1018,16 @@ class ReportCardPDFView(APIView):
                 
                 # Alternating row background - ensure it doesn't bleed
                 if row_num % 2 == 0:
-                    p.setFillColor(colors.HexColor('#f9f9f9'))
+                    p.setFillColor(colors.HexColor('#f0f0f0'))
                     # Ensure rectangle stays within page bounds
                     rect_y = max(y - 12, 30 * mm)  # Don't go below 30mm from bottom
-                    p.rect(20 * mm, rect_y, width - 40 * mm, 12, stroke=0, fill=1)
+                    p.rect(22 * mm, rect_y, width - 44 * mm, 12, stroke=0, fill=1)
                     p.setFillColor(colors.black)
+                
+                # Row border line
+                p.setStrokeColor(colors.HexColor('#e0e0e0'))
+                p.setLineWidth(0.3)
+                p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
                 
                 # Properly aligned values
                 p.drawString(col_x[0], y, subject_name[:30])  # Left align subject
@@ -969,16 +1041,26 @@ class ReportCardPDFView(APIView):
                 y -= 14
                 row_num += 1
 
-            # Classic styled summary box
-            y -= 10
+            # Classic styled summary box - with formal borders
+            y -= 8
+            # Outer border
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1.5)
+            p.rect(22 * mm, y - 55, width - 44 * mm, 55, stroke=1, fill=0)
+            # Background
             p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
-            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
+            p.rect(22 * mm, y - 55, width - 44 * mm, 55, stroke=0, fill=1)
+            # Header section
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(1)
+            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=1, fill=0)
+            
             p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 14)
-            p.drawString(25 * mm, y - 12, 'ACADEMIC SUMMARY')
+            p.drawCentredString(width / 2, y - 7, 'ACADEMIC SUMMARY')
             # Summary values in white on blue background
             p.setFillColor(colors.white)
-            y -= 20
+            y -= 18
             
             # Summary in elegant layout (white text on blue background)
             p.setFillColor(colors.white)  # Keep white for text on blue
@@ -1001,12 +1083,25 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)  # Switch back to black for rest
             y -= 25
 
-            # Attendance and Conduct in styled box
-            p.setFillColor(colors.HexColor('#f5f5f5'))  # Light gray background
-            p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
+            # Attendance and Conduct in styled box - with formal borders
+            y -= 5
+            # Outer border
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1.5)
+            p.rect(22 * mm, y - 45, width - 44 * mm, 45, stroke=1, fill=0)
+            # Background
+            p.setFillColor(colors.HexColor('#f9f9f9'))
+            p.rect(22 * mm, y - 45, width - 44 * mm, 45, stroke=0, fill=1)
+            # Header section
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
+            p.setStrokeColor(colors.white)
+            p.setLineWidth(0.5)
+            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=1, fill=0)
+            
+            p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y - 10, 'ATTENDANCE & CONDUCT')
+            p.drawCentredString(width / 2, y - 7, 'ATTENDANCE & CONDUCT')
             p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
@@ -1073,27 +1168,46 @@ class ReportCardPDFView(APIView):
                         y -= 12
                 y -= 8
 
-            # Classic signature section
-            p.setFillColor(colors.HexColor('#f5f5f5'))
-            p.rect(20 * mm, 20 * mm, width - 40 * mm, 35, stroke=1, fill=1)
+            # Classic signature section - with formal borders
+            sig_y_start = 25 * mm
+            sig_height = 40 * mm
+            # Outer border
+            p.setStrokeColor(colors.HexColor('#1a237e'))
+            p.setLineWidth(1.5)
+            p.rect(22 * mm, sig_y_start, width - 44 * mm, sig_height, stroke=1, fill=0)
+            # Background
+            p.setFillColor(colors.HexColor('#fafafa'))
+            p.rect(22 * mm, sig_y_start, width - 44 * mm, sig_height, stroke=0, fill=1)
+            # Decorative top border
+            p.setFillColor(colors.HexColor('#1a237e'))
+            p.rect(22 * mm, sig_y_start + sig_height - 12, width - 44 * mm, 12, stroke=0, fill=1)
+            p.setFillColor(colors.white)
+            p.setFont('Helvetica-Bold', 10)
+            p.drawCentredString(width / 2, sig_y_start + sig_height - 7, 'AUTHENTICATION')
             
-            # Signature lines with labels
+            # Signature lines with labels - formal style
             p.setStrokeColor(colors.black)
+            p.setLineWidth(1)
+            sig_line_y = sig_y_start + 22 * mm
+            
+            # Class Teacher signature box
+            p.setStrokeColor(colors.HexColor('#666666'))
             p.setLineWidth(0.5)
-            
-            # Class Teacher signature
-            p.line(30 * mm, 42 * mm, 75 * mm, 42 * mm)
+            p.rect(30 * mm, sig_line_y - 8, 50 * mm, 20 * mm, stroke=1, fill=0)
+            p.line(30 * mm, sig_line_y + 4, 80 * mm, sig_line_y + 4)
             p.setFont('Helvetica-Bold', 9)
-            p.drawString(30 * mm, 38 * mm, 'Class Teacher')
-            p.setFont('Helvetica', 8)
-            p.drawString(30 * mm, 33 * mm, '(Signature & Seal)')
+            p.setFillColor(colors.black)
+            p.drawString(32 * mm, sig_line_y + 8, 'Class Teacher')
+            p.setFont('Helvetica', 7)
+            p.drawString(32 * mm, sig_line_y - 3, '(Signature & Seal)')
             
-            # Principal signature
-            p.line(110 * mm, 42 * mm, 165 * mm, 42 * mm)
+            # Principal signature box
+            p.rect(120 * mm, sig_line_y - 8, 50 * mm, 20 * mm, stroke=1, fill=0)
+            p.line(120 * mm, sig_line_y + 4, 170 * mm, sig_line_y + 4)
             p.setFont('Helvetica-Bold', 9)
-            p.drawString(110 * mm, 38 * mm, 'Principal')
-            p.setFont('Helvetica', 8)
-            p.drawString(110 * mm, 33 * mm, '(Signature & Seal)')
+            p.drawString(122 * mm, sig_line_y + 8, 'Principal')
+            p.setFont('Helvetica', 7)
+            p.drawString(122 * mm, sig_line_y - 3, '(Signature & Seal)')
             
             # Footer with classic styling
             p.setFont('Helvetica', 8)
