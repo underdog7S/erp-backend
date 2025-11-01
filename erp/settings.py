@@ -2,14 +2,16 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# load_dotenv()  # take environment variables from .env
-try:
-    load_dotenv()  # Enable environment variables loading
-except Exception as e:
-    print(f"Warning: Could not load .env file: {e}")
-    # Continue without .env file
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file from backend directory
+try:
+    env_path = BASE_DIR / '.env'
+    load_dotenv(dotenv_path=env_path)  # Enable environment variables loading
+    print(f"✅ Loaded .env from: {env_path}")
+except Exception as e:
+    print(f"⚠️  Warning: Could not load .env file: {e}")
+    # Continue without .env file
 
 # ============================================
 # SECURITY: SECRET_KEY must be set in environment variable

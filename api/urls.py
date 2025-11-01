@@ -58,6 +58,9 @@ router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-pa
 # router.register(r'healthcare/prescriptions', healthcare_views.PrescriptionViewSet, basename='healthcare-prescription')
 
 urlpatterns = [
+    # API Root
+    path('', public_views.APIRootView.as_view(), name='api-root'),
+    
     # Authentication
     path('register/', auth_views.RegisterView.as_view(), name='register'),
     path('login/', auth_views.LoginView.as_view(), name='login'),

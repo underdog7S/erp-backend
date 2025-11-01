@@ -16,6 +16,24 @@ from retail.models import Product as RetailProduct
 from education.models import Class as EduClass, AdmissionApplication as EduApplication, Student
 
 
+class APIRootView(APIView):
+    """Simple root endpoint for /api"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        return Response({
+            "name": "Zenith ERP API",
+            "version": "1.0.0",
+            "status": "active",
+            "endpoints": {
+                "authentication": "/api/login/",
+                "registration": "/api/register/",
+                "users": "/api/users/",
+                "documentation": "Visit /swagger/ for API documentation"
+            }
+        })
+
+
 def get_tenant_or_404(slug: str) -> Tenant:
 	return get_object_or_404(Tenant, slug=slug)
 
