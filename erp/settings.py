@@ -8,9 +8,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 try:
     env_path = BASE_DIR / '.env'
     load_dotenv(dotenv_path=env_path)  # Enable environment variables loading
-    print(f"✅ Loaded .env from: {env_path}")
+    import sys
+    if sys.stdout.encoding and 'utf' in sys.stdout.encoding.lower():
+        print(f"✅ Loaded .env from: {env_path}")
+    else:
+        print(f"Loaded .env from: {env_path}")
 except Exception as e:
-    print(f"⚠️  Warning: Could not load .env file: {e}")
+    import sys
+    if sys.stdout.encoding and 'utf' in sys.stdout.encoding.lower():
+        print(f"⚠️  Warning: Could not load .env file: {e}")
+    else:
+        print(f"Warning: Could not load .env file: {e}")
     # Continue without .env file
 
 # ============================================
