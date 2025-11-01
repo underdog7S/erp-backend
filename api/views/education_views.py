@@ -832,9 +832,14 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position in top-right corner with proper margin (avoid text overlap)
-                        logo_x = width - 20 * mm - new_width
-                        logo_y = height - 15 - new_height
+                        # Position in top-right corner with proper margin (avoid border overlap)
+                        # Ensure logo stays within page border (15mm margin)
+                        logo_x = width - 20 * mm - new_width  # 20mm from right, but ensure it's inside 15mm border
+                        if logo_x < 15 * mm + 2:  # If too close to border, adjust
+                            logo_x = width - 18 * mm - new_width
+                        logo_y = height - 18 - new_height  # Slightly lower to avoid border
+                        if logo_y > height - 70:  # Don't overlap header
+                            logo_y = height - 70 - new_height - 2
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
                 except Exception as e:
@@ -970,15 +975,15 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 11)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            # Better column positions for proper alignment
-            col_x = [28 * mm, 120 * mm, 150 * mm, 175 * mm]
-            col_widths = [88 * mm, 25 * mm, 20 * mm, 20 * mm]
+            # Better column positions for proper alignment - consistent right alignment for numbers
+            col_x = [28 * mm, 118 * mm, 148 * mm, 173 * mm]
+            col_widths = [85 * mm, 25 * mm, 20 * mm, 20 * mm]
             for i, htxt in enumerate(headers):
                 if i == 0:
-                    # Left align subject
+                    # Left align subject column header
                     p.drawString(col_x[i], y - 8, htxt)
                 else:
-                    # Right align numbers
+                    # Right align number column headers to match data alignment
                     p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
             p.setFillColor(colors.black)  # Black text for table rows
             y -= 15
@@ -996,18 +1001,29 @@ class ReportCardPDFView(APIView):
             row_num = 0
             for entry in marks_entries:
                 if y < 80:
-                    # New page - reset background
+                    # New page - reset background and redraw borders
                     p.showPage()
-                    # Redraw header on new page
+                    # Redraw page border
+                    p.setStrokeColor(colors.HexColor('#1a237e'))
+                    p.setLineWidth(2)
+                    p.rect(15 * mm, 15 * mm, width - 30 * mm, height - 30 * mm, stroke=1, fill=0)
+                    p.setStrokeColor(colors.HexColor('#666666'))
+                    p.setLineWidth(0.5)
+                    p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
+                    
+                    # Redraw table header on new page
                     p.setFillColor(colors.HexColor('#1a237e'))
-                    p.rect(20 * mm, height - 40 - 12, width - 40 * mm, 12, stroke=0, fill=1)
+                    p.rect(22 * mm, height - 40 - 12, width - 44 * mm, 12, stroke=0, fill=1)
+                    p.setStrokeColor(colors.white)
+                    p.setLineWidth(0.5)
+                    p.line(22 * mm, height - 40 - 6, width - 22 * mm, height - 40 - 6)
                     p.setFillColor(colors.white)
-                    p.setFont('Helvetica-Bold', 10)
+                    p.setFont('Helvetica-Bold', 11)
                     for i, htxt in enumerate(headers):
                         if i == 0:
-                            p.drawString(col_x[i], height - 40 - 8, htxt)
+                            p.drawString(col_x[i], height - 40 - 8, htxt)  # Left align subject
                         else:
-                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)
+                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)  # Right align numbers
                     p.setFillColor(colors.black)
                     p.setFont('Helvetica', 10)
                     y = height - 40 - 15
@@ -1029,15 +1045,18 @@ class ReportCardPDFView(APIView):
                 p.setLineWidth(0.3)
                 p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
                 
-                # Properly aligned values
-                p.drawString(col_x[0], y, subject_name[:30])  # Left align subject
-                # Right align numbers for proper alignment
+                # Properly aligned values - match header alignment
+                p.drawString(col_x[0], y, subject_name[:28])  # Left align subject (matches header)
+                # Right align numbers - consistent with header alignment
                 marks_str = str(int(float(entry.marks_obtained)))
-                p.drawRightString(col_x[1] + col_widths[1], y, marks_str)
+                marks_x = col_x[1] + col_widths[1]
+                p.drawRightString(marks_x, y, marks_str)
                 max_marks_str = str(int(float(entry.max_marks)))
-                p.drawRightString(col_x[2] + col_widths[2], y, max_marks_str)
+                max_x = col_x[2] + col_widths[2]
+                p.drawRightString(max_x, y, max_marks_str)
                 percent_str = f"{percent:.1f}%"
-                p.drawRightString(col_x[3] + col_widths[3], y, percent_str)
+                percent_x = col_x[3] + col_widths[3]
+                p.drawRightString(percent_x, y, percent_str)
                 y -= 14
                 row_num += 1
 
