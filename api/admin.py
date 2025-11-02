@@ -119,7 +119,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             raise
     
     def delete_queryset(self, request, queryset):
-        """Override bulk delete to handle multiple deletions"""
+        """Override bulk delete to handle multiple deletions with per-item error handling"""
         import logging
         from django.db import transaction
         from django.contrib.auth.models import User as AuthUser
@@ -129,10 +129,11 @@ class UserProfileAdmin(admin.ModelAdmin):
         deleted_count = 0
         errors = []
         
-        # Use transaction for bulk deletion
-        with transaction.atomic():
-            for obj in queryset:
-                try:
+        # Delete each item individually with its own transaction to prevent one failure from breaking all
+        for obj in queryset:
+            try:
+                # Use a separate transaction for each deletion
+                with transaction.atomic():
                     username = obj.user.username if obj.user else 'Unknown'
                     tenant_name = obj.tenant.name if obj.tenant else 'Unknown'
                     user = obj.user
@@ -153,10 +154,12 @@ class UserProfileAdmin(admin.ModelAdmin):
                     
                     deleted_count += 1
                     logger.info(f"Successfully deleted UserProfile for user '{username}' in tenant '{tenant_name}'")
-                except Exception as e:
-                    error_msg = f"Failed to delete {obj}: {str(e)}"
-                    errors.append(error_msg)
-                    logger.error(f"Error deleting UserProfile {obj.id}: {type(e).__name__}: {e}", exc_info=True)
+            except Exception as e:
+                # Capture error but continue with next item
+                error_msg = f"Failed to delete {obj}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(f"Error deleting UserProfile {obj.id}: {type(e).__name__}: {e}", exc_info=True)
+                # Don't break the loop - continue with next item
         
         # Show success/error messages
         from django.contrib import messages
