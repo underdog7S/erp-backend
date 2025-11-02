@@ -369,6 +369,49 @@ secure_admin_site.register(Plan, PlanAdmin)
 class TicketSLAAdmin(admin.ModelAdmin):
     list_display = ('id', 'tenant', 'category', 'priority', 'first_response_hours', 'resolution_hours', 'is_active')
     list_filter = ('category', 'priority', 'is_active', 'tenant')
-    search_fields = ('tenant__name',)
+    search_fields = ('tenant__name', 'category', 'priority')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'category', 'priority', 'is_active'),
+            'description': '''
+                <div style="background: #e3f2fd; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #1976d2;">📋 SLA Configuration:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Tenant:</strong> Organization this SLA applies to (auto-set)</li>
+                        <li style="color: #212121;"><strong>Category:</strong> Ticket type (Technical, Billing, Feature Request, etc.)</li>
+                        <li style="color: #212121;"><strong>Priority:</strong> Ticket priority level (Low, Medium, High, Urgent)</li>
+                        <li style="color: #212121;"><strong>Is Active:</strong> Enable/disable this SLA configuration</li>
+                    </ul>
+                </div>
+            '''
+        }),
+        ('Response Times', {
+            'fields': ('first_response_hours', 'resolution_hours'),
+            'description': '''
+                <div style="background: #fff3e0; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #f57c00;">⏱️ Time Limits (in hours):</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>First Response Hours:</strong> Time to send first reply (e.g., 2 hours = respond within 2 hours)</li>
+                        <li style="color: #212121;"><strong>Resolution Hours:</strong> Time to resolve ticket completely (e.g., 24 hours = close within 1 day)</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>💡 Examples:</strong> Low priority = 24h response, 72h resolution. Urgent = 1h response, 4h resolution.</p>
+                </div>
+            '''
+        }),
+        ('Escalation Settings', {
+            'fields': ('escalation_hours', 'escalation_to'),
+            'description': '''
+                <div style="background: #e8f5e9; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #388e3c;">🚨 Escalation:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Escalation Hours:</strong> When to escalate if not resolved (e.g., 48 hours)</li>
+                        <li style="color: #212121;"><strong>Escalate To:</strong> User profile to notify when ticket needs escalation</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>💡 Tip:</strong> Leave escalation fields blank if not needed.</p>
+                </div>
+            '''
+        }),
+    )
+    readonly_fields = ('tenant',)  # Tenant is auto-set, don't allow editing
 
 secure_admin_site.register(TicketSLA, TicketSLAAdmin)

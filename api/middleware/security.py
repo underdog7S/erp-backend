@@ -12,13 +12,19 @@ logger = logging.getLogger(__name__)
 class RateLimitMiddleware:
     """
     Rate limiting middleware to prevent API abuse
+    More lenient for authenticated users
     """
     def __init__(self, get_response):
         self.get_response = get_response
-        # Rate limits per IP
-        self.rate_limit_per_minute = 60  # 60 requests per minute
-        self.rate_limit_per_hour = 1000  # 1000 requests per hour
-        self.rate_limit_per_day = 10000  # 10000 requests per day
+        # Rate limits per IP - unauthenticated users
+        self.rate_limit_per_minute_unauth = 60  # 60 requests per minute
+        self.rate_limit_per_hour_unauth = 1000  # 1000 requests per hour
+        
+        # Rate limits per IP - authenticated users (more lenient)
+        self.rate_limit_per_minute_auth = 200  # 200 requests per minute (for dashboard loads)
+        self.rate_limit_per_hour_auth = 5000  # 5000 requests per hour
+        
+        self.rate_limit_per_day = 10000  # 10000 requests per day (same for both)
 
     def __call__(self, request):
         # Skip rate limiting for static/media files
@@ -26,15 +32,30 @@ class RateLimitMiddleware:
             return self.get_response(request)
 
         # Skip rate limiting for admin panel (different protection)
-        if request.path.startswith('/admin/'):
+        if request.path.startswith('/admin/') or request.path.startswith('/secure-admin/'):
             return self.get_response(request)
 
-        # Get client IP
-        ip = self.get_client_ip(request)
+        # Check if user is authenticated
+        is_authenticated = request.user and request.user.is_authenticated
+        
+        # Use different limits based on authentication
+        if is_authenticated:
+            minute_limit = self.rate_limit_per_minute_auth
+            hour_limit = self.rate_limit_per_hour_auth
+        else:
+            minute_limit = self.rate_limit_per_minute_unauth
+            hour_limit = self.rate_limit_per_hour_unauth
+
+        # Get client IP (use user ID for authenticated users if available)
+        if is_authenticated:
+            # For authenticated users, use user ID + IP for better tracking
+            identifier = f"user_{request.user.id}_{self.get_client_ip(request)}"
+        else:
+            identifier = self.get_client_ip(request)
         
         # Check per-minute limit
-        if not self.check_rate_limit(ip, 'minute', self.rate_limit_per_minute, 60):
-            logger.warning(f"Rate limit exceeded (minute) for IP: {ip}")
+        if not self.check_rate_limit(identifier, 'minute', minute_limit, 60):
+            logger.warning(f"Rate limit exceeded (minute) for {'user' if is_authenticated else 'IP'}: {identifier}")
             return JsonResponse(
                 {
                     'error': 'Rate limit exceeded. Please try again later.',
@@ -44,8 +65,8 @@ class RateLimitMiddleware:
             )
         
         # Check per-hour limit
-        if not self.check_rate_limit(ip, 'hour', self.rate_limit_per_hour, 3600):
-            logger.warning(f"Rate limit exceeded (hour) for IP: {ip}")
+        if not self.check_rate_limit(identifier, 'hour', hour_limit, 3600):
+            logger.warning(f"Rate limit exceeded (hour) for {'user' if is_authenticated else 'IP'}: {identifier}")
             return JsonResponse(
                 {
                     'error': 'Hourly rate limit exceeded. Please try again later.',
@@ -54,9 +75,9 @@ class RateLimitMiddleware:
                 status=429
             )
         
-        # Check per-day limit
-        if not self.check_rate_limit(ip, 'day', self.rate_limit_per_day, 86400):
-            logger.warning(f"Rate limit exceeded (day) for IP: {ip}")
+        # Check per-day limit (same for both)
+        if not self.check_rate_limit(identifier, 'day', self.rate_limit_per_day, 86400):
+            logger.warning(f"Rate limit exceeded (day) for {'user' if is_authenticated else 'IP'}: {identifier}")
             return JsonResponse(
                 {
                     'error': 'Daily rate limit exceeded. Please contact support.',
