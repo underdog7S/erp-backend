@@ -2,6 +2,21 @@ from rest_framework.permissions import BasePermission
 from api.models.user import UserProfile
 from rest_framework.response import Response
 
+
+class IsTenantMember(BasePermission):
+    """
+    Permission check to ensure user belongs to a tenant
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            return profile.tenant is not None
+        except UserProfile.DoesNotExist:
+            return False
+
+
 def HasFeaturePermissionFactory(feature_name):
     class _HasFeaturePermission(BasePermission):
         def has_permission(self, request, view):

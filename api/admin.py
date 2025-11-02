@@ -175,9 +175,193 @@ secure_admin_site.register(NotificationLog, NotificationLogAdmin)
 
 # Plan Admin
 class PlanAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price', 'billing_cycle', 'max_users', 'storage_limit_mb', 'popular')
+    list_display = ('name', 'get_price_display', 'billing_cycle', 'get_users_display', 'get_storage_display', 'popular', 'get_features_summary')
     list_filter = ('billing_cycle', 'popular')
     search_fields = ('name', 'description')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'description', 'popular', 'color', 'savings_text'),
+            'description': '''
+                <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>📋 Plan Basics:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Name:</strong> Display name (e.g., "Free", "Starter", "Pro")</li>
+                        <li><strong>Description:</strong> Short description shown on pricing page</li>
+                        <li><strong>Popular:</strong> Mark as "Most Popular" to highlight on homepage</li>
+                        <li><strong>Color:</strong> Hex color code for plan badge (e.g., #2196F3 for blue)</li>
+                        <li><strong>Savings Text:</strong> Optional text like "Save ₹2,989 annually"</li>
+                    </ul>
+                </div>
+            '''
+        }),
+        ('Pricing Configuration', {
+            'fields': ('price', 'billing_cycle', 'monthly_equivalent'),
+            'description': '''
+                <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>💰 Pricing Setup:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Price:</strong> Amount in ₹ (Indian Rupees). Set to 0 for Free plan, leave blank for Custom pricing</li>
+                        <li><strong>Billing Cycle:</strong> Choose Monthly, Annual, or Custom</li>
+                        <li><strong>Monthly Equivalent:</strong> If annual, calculate monthly rate (e.g., ₹4,500/year = ₹375/month)</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0;"><strong>💡 Tip:</strong> Annual plans should be priced lower than 12x monthly for better value.</p>
+                </div>
+            '''
+        }),
+        ('Plan Limits', {
+            'fields': ('max_users', 'storage_limit_mb'),
+            'description': '''
+                <div style="background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>📊 Resource Limits:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Max Users:</strong> Maximum users allowed. Leave BLANK for unlimited users</li>
+                        <li><strong>Storage Limit (MB):</strong> Storage in Megabytes. Examples:
+                            <ul style="margin: 5px 0 0 20px;">
+                                <li>500 MB = 500</li>
+                                <li>5 GB = 5120 (1024 × 5)</li>
+                                <li>20 GB = 20480 (1024 × 20)</li>
+                                <li>50 GB = 51200 (1024 × 50)</li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0;"><strong>⚠️ Important:</strong> Storage is in MB. 1 GB = 1024 MB</p>
+                </div>
+            '''
+        }),
+        ('Industry Module Access', {
+            'fields': (
+                'has_education', 'has_pharmacy', 'has_retail', 'has_hotel', 
+                'has_restaurant', 'has_salon', 'has_healthcare'
+            ),
+            'classes': ('collapse',),
+            'description': '''
+                <div style="background: #f3e5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>🏭 Industry Modules:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Education:</strong> School/College management (Students, Classes, Fees, Attendance)</li>
+                        <li><strong>Pharmacy:</strong> Medicine inventory, prescriptions, sales</li>
+                        <li><strong>Retail:</strong> Multi-warehouse retail/wholesale management</li>
+                        <li><strong>Hotel:</strong> Room booking, guest management</li>
+                        <li><strong>Restaurant:</strong> Menu, orders, table management</li>
+                        <li><strong>Salon:</strong> Services, appointments, stylist management</li>
+                        <li><strong>Healthcare:</strong> Patient management, appointments (Future)</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0;"><strong>💡 Note:</strong> Most plans allow 1 module. Business/Enterprise can have all.</p>
+                </div>
+            '''
+        }),
+        ('Core Features', {
+            'fields': (
+                'has_dashboard', 'has_analytics', 'has_api_access', 'has_audit_logs',
+                'has_priority_support', 'has_phone_support', 'has_white_label',
+                'has_onboarding', 'has_sla_support', 'has_daily_backups',
+                'has_custom_reports', 'has_billing', 'has_qc', 'has_inventory'
+            ),
+            'classes': ('collapse',),
+            'description': '''
+                <div style="background: #e0f2f1; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>⚙️ Feature Toggles:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Dashboard:</strong> Main dashboard access (usually all plans have this)</li>
+                        <li><strong>Analytics:</strong> Advanced reporting and analytics</li>
+                        <li><strong>API Access:</strong> REST API for integrations</li>
+                        <li><strong>Audit Logs:</strong> Track all user actions</li>
+                        <li><strong>Priority Support:</strong> Faster response times</li>
+                        <li><strong>Phone Support:</strong> Phone/voice support available</li>
+                        <li><strong>White Label:</strong> Remove Zenith branding</li>
+                        <li><strong>Onboarding:</strong> Dedicated onboarding assistance</li>
+                        <li><strong>SLA Support:</strong> Service Level Agreement guarantee</li>
+                        <li><strong>Daily Backups:</strong> Automated daily data backups</li>
+                        <li><strong>Custom Reports:</strong> Create custom report templates</li>
+                        <li><strong>Billing:</strong> Billing management features</li>
+                        <li><strong>QC (Quality Control):</strong> Quality control workflows</li>
+                        <li><strong>Inventory:</strong> Inventory management (usually enabled by modules)</li>
+                    </ul>
+                </div>
+            '''
+        }),
+        ('Premium Features', {
+            'fields': (
+                'has_strategy_call', 'has_future_discount', 'has_new_features_access'
+            ),
+            'classes': ('collapse',),
+            'description': '''
+                <div style="background: #fff9c4; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong>⭐ Premium Add-Ons:</strong>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li><strong>Strategy Call:</strong> 1-on-1 consultation call with expert</li>
+                        <li><strong>Future Discount:</strong> Discount on future upgrades/add-ons</li>
+                        <li><strong>New Features Access:</strong> Early access to new features (beta)</li>
+                    </ul>
+                    <p style="margin: 10px 0 0 0;"><strong>💡 Tip:</strong> Usually for Business/Enterprise plans only.</p>
+                </div>
+            '''
+        }),
+    )
+    
+    def get_price_display(self, obj):
+        """Display price in readable format"""
+        if obj.price is None:
+            return "Custom Pricing"
+        if obj.price == 0:
+            return "₹0 (Free)"
+        billing_text = "/year" if obj.billing_cycle == 'annual' else "/month"
+        return f"₹{obj.price:,.2f}{billing_text}"
+    get_price_display.short_description = 'Price'
+    
+    def get_users_display(self, obj):
+        """Display users in readable format"""
+        if obj.max_users is None:
+            return "Unlimited"
+        return f"{obj.max_users} users"
+    get_users_display.short_description = 'Users'
+    
+    def get_storage_display(self, obj):
+        """Display storage in readable format (GB)"""
+        gb = obj.storage_limit_mb / 1024
+        if gb >= 1:
+            return f"{gb:.0f} GB ({obj.storage_limit_mb:,} MB)"
+        return f"{obj.storage_limit_mb} MB"
+    get_storage_display.short_description = 'Storage'
+    
+    def get_features_summary(self, obj):
+        """Show summary of enabled features"""
+        features = []
+        if obj.has_api_access:
+            features.append("API")
+        if obj.has_analytics:
+            features.append("Analytics")
+        if obj.has_priority_support:
+            features.append("Priority Support")
+        if obj.has_audit_logs:
+            features.append("Audit Logs")
+        if obj.has_daily_backups:
+            features.append("Backups")
+        
+        # Count enabled modules
+        modules = []
+        if obj.has_education:
+            modules.append("Edu")
+        if obj.has_pharmacy:
+            modules.append("Pharma")
+        if obj.has_retail:
+            modules.append("Retail")
+        if obj.has_hotel:
+            modules.append("Hotel")
+        if obj.has_restaurant:
+            modules.append("Rest")
+        if obj.has_salon:
+            modules.append("Salon")
+        
+        module_text = f"{len(modules)} modules" if modules else "0 modules"
+        
+        if features:
+            return f"{module_text}, {', '.join(features[:3])}"
+        return module_text
+    get_features_summary.short_description = 'Features'
+    
+    readonly_fields = ()
 
 secure_admin_site.register(Plan, PlanAdmin)
 

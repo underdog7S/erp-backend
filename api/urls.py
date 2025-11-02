@@ -11,7 +11,7 @@ from .views import enhanced_analytics_views
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
 from api.views.users_views import UserProfileViewSet
 from api.views.payments_views import PaymentTransactionViewSet
-# from .views.support_views import SupportTicketViewSet, TicketResponseViewSet
+from .views.support_views import SupportTicketViewSet, TicketResponseViewSet, TicketSLAViewSet
 from .views.invoice_views import InvoiceViewSet, InvoiceItemViewSet, InvoicePaymentViewSet
 # from .views.audit_views import AuditLogViewSet
 
@@ -25,8 +25,9 @@ router.register(r'paymenttransactions', PaymentTransactionViewSet, basename='pay
 # router.register(r'plans', plan_views.PlanViewSet, basename='plan')
 
 # Support tickets
-# router.register(r'support/tickets', SupportTicketViewSet, basename='support-ticket')
-# router.register(r'support/responses', TicketResponseViewSet, basename='ticket-response')
+router.register(r'support/tickets', SupportTicketViewSet, basename='support-ticket')
+router.register(r'support/responses', TicketResponseViewSet, basename='ticket-response')
+router.register(r'ticketsla', TicketSLAViewSet, basename='ticket-sla')
 
 # Invoices
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
