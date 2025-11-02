@@ -21,8 +21,8 @@ class RateLimitMiddleware:
         self.rate_limit_per_hour_unauth = 1000  # 1000 requests per hour
         
         # Rate limits per IP - authenticated users (more lenient)
-        self.rate_limit_per_minute_auth = 200  # 200 requests per minute (for dashboard loads)
-        self.rate_limit_per_hour_auth = 5000  # 5000 requests per hour
+        self.rate_limit_per_minute_auth = 300  # 300 requests per minute (increased for dashboard loads)
+        self.rate_limit_per_hour_auth = 10000  # 10000 requests per hour (increased)
         
         self.rate_limit_per_day = 10000  # 10000 requests per day (same for both)
 
@@ -33,6 +33,10 @@ class RateLimitMiddleware:
 
         # Skip rate limiting for admin panel (different protection)
         if request.path.startswith('/admin/') or request.path.startswith('/secure-admin/'):
+            return self.get_response(request)
+        
+        # Skip rate limiting for notification polling endpoints (high-frequency but necessary)
+        if '/api/notifications' in request.path:
             return self.get_response(request)
 
         # Check if user is authenticated (safely - request.user might not exist yet)
