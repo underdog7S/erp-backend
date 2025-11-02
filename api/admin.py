@@ -183,14 +183,14 @@ class PlanAdmin(admin.ModelAdmin):
         ('Basic Information', {
             'fields': ('name', 'description', 'popular', 'color', 'savings_text'),
             'description': '''
-                <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>📋 Plan Basics:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Name:</strong> Display name (e.g., "Free", "Starter", "Pro")</li>
-                        <li><strong>Description:</strong> Short description shown on pricing page</li>
-                        <li><strong>Popular:</strong> Mark as "Most Popular" to highlight on homepage</li>
-                        <li><strong>Color:</strong> Hex color code for plan badge (e.g., #2196F3 for blue)</li>
-                        <li><strong>Savings Text:</strong> Optional text like "Save ₹2,989 annually"</li>
+                <div style="background: #e3f2fd; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #1976d2;">📋 Plan Basics:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Name:</strong> Display name (e.g., "Free", "Starter", "Pro")</li>
+                        <li style="color: #212121;"><strong>Description:</strong> Short description shown on pricing page</li>
+                        <li style="color: #212121;"><strong>Popular:</strong> Mark as "Most Popular" to highlight on homepage</li>
+                        <li style="color: #212121;"><strong>Color:</strong> Hex color code for plan badge (e.g., #2196F3 for blue)</li>
+                        <li style="color: #212121;"><strong>Savings Text:</strong> Optional text like "Save ₹2,989 annually"</li>
                     </ul>
                 </div>
             '''
@@ -198,34 +198,34 @@ class PlanAdmin(admin.ModelAdmin):
         ('Pricing Configuration', {
             'fields': ('price', 'billing_cycle', 'monthly_equivalent'),
             'description': '''
-                <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>💰 Pricing Setup:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Price:</strong> Amount in ₹ (Indian Rupees). Set to 0 for Free plan, leave blank for Custom pricing</li>
-                        <li><strong>Billing Cycle:</strong> Choose Monthly, Annual, or Custom</li>
-                        <li><strong>Monthly Equivalent:</strong> If annual, calculate monthly rate (e.g., ₹4,500/year = ₹375/month)</li>
+                <div style="background: #fff3e0; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #f57c00;">💰 Pricing Setup:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Price:</strong> Amount in ₹ (Indian Rupees). Set to 0 for Free plan, leave blank for Custom pricing</li>
+                        <li style="color: #212121;"><strong>Billing Cycle:</strong> Choose Monthly, Annual, or Custom</li>
+                        <li style="color: #212121;"><strong>Monthly Equivalent:</strong> If annual, calculate monthly rate (e.g., ₹4,500/year = ₹375/month)</li>
                     </ul>
-                    <p style="margin: 10px 0 0 0;"><strong>💡 Tip:</strong> Annual plans should be priced lower than 12x monthly for better value.</p>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>💡 Tip:</strong> Annual plans should be priced lower than 12x monthly for better value.</p>
                 </div>
             '''
         }),
         ('Plan Limits', {
             'fields': ('max_users', 'storage_limit_mb'),
             'description': '''
-                <div style="background: #e8f5e9; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>📊 Resource Limits:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Max Users:</strong> Maximum users allowed. Leave BLANK for unlimited users</li>
-                        <li><strong>Storage Limit (MB):</strong> Storage in Megabytes. Examples:
-                            <ul style="margin: 5px 0 0 20px;">
-                                <li>500 MB = 500</li>
-                                <li>5 GB = 5120 (1024 × 5)</li>
-                                <li>20 GB = 20480 (1024 × 20)</li>
-                                <li>50 GB = 51200 (1024 × 50)</li>
+                <div style="background: #e8f5e9; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #388e3c;">📊 Resource Limits:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Max Users:</strong> Maximum users allowed. Leave BLANK for unlimited users</li>
+                        <li style="color: #212121;"><strong>Storage Limit (MB):</strong> Storage in Megabytes. Examples:
+                            <ul style="margin: 5px 0 0 20px; color: #424242;">
+                                <li style="color: #424242;">500 MB = 500</li>
+                                <li style="color: #424242;">5 GB = 5120 (1024 × 5)</li>
+                                <li style="color: #424242;">20 GB = 20480 (1024 × 20)</li>
+                                <li style="color: #424242;">50 GB = 51200 (1024 × 50)</li>
                             </ul>
                         </li>
                     </ul>
-                    <p style="margin: 10px 0 0 0;"><strong>⚠️ Important:</strong> Storage is in MB. 1 GB = 1024 MB</p>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>⚠️ Important:</strong> Storage is in MB. 1 GB = 1024 MB</p>
                 </div>
             '''
         }),
@@ -236,18 +236,18 @@ class PlanAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',),
             'description': '''
-                <div style="background: #f3e5f5; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>🏭 Industry Modules:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Education:</strong> School/College management (Students, Classes, Fees, Attendance)</li>
-                        <li><strong>Pharmacy:</strong> Medicine inventory, prescriptions, sales</li>
-                        <li><strong>Retail:</strong> Multi-warehouse retail/wholesale management</li>
-                        <li><strong>Hotel:</strong> Room booking, guest management</li>
-                        <li><strong>Restaurant:</strong> Menu, orders, table management</li>
-                        <li><strong>Salon:</strong> Services, appointments, stylist management</li>
-                        <li><strong>Healthcare:</strong> Patient management, appointments (Future)</li>
+                <div style="background: #f3e5f5; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #7b1fa2;">🏭 Industry Modules:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Education:</strong> School/College management (Students, Classes, Fees, Attendance)</li>
+                        <li style="color: #212121;"><strong>Pharmacy:</strong> Medicine inventory, prescriptions, sales</li>
+                        <li style="color: #212121;"><strong>Retail:</strong> Multi-warehouse retail/wholesale management</li>
+                        <li style="color: #212121;"><strong>Hotel:</strong> Room booking, guest management</li>
+                        <li style="color: #212121;"><strong>Restaurant:</strong> Menu, orders, table management</li>
+                        <li style="color: #212121;"><strong>Salon:</strong> Services, appointments, stylist management</li>
+                        <li style="color: #212121;"><strong>Healthcare:</strong> Patient management, appointments (Future)</li>
                     </ul>
-                    <p style="margin: 10px 0 0 0;"><strong>💡 Note:</strong> Most plans allow 1 module. Business/Enterprise can have all.</p>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>💡 Note:</strong> Most plans allow 1 module. Business/Enterprise can have all.</p>
                 </div>
             '''
         }),
@@ -260,23 +260,23 @@ class PlanAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',),
             'description': '''
-                <div style="background: #e0f2f1; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>⚙️ Feature Toggles:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Dashboard:</strong> Main dashboard access (usually all plans have this)</li>
-                        <li><strong>Analytics:</strong> Advanced reporting and analytics</li>
-                        <li><strong>API Access:</strong> REST API for integrations</li>
-                        <li><strong>Audit Logs:</strong> Track all user actions</li>
-                        <li><strong>Priority Support:</strong> Faster response times</li>
-                        <li><strong>Phone Support:</strong> Phone/voice support available</li>
-                        <li><strong>White Label:</strong> Remove Zenith branding</li>
-                        <li><strong>Onboarding:</strong> Dedicated onboarding assistance</li>
-                        <li><strong>SLA Support:</strong> Service Level Agreement guarantee</li>
-                        <li><strong>Daily Backups:</strong> Automated daily data backups</li>
-                        <li><strong>Custom Reports:</strong> Create custom report templates</li>
-                        <li><strong>Billing:</strong> Billing management features</li>
-                        <li><strong>QC (Quality Control):</strong> Quality control workflows</li>
-                        <li><strong>Inventory:</strong> Inventory management (usually enabled by modules)</li>
+                <div style="background: #e0f2f1; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #00796b;">⚙️ Feature Toggles:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Dashboard:</strong> Main dashboard access (usually all plans have this)</li>
+                        <li style="color: #212121;"><strong>Analytics:</strong> Advanced reporting and analytics</li>
+                        <li style="color: #212121;"><strong>API Access:</strong> REST API for integrations</li>
+                        <li style="color: #212121;"><strong>Audit Logs:</strong> Track all user actions</li>
+                        <li style="color: #212121;"><strong>Priority Support:</strong> Faster response times</li>
+                        <li style="color: #212121;"><strong>Phone Support:</strong> Phone/voice support available</li>
+                        <li style="color: #212121;"><strong>White Label:</strong> Remove Zenith branding</li>
+                        <li style="color: #212121;"><strong>Onboarding:</strong> Dedicated onboarding assistance</li>
+                        <li style="color: #212121;"><strong>SLA Support:</strong> Service Level Agreement guarantee</li>
+                        <li style="color: #212121;"><strong>Daily Backups:</strong> Automated daily data backups</li>
+                        <li style="color: #212121;"><strong>Custom Reports:</strong> Create custom report templates</li>
+                        <li style="color: #212121;"><strong>Billing:</strong> Billing management features</li>
+                        <li style="color: #212121;"><strong>QC (Quality Control):</strong> Quality control workflows</li>
+                        <li style="color: #212121;"><strong>Inventory:</strong> Inventory management (usually enabled by modules)</li>
                     </ul>
                 </div>
             '''
@@ -287,14 +287,14 @@ class PlanAdmin(admin.ModelAdmin):
             ),
             'classes': ('collapse',),
             'description': '''
-                <div style="background: #fff9c4; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>⭐ Premium Add-Ons:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li><strong>Strategy Call:</strong> 1-on-1 consultation call with expert</li>
-                        <li><strong>Future Discount:</strong> Discount on future upgrades/add-ons</li>
-                        <li><strong>New Features Access:</strong> Early access to new features (beta)</li>
+                <div style="background: #fff9c4; color: #000; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #f57f17;">⭐ Premium Add-Ons:</strong>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Strategy Call:</strong> 1-on-1 consultation call with expert</li>
+                        <li style="color: #212121;"><strong>Future Discount:</strong> Discount on future upgrades/add-ons</li>
+                        <li style="color: #212121;"><strong>New Features Access:</strong> Early access to new features (beta)</li>
                     </ul>
-                    <p style="margin: 10px 0 0 0;"><strong>💡 Tip:</strong> Usually for Business/Enterprise plans only.</p>
+                    <p style="margin: 10px 0 0 0; color: #212121;"><strong>💡 Tip:</strong> Usually for Business/Enterprise plans only.</p>
                 </div>
             '''
         }),

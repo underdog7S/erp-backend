@@ -1,7 +1,7 @@
 """
 Support ticket and SLA views
 """
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -11,48 +11,57 @@ from django.contrib.auth.models import User
 from django.db.models import Q
 
 
+class TicketSLASerializer(serializers.ModelSerializer):
+    """Serializer for TicketSLA"""
+    class Meta:
+        model = TicketSLA
+        fields = [
+            'id', 'tenant', 'category', 'priority', 
+            'first_response_hours', 'resolution_hours',
+            'escalation_hours', 'escalation_to', 'is_active'
+        ]
+        read_only_fields = ['tenant']
+
+
 class TicketSLAViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Ticket SLA configurations
     Only accessible by tenant admins
     """
     permission_classes = [IsAuthenticated, IsTenantMember]
-    serializer_class = None  # Will be defined below
+    serializer_class = TicketSLASerializer
     
     def get_queryset(self):
         """Filter SLAs by user's tenant"""
         try:
             from api.models.user import UserProfile
             profile = UserProfile.objects.get(user=self.request.user)
-            return TicketSLA.objects.filter(tenant=profile.tenant)
-        except:
+            tenant = profile.tenant
+            if tenant:
+                return TicketSLA.objects.filter(tenant=tenant)
             return TicketSLA.objects.none()
-    
-    def get_serializer_class(self):
-        """Return appropriate serializer"""
-        from rest_framework import serializers
-        
-        class TicketSLASerializer(serializers.ModelSerializer):
-            class Meta:
-                model = TicketSLA
-                fields = [
-                    'id', 'tenant', 'category', 'priority', 
-                    'first_response_hours', 'resolution_hours',
-                    'escalation_hours', 'escalation_to', 'is_active'
-                ]
-                read_only_fields = ['tenant']
-        
-        return TicketSLASerializer
+        except UserProfile.DoesNotExist:
+            return TicketSLA.objects.none()
+        except Exception as e:
+            # Log error but don't crash
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting TicketSLA queryset: {str(e)}")
+            return TicketSLA.objects.none()
     
     def perform_create(self, serializer):
         """Set tenant automatically"""
-        from rest_framework import serializers
+        from rest_framework import serializers as drf_serializers
         try:
             from api.models.user import UserProfile
             profile = UserProfile.objects.get(user=self.request.user)
+            if not profile.tenant:
+                raise drf_serializers.ValidationError("User profile has no tenant assigned")
             serializer.save(tenant=profile.tenant)
+        except UserProfile.DoesNotExist:
+            raise drf_serializers.ValidationError("User profile not found")
         except Exception as e:
-            raise serializers.ValidationError(f"Failed to set tenant: {str(e)}")
+            raise drf_serializers.ValidationError(f"Failed to set tenant: {str(e)}")
 
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
