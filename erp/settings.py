@@ -318,6 +318,11 @@ LOGGING = {
             'style': '{',
         },
     },
+    'filters': {
+        'suppress_https_errors': {
+            '()': 'api.utils.logging_filters.SuppressHTTPSErrorsFilter',
+        },
+    },
     'handlers': {
         'file': {
             'level': 'ERROR',
@@ -335,6 +340,13 @@ LOGGING = {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['suppress_https_errors'] if DEBUG else [],
+        },
+        'console_filtered': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'filters': ['suppress_https_errors'] if DEBUG else [],
         },
     },
     'loggers': {
@@ -347,6 +359,31 @@ LOGGING = {
             'handlers': ['file', 'console'],
             'level': 'ERROR',
             'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'WARNING' if DEBUG else 'INFO',
+            'propagate': False,
+            'filters': ['suppress_https_errors'] if DEBUG else [],
+        },
+        'django.core.servers.basehttp': {
+            'handlers': ['console_filtered'],
+            'level': 'CRITICAL' if DEBUG else 'INFO',  # Suppress all but critical in dev
+            'propagate': False,
+            'filters': ['suppress_https_errors'] if DEBUG else [],
+        },
+        'basehttp': {
+            'handlers': ['console_filtered'],
+            'level': 'CRITICAL' if DEBUG else 'INFO',
+            'propagate': False,
+            'filters': ['suppress_https_errors'] if DEBUG else [],
+        },
+        # Catch all basehttp variations
+        'django.core.servers': {
+            'handlers': ['console_filtered'],
+            'level': 'CRITICAL' if DEBUG else 'INFO',
+            'propagate': False,
+            'filters': ['suppress_https_errors'] if DEBUG else [],
         },
         'api.middleware': {
             'handlers': ['security_file', 'console'],

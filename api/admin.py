@@ -3,6 +3,10 @@ from api.models.user import UserProfile, Role
 from api.models.audit import AuditLog
 from api.models.custom_service import CustomServiceRequest
 from .models.payments import PaymentTransaction
+from .models.invoice import Invoice, InvoiceItem, InvoicePayment
+from .models.notifications import Notification, NotificationPreference, NotificationTemplate, NotificationLog
+from .models.plan import Plan
+from .models.support import TicketSLA
 from education.models import Class
 from api.admin_site import secure_admin_site
 
@@ -117,3 +121,70 @@ class CustomServiceRequestAdmin(admin.ModelAdmin):
     ordering = ('-submitted_at',)
 
 secure_admin_site.register(CustomServiceRequest, CustomServiceRequestAdmin)
+
+# Invoice Admin
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ('invoice_number', 'tenant', 'customer_name', 'total_amount', 'status', 'due_date', 'created_at')
+    list_filter = ('status', 'tenant', 'created_at', 'due_date')
+    search_fields = ('invoice_number', 'customer_name', 'customer_email')
+    readonly_fields = ('invoice_number', 'created_at', 'updated_at', 'paid_at')
+    date_hierarchy = 'created_at'
+
+secure_admin_site.register(Invoice, InvoiceAdmin)
+
+class InvoiceItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'invoice', 'description', 'quantity', 'unit_price', 'total')
+    list_filter = ('invoice__status', 'invoice__tenant')
+    search_fields = ('description', 'invoice__invoice_number')
+
+secure_admin_site.register(InvoiceItem, InvoiceItemAdmin)
+
+# Notification Admin
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'tenant', 'title', 'notification_type', 'module', 'read', 'created_at')
+    list_filter = ('notification_type', 'module', 'read', 'priority', 'created_at')
+    search_fields = ('title', 'message', 'user__username', 'user__email')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+secure_admin_site.register(Notification, NotificationAdmin)
+
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'tenant', 'email_enabled', 'sms_enabled', 'push_enabled', 'updated_at')
+    list_filter = ('email_enabled', 'sms_enabled', 'push_enabled', 'tenant')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('created_at', 'updated_at')
+
+secure_admin_site.register(NotificationPreference, NotificationPreferenceAdmin)
+
+class NotificationTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'module', 'notification_type', 'is_active', 'created_at')
+    list_filter = ('module', 'notification_type', 'is_active')
+    search_fields = ('name', 'title_template', 'message_template')
+
+secure_admin_site.register(NotificationTemplate, NotificationTemplateAdmin)
+
+class NotificationLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'notification', 'delivery_method', 'status', 'created_at')
+    list_filter = ('delivery_method', 'status', 'created_at')
+    search_fields = ('notification__title', 'error_message')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+secure_admin_site.register(NotificationLog, NotificationLogAdmin)
+
+# Plan Admin
+class PlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price', 'billing_cycle', 'max_users', 'storage_limit_mb', 'popular')
+    list_filter = ('billing_cycle', 'popular')
+    search_fields = ('name', 'description')
+
+secure_admin_site.register(Plan, PlanAdmin)
+
+# TicketSLA Admin
+class TicketSLAAdmin(admin.ModelAdmin):
+    list_display = ('id', 'tenant', 'category', 'priority', 'first_response_hours', 'resolution_hours', 'is_active')
+    list_filter = ('category', 'priority', 'is_active', 'tenant')
+    search_fields = ('tenant__name',)
+
+secure_admin_site.register(TicketSLA, TicketSLAAdmin)
