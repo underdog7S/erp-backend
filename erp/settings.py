@@ -74,12 +74,12 @@ else:
 # Add remaining middleware
 MIDDLEWARE.extend([
     'api.middleware.security.RequestValidationMiddleware',  # Add request validation
-    'api.middleware.security.RateLimitMiddleware',  # Add rate limiting
-    'api.middleware.security.SecurityHeadersMiddleware',  # Add security headers
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',  # Must come before RateLimitMiddleware
+    'api.middleware.security.RateLimitMiddleware',  # Add rate limiting (after auth so request.user exists)
+    'api.middleware.security.SecurityHeadersMiddleware',  # Add security headers
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Optional: Uncomment to enable docs protection middleware

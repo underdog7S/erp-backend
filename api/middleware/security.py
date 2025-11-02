@@ -35,8 +35,14 @@ class RateLimitMiddleware:
         if request.path.startswith('/admin/') or request.path.startswith('/secure-admin/'):
             return self.get_response(request)
 
-        # Check if user is authenticated
-        is_authenticated = request.user and request.user.is_authenticated
+        # Check if user is authenticated (safely - request.user might not exist yet)
+        is_authenticated = False
+        if hasattr(request, 'user') and request.user:
+            try:
+                is_authenticated = request.user.is_authenticated
+            except AttributeError:
+                # request.user exists but doesn't have is_authenticated (shouldn't happen, but be safe)
+                is_authenticated = False
         
         # Use different limits based on authentication
         if is_authenticated:
@@ -47,9 +53,13 @@ class RateLimitMiddleware:
             hour_limit = self.rate_limit_per_hour_unauth
 
         # Get client IP (use user ID for authenticated users if available)
-        if is_authenticated:
+        if is_authenticated and hasattr(request, 'user') and request.user and hasattr(request.user, 'id'):
             # For authenticated users, use user ID + IP for better tracking
-            identifier = f"user_{request.user.id}_{self.get_client_ip(request)}"
+            try:
+                identifier = f"user_{request.user.id}_{self.get_client_ip(request)}"
+            except (AttributeError, TypeError):
+                # Fallback to IP only if user.id access fails
+                identifier = self.get_client_ip(request)
         else:
             identifier = self.get_client_ip(request)
         
