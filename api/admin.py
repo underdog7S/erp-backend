@@ -150,15 +150,26 @@ class UserProfileAdmin(admin.ModelAdmin):
                     tenant_name = obj.tenant.name if obj.tenant else 'Unknown'
                     user = obj.user
                     
-                    # If SupportTicket table doesn't exist, skip foreign key updates
-                    if not support_table_exists:
-                        # Manually clear assigned_to relationships before deletion
+                    # If SupportTicket table exists, manually clear foreign key relationships
+                    # This prevents the database from trying to update a non-existent relationship
+                    if support_table_exists:
                         try:
-                            from api.models.support import SupportTicket
-                            # This will fail if table doesn't exist, so we catch it
-                            SupportTicket.objects.filter(assigned_to=obj).update(assigned_to=None)
-                        except Exception:
-                            pass  # Table doesn't exist, skip
+                            # Use raw SQL to update foreign keys to NULL
+                            with connection.cursor() as cursor:
+                                cursor.execute(
+                                    "UPDATE api_supportticket SET assigned_to_id = NULL WHERE assigned_to_id = %s",
+                                    [obj.id]
+                                )
+                                cursor.execute(
+                                    "UPDATE api_ticketsla SET escalation_to_id = NULL WHERE escalation_to_id = %s",
+                                    [obj.id]
+                                )
+                                cursor.execute(
+                                    "UPDATE api_tawketointegration SET assign_to_id = NULL WHERE assign_to_id = %s",
+                                    [obj.id]
+                                )
+                        except Exception as fk_error:
+                            logger.warning(f"Could not clear foreign keys for UserProfile {obj.id}: {fk_error}")
                     
                     # Delete the UserProfile first
                     obj.delete()
@@ -206,22 +217,38 @@ class UserAdmin(DjangoUserAdmin):
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'date_joined')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     date_hierarchy = 'date_joined'
+    ordering = ('username',)
     
     def get_userprofile_info(self, obj):
         """Display UserProfile information"""
+        if not obj or not obj.id:
+            return "-"
         try:
             profile = UserProfile.objects.get(user=obj)
             return f"{profile.tenant.name} - {profile.role.name if profile.role else 'No Role'}"
         except UserProfile.DoesNotExist:
             return "No Profile"
+        except Exception as e:
+            return f"Error: {str(e)[:20]}"
     get_userprofile_info.short_description = 'Tenant / Role'
     
-    # Override fieldsets to show all fields
+    # Override fieldsets for editing
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+    
+    # Add fieldsets for creating new users
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'password1', 'password2', 'email', 'first_name', 'last_name'),
+        }),
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser'),
+        }),
     )
 
 # Unregister default User admin and register with secure admin site
