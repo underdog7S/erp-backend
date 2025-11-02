@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.contrib.auth.models import User
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from api.models.user import UserProfile, Role
 from api.models.audit import AuditLog
 from api.models.custom_service import CustomServiceRequest
@@ -123,11 +125,21 @@ class UserProfileAdmin(admin.ModelAdmin):
         import logging
         from django.db import transaction
         from django.contrib.auth.models import User as AuthUser
+        from django.db import connection
         
         logger = logging.getLogger(__name__)
         
         deleted_count = 0
         errors = []
+        
+        # Check if SupportTicket table exists
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM api_supportticket LIMIT 1")
+                support_table_exists = True
+        except Exception:
+            support_table_exists = False
+            logger.warning("SupportTicket table does not exist. Some deletions may fail.")
         
         # Delete each item individually with its own transaction to prevent one failure from breaking all
         for obj in queryset:
@@ -137,6 +149,16 @@ class UserProfileAdmin(admin.ModelAdmin):
                     username = obj.user.username if obj.user else 'Unknown'
                     tenant_name = obj.tenant.name if obj.tenant else 'Unknown'
                     user = obj.user
+                    
+                    # If SupportTicket table doesn't exist, skip foreign key updates
+                    if not support_table_exists:
+                        # Manually clear assigned_to relationships before deletion
+                        try:
+                            from api.models.support import SupportTicket
+                            # This will fail if table doesn't exist, so we catch it
+                            SupportTicket.objects.filter(assigned_to=obj).update(assigned_to=None)
+                        except Exception:
+                            pass  # Table doesn't exist, skip
                     
                     # Delete the UserProfile first
                     obj.delete()
@@ -167,6 +189,8 @@ class UserProfileAdmin(admin.ModelAdmin):
             messages.success(request, f"Successfully deleted {deleted_count} user profile(s).")
         if errors:
             messages.error(request, f"Errors occurred: {'; '.join(errors)}")
+            if not support_table_exists:
+                messages.warning(request, "Note: SupportTicket table does not exist. Please run migrations: python manage.py migrate")
     
     def has_delete_permission(self, request, obj=None):
         """Allow deletion for staff users (can be customized for specific roles)"""
@@ -174,6 +198,39 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 # Register with secure admin site instead of default admin
 secure_admin_site.register(UserProfile, UserProfileAdmin)
+
+# Custom User Admin to show users in admin
+class UserAdmin(DjangoUserAdmin):
+    """Custom User admin for secure admin site"""
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'date_joined', 'get_userprofile_info')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'date_joined')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
+    date_hierarchy = 'date_joined'
+    
+    def get_userprofile_info(self, obj):
+        """Display UserProfile information"""
+        try:
+            profile = UserProfile.objects.get(user=obj)
+            return f"{profile.tenant.name} - {profile.role.name if profile.role else 'No Role'}"
+        except UserProfile.DoesNotExist:
+            return "No Profile"
+    get_userprofile_info.short_description = 'Tenant / Role'
+    
+    # Override fieldsets to show all fields
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+
+# Unregister default User admin and register with secure admin site
+try:
+    admin.site.unregister(User)
+except admin.sites.NotRegistered:
+    pass
+
+secure_admin_site.register(User, UserAdmin)
 
 class AuditLogAdmin(admin.ModelAdmin):
     """Admin interface for audit logs - read-only for security"""
