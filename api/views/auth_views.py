@@ -38,14 +38,14 @@ class LoginView(TokenObtainPairView):
                     profile = UserProfile.objects.get(user=user)
                     tenant = profile.tenant
                     
-                    # Check if subscription has expired
-                    if tenant.is_subscription_expired():
+                    # Check if subscription has expired (only if tenant has subscription dates set)
+                    if tenant.subscription_end_date and tenant.is_subscription_expired():
                         if tenant.subscription_status == 'expired':
                             # Block login completely
                             return Response({
                                 'error': 'Your plan has expired. Please renew your subscription to access the system.',
                                 'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
-                                'plan_name': tenant.plan.name if tenant.plan else 'N/A',
+                                'plan_name': tenant.plan.name if tenant.plan else 'No Plan',
                                 'renewal_required': True
                             }, status=status.HTTP_403_FORBIDDEN)
                         elif tenant.is_in_grace_period():
@@ -57,12 +57,17 @@ class LoginView(TokenObtainPairView):
                                 'renewal_required': True
                             }
                             return Response(data, status=status.HTTP_200_OK)
-            except (User.DoesNotExist, UserProfile.DoesNotExist):
+            except (User.DoesNotExist, UserProfile.DoesNotExist) as e:
                 # If we can't find user/profile, let normal login proceed
+                logger.warning(f"User or profile not found during login subscription check: {e}")
+                pass
+            except AttributeError as e:
+                # Handle missing attributes (plan, etc.) gracefully
+                logger.warning(f"Missing attribute during login subscription check: {e}")
                 pass
             except Exception as e:
-                # Log error but don't block login
-                logger.error(f"Error checking subscription during login: {e}")
+                # Log error but don't block login - subscription check should never break login
+                logger.error(f"Error checking subscription during login: {type(e).__name__}: {e}", exc_info=True)
         
         return response
 

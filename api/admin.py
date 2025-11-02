@@ -11,7 +11,7 @@ from education.models import Class
 from api.admin_site import secure_admin_site
 
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'tenant', 'role', 'department', 'get_assigned_classes')
+    list_display = ('id', 'get_username', 'get_user_email', 'tenant', 'role', 'department', 'get_assigned_classes')
     search_fields = ('user__username', 'user__email', 'role__name', 'department__name')
     list_filter = ('tenant', 'role', 'department')
     filter_horizontal = ('assigned_classes',)
@@ -19,6 +19,22 @@ class UserProfileAdmin(admin.ModelAdmin):
         (None, {'fields': ('user', 'tenant', 'role', 'department', 'assigned_classes')}),
         ('Personal Info', {'fields': ('photo', 'phone', 'address', 'date_of_birth', 'gender', 'emergency_contact', 'job_title', 'joining_date', 'qualifications', 'bio', 'linkedin')}),
     )
+    
+    def get_username(self, obj):
+        """Display username from User"""
+        if obj.user:
+            return obj.user.username
+        return '-'
+    get_username.short_description = 'User'
+    get_username.admin_order_field = 'user__username'
+    
+    def get_user_email(self, obj):
+        """Display email from User"""
+        if obj.user:
+            return obj.user.email
+        return '-'
+    get_user_email.short_description = 'Email'
+    get_user_email.admin_order_field = 'user__email'
     
     def get_assigned_classes(self, obj):
         """Display assigned classes in list view"""
@@ -61,6 +77,97 @@ class UserProfileAdmin(admin.ModelAdmin):
             else:
                 kwargs['queryset'] = Class.objects.all()
         return super().formfield_for_manytomany(db_field, request, **kwargs)
+    
+    def delete_model(self, request, obj):
+        """Override delete to handle user deletion properly"""
+        import logging
+        from django.db import transaction
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Store username for logging before deletion
+            username = obj.user.username if obj.user else 'Unknown'
+            tenant_name = obj.tenant.name if obj.tenant else 'Unknown'
+            user = obj.user
+            
+            # Use transaction to ensure atomic deletion
+            with transaction.atomic():
+                # Delete the UserProfile first
+                # Note: UserProfile.user has on_delete=CASCADE, so deleting User would auto-delete UserProfile
+                # But we delete UserProfile first, then User manually
+                obj.delete()
+                
+                # Now delete the associated User (if it exists and wasn't already deleted)
+                if user:
+                    try:
+                        # Check if user still exists (it might have been deleted by cascade)
+                        from django.contrib.auth.models import User as AuthUser
+                        if AuthUser.objects.filter(id=user.id).exists():
+                            user.delete()
+                            logger.info(f"Successfully deleted User '{username}' and UserProfile for tenant '{tenant_name}'")
+                        else:
+                            logger.info(f"User '{username}' was already deleted (cascade). UserProfile deleted for tenant '{tenant_name}'")
+                    except Exception as user_error:
+                        logger.warning(f"UserProfile deleted but User deletion failed for '{username}': {user_error}")
+                        # Don't raise - UserProfile is already deleted
+            
+            logger.info(f"Successfully deleted UserProfile for user '{username}' in tenant '{tenant_name}'")
+        except Exception as e:
+            logger.error(f"Error deleting UserProfile: {type(e).__name__}: {e}", exc_info=True)
+            # Re-raise to show error in admin
+            raise
+    
+    def delete_queryset(self, request, queryset):
+        """Override bulk delete to handle multiple deletions"""
+        import logging
+        from django.db import transaction
+        from django.contrib.auth.models import User as AuthUser
+        
+        logger = logging.getLogger(__name__)
+        
+        deleted_count = 0
+        errors = []
+        
+        # Use transaction for bulk deletion
+        with transaction.atomic():
+            for obj in queryset:
+                try:
+                    username = obj.user.username if obj.user else 'Unknown'
+                    tenant_name = obj.tenant.name if obj.tenant else 'Unknown'
+                    user = obj.user
+                    
+                    # Delete the UserProfile first
+                    obj.delete()
+                    
+                    # Then delete the associated User (if it still exists)
+                    if user:
+                        try:
+                            if AuthUser.objects.filter(id=user.id).exists():
+                                user.delete()
+                                logger.info(f"Successfully deleted User '{username}' and UserProfile for tenant '{tenant_name}'")
+                            else:
+                                logger.info(f"User '{username}' was already deleted (cascade). UserProfile deleted.")
+                        except Exception as user_error:
+                            logger.warning(f"UserProfile deleted but User deletion failed for '{username}': {user_error}")
+                    
+                    deleted_count += 1
+                    logger.info(f"Successfully deleted UserProfile for user '{username}' in tenant '{tenant_name}'")
+                except Exception as e:
+                    error_msg = f"Failed to delete {obj}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(f"Error deleting UserProfile {obj.id}: {type(e).__name__}: {e}", exc_info=True)
+        
+        # Show success/error messages
+        from django.contrib import messages
+        if deleted_count > 0:
+            messages.success(request, f"Successfully deleted {deleted_count} user profile(s).")
+        if errors:
+            messages.error(request, f"Errors occurred: {'; '.join(errors)}")
+    
+    def has_delete_permission(self, request, obj=None):
+        """Allow deletion for staff users (can be customized for specific roles)"""
+        return request.user.is_staff
 
 # Register with secure admin site instead of default admin
 secure_admin_site.register(UserProfile, UserProfileAdmin)
