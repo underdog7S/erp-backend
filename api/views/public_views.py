@@ -17,20 +17,22 @@ from education.models import Class as EduClass, AdmissionApplication as EduAppli
 
 
 class APIRootView(APIView):
-    """Simple root endpoint for /api"""
+    """Simple root endpoint for /api - Limited info for security"""
     permission_classes = [AllowAny]
     
     def get(self, request):
+        # Don't expose too much information to public
         return Response({
             "name": "Zenith ERP API",
             "version": "1.0.0",
             "status": "active",
+            "message": "Use /api/login/ to authenticate and access endpoints",
             "endpoints": {
                 "authentication": "/api/login/",
                 "registration": "/api/register/",
-                "users": "/api/users/",
-                "documentation": "Visit /swagger/ for API documentation"
-            }
+                "documentation": "Visit /swagger/ or /redoc/ for API documentation (authentication required)"
+            },
+            "note": "Most endpoints require authentication. Please log in to access full API."
         })
 
 

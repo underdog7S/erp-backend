@@ -21,10 +21,28 @@ class Role(models.Model):
         return self.name
 
 class Tenant(models.Model):
+    SUBSCRIPTION_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('expiring_soon', 'Expiring Soon'),
+        ('expired', 'Expired'),
+        ('suspended', 'Suspended'),
+        ('grace_period', 'Grace Period'),
+    ]
+    
     name = models.CharField(max_length=100)
     industry = models.CharField(max_length=50, choices=INDUSTRY_CHOICES)
     # Link to Plan model for plan-based controls
     plan = models.ForeignKey('api.Plan', on_delete=models.SET_NULL, null=True, blank=True)
+    # Subscription management
+    subscription_start_date = models.DateField(null=True, blank=True, help_text="Date when current subscription started")
+    subscription_end_date = models.DateField(null=True, blank=True, help_text="Date when current subscription expires")
+    subscription_status = models.CharField(
+        max_length=20,
+        choices=SUBSCRIPTION_STATUS_CHOICES,
+        default='active',
+        help_text="Current subscription status"
+    )
+    grace_period_end_date = models.DateField(null=True, blank=True, help_text="End date of grace period after expiration")
     # Public integrations
     slug = models.SlugField(max_length=50, unique=True, null=True, blank=True)
     public_booking_enabled = models.BooleanField(default=False)
@@ -38,6 +56,39 @@ class Tenant(models.Model):
     storage_used_mb = models.FloatField(default=0)
     logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True, help_text="Organization logo for reports, bills, and documents")
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    def is_subscription_active(self):
+        """Check if subscription is currently active"""
+        from django.utils import timezone
+        if not self.subscription_end_date:
+            return True  # No expiration date means always active
+        today = timezone.now().date()
+        return self.subscription_end_date >= today and self.subscription_status in ['active', 'expiring_soon']
+    
+    def is_subscription_expired(self):
+        """Check if subscription has expired"""
+        from django.utils import timezone
+        if not self.subscription_end_date:
+            return False
+        today = timezone.now().date()
+        return self.subscription_end_date < today
+    
+    def days_until_expiry(self):
+        """Calculate days until subscription expires"""
+        from django.utils import timezone
+        if not self.subscription_end_date:
+            return None
+        today = timezone.now().date()
+        delta = self.subscription_end_date - today
+        return delta.days
+    
+    def is_in_grace_period(self):
+        """Check if tenant is in grace period"""
+        from django.utils import timezone
+        if not self.grace_period_end_date:
+            return False
+        today = timezone.now().date()
+        return self.subscription_status == 'grace_period' and self.grace_period_end_date >= today
     
     def has_module(self, module_name: str) -> bool:
         """Return True if this tenant has access to a given module.

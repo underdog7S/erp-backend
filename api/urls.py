@@ -4,8 +4,10 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
-    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics
+    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views
 )
+from .views import notification_views
+from .views import enhanced_analytics_views
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
 from api.views.users_views import UserProfileViewSet
 from api.views.payments_views import PaymentTransactionViewSet
@@ -165,6 +167,12 @@ urlpatterns = [
     path('dashboard/storage/', dashboard_views.StorageUsageView.as_view(), name='storage-usage'),
     path('alerts/', dashboard_views.AlertsView.as_view(), name='alerts'),
     
+    # Enhanced Analytics
+    path('analytics/enhanced/', enhanced_analytics_views.EnhancedDashboardAnalyticsView.as_view(), name='enhanced-analytics'),
+    path('analytics/trends/', enhanced_analytics_views.TimeSeriesTrendsView.as_view(), name='analytics-trends'),
+    path('analytics/comparison/', enhanced_analytics_views.ComparisonAnalyticsView.as_view(), name='analytics-comparison'),
+    path('analytics/forecast/', enhanced_analytics_views.RevenueForecastingView.as_view(), name='analytics-forecast'),
+    
     # Alert Management
     path('alerts/list/', alerts_views.AlertListView.as_view(), name='alert-list'),
     path('alerts/create/', alerts_views.AlertCreateView.as_view(), name='alert-create'),
@@ -175,6 +183,15 @@ urlpatterns = [
     path('alerts/stats/', alerts_views.AlertStatsView.as_view(), name='alert-stats'),
     path('alerts/auto-create/', alerts_views.AlertAutoCreateView.as_view(), name='alert-auto-create'),
     path('alerts/cleanup/', alerts_views.AlertCleanupView.as_view(), name='alert-cleanup'),
+    
+    # Notifications (comprehensive notification system)
+    path('notifications/', notification_views.NotificationListView.as_view(), name='notification-list'),
+    path('notifications/<int:notification_id>/', notification_views.NotificationDetailView.as_view(), name='notification-detail'),
+    path('notifications/mark-read/', notification_views.NotificationMarkReadView.as_view(), name='notification-mark-read'),
+    path('notifications/mark-all-read/', notification_views.NotificationMarkAllReadView.as_view(), name='notification-mark-all-read'),
+    path('notifications/stats/', notification_views.NotificationStatsView.as_view(), name='notification-stats'),
+    path('notifications/preferences/', notification_views.NotificationPreferenceView.as_view(), name='notification-preferences'),
+    path('notifications/bulk-delete/', notification_views.NotificationBulkDeleteView.as_view(), name='notification-bulk-delete'),
     
     # # Payments
     # path('payments/create-order/', payments_views.CreateOrderView.as_view(), name='create-order'),
@@ -360,4 +377,9 @@ urlpatterns += [
     path('pharmacy/medicines/import/', import_views.MedicineImportView.as_view(), name='pharmacy-medicines-import'),
     path('retail/products/import/', import_views.ProductImportView.as_view(), name='retail-products-import'),
     path('import/template/', import_views.ImportTemplateView.as_view(), name='import-template'),
+    
+    # Custom Service Requests (Public)
+    path('custom-service-requests/', custom_service_views.CustomServiceRequestCreateView.as_view(), name='custom-service-request-create'),
+    path('custom-service-requests/list/', custom_service_views.CustomServiceRequestListView.as_view(), name='custom-service-request-list'),
+    path('custom-service-requests/<int:pk>/', custom_service_views.CustomServiceRequestDetailView.as_view(), name='custom-service-request-detail'),
 ]

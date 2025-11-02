@@ -60,11 +60,21 @@ INSTALLED_APPS = [
     'drf_yasg',
 ]
 
+# Build middleware list conditionally
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+]
+
+# Add HTTPS handler in development, SecurityMiddleware in production
+if DEBUG:
+    MIDDLEWARE.append('api.middleware.development_https_handler.DevelopmentHTTPSHandlerMiddleware')
+else:
+    MIDDLEWARE.append('django.middleware.security.SecurityMiddleware')
+
+# Add remaining middleware
+MIDDLEWARE.extend([
     'api.middleware.security.RequestValidationMiddleware',  # Add request validation
     'api.middleware.security.RateLimitMiddleware',  # Add rate limiting
-    'django.middleware.security.SecurityMiddleware',
     'api.middleware.security.SecurityHeadersMiddleware',  # Add security headers
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -72,14 +82,16 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+    # Optional: Uncomment to enable docs protection middleware
+    # 'api.middleware.docs_security.DocsSecurityMiddleware',  # Protect Swagger/Redoc
+])
 
 ROOT_URLCONF = 'erp.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'api', 'templates')],  # Add api/templates directory
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -263,6 +275,10 @@ else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    
+    # Suppress HTTPS warning in development (optional)
+    # This warning appears when accessing via https:// but server is HTTP
+    # It's harmless in development - just use http:// instead
 
 # Request size limits (prevent DoS attacks)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

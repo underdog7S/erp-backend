@@ -6,6 +6,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.user import UserProfile, Tenant
 from rest_framework import status
 from api.models.plan import Plan
+from api.utils.subscription_utils import handle_user_limit_exceeded, reactivate_suspended_users
 
 PLANS = [
     {
@@ -151,8 +152,33 @@ class PlanChangeView(APIView):
         # Update the tenant's plan (must assign a Plan object)
         try:
             plan_instance = Plan.objects.get(name__iexact=plan_obj["name"])
+            old_plan = tenant.plan
             tenant.plan = plan_instance
             tenant.save()
+            
+            # Check if downgrading (new plan has fewer users)
+            if old_plan and old_plan.max_users and plan_instance.max_users:
+                if plan_instance.max_users < old_plan.max_users:
+                    # Handle user limit exceeded
+                    result = handle_user_limit_exceeded(tenant)
+                    return Response({
+                        "message": f"Plan changed to {plan_instance.name}.",
+                        "plan": plan_instance.name,
+                        "warning": result['message'],
+                        "suspended_count": result['suspended_count']
+                    })
+            
+            # If upgrading, reactivate any suspended users
+            if old_plan and plan_instance.max_users:
+                if not old_plan.max_users or (plan_instance.max_users > old_plan.max_users):
+                    result = reactivate_suspended_users(tenant)
+                    if result['reactivated_count'] > 0:
+                        return Response({
+                            "message": f"Plan changed to {plan_instance.name}.",
+                            "plan": plan_instance.name,
+                            "reactivated_users": result['reactivated_count']
+                        })
+            
             return Response({"message": f"Plan changed to {plan_instance.name}.", "plan": plan_instance.name})
         except Plan.DoesNotExist:
             return Response({"error": "Plan object not found in DB."}, status=status.HTTP_400_BAD_REQUEST)

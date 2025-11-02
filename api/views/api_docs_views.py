@@ -1,11 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.http import JsonResponse
+from django.conf import settings
 
 class APIDocumentationView(APIView):
-    permission_classes = [AllowAny]
+    # Require authentication in production, allow any in DEBUG
+    permission_classes = [AllowAny] if settings.DEBUG else [IsAuthenticated]
 
     def get(self, request):
         """Main API documentation page"""

@@ -22,6 +22,49 @@ logger = logging.getLogger(__name__)
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
+    
+    def post(self, request, *args, **kwargs):
+        """Override to check subscription status before allowing login"""
+        # First, get the tokens (this validates credentials)
+        response = super().post(request, *args, **kwargs)
+        
+        # If login successful (status 200), check subscription
+        if response.status_code == status.HTTP_200_OK:
+            try:
+                # Get user from username
+                username = request.data.get('username')
+                if username:
+                    user = User.objects.get(username=username)
+                    profile = UserProfile.objects.get(user=user)
+                    tenant = profile.tenant
+                    
+                    # Check if subscription has expired
+                    if tenant.is_subscription_expired():
+                        if tenant.subscription_status == 'expired':
+                            # Block login completely
+                            return Response({
+                                'error': 'Your plan has expired. Please renew your subscription to access the system.',
+                                'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
+                                'plan_name': tenant.plan.name if tenant.plan else 'N/A',
+                                'renewal_required': True
+                            }, status=status.HTTP_403_FORBIDDEN)
+                        elif tenant.is_in_grace_period():
+                            # Allow login but add warning to response
+                            data = response.data
+                            data['subscription_warning'] = {
+                                'message': 'Your plan has expired. You are in a grace period with limited access.',
+                                'grace_period_end': tenant.grace_period_end_date.isoformat() if tenant.grace_period_end_date else None,
+                                'renewal_required': True
+                            }
+                            return Response(data, status=status.HTTP_200_OK)
+            except (User.DoesNotExist, UserProfile.DoesNotExist):
+                # If we can't find user/profile, let normal login proceed
+                pass
+            except Exception as e:
+                # Log error but don't block login
+                logger.error(f"Error checking subscription during login: {e}")
+        
+        return response
 
 class TokenRefresh(TokenRefreshView):
     permission_classes = [AllowAny]

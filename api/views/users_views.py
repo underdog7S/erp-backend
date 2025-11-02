@@ -98,13 +98,12 @@ class AddUserView(APIView):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
             tenant = profile.tenant
-            # Enforce user limit
-            current_user_count = UserProfile._default_manager.filter(tenant=tenant).count()
-            if tenant.plan and hasattr(tenant.plan, 'max_users'):
-                max_users = tenant.plan.max_users
-                if current_user_count >= max_users:
-                    logger.warning(f"User limit reached: {current_user_count}/{max_users}")
-                    return Response({"error": f"User limit reached for your plan ({max_users}). Upgrade your plan to add more users."}, status=status.HTTP_403_FORBIDDEN)
+            # Enforce user limit using utility function
+            from api.utils.subscription_utils import validate_user_limit_before_adding
+            can_add, error_message = validate_user_limit_before_adding(tenant)
+            if not can_add:
+                logger.warning(f"User limit check failed: {error_message}")
+                return Response({"error": error_message}, status=status.HTTP_403_FORBIDDEN)
             data = request.data.copy()
             
             # Validate required fields

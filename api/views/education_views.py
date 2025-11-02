@@ -891,12 +891,13 @@ class ReportCardPDFView(APIView):
             y -= 18
             p.setFillColor(colors.black)
             
-            # Student details in classic two-column layout - properly aligned
+            # Student details in classic two-column layout - Government marksheet standard alignment
             p.setFillColor(colors.black)
-            label_x = 25 * mm
-            value_x = 75 * mm
-            label_x2 = 130 * mm
-            value_x2 = 160 * mm
+            # Fixed-width columns for consistent alignment (like government marksheets)
+            label_x = 25 * mm          # Fixed label position (left column)
+            value_x = 95 * mm          # Fixed value position (consistent spacing)
+            label_x2 = 130 * mm        # Fixed label position (right column)
+            value_x2 = 170 * mm        # Fixed value position (consistent spacing)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Full Name:')
@@ -937,9 +938,9 @@ class ReportCardPDFView(APIView):
             if upper_val:
                 y -= 15
                 p.setFont('Helvetica-Bold', 11)
-                p.drawString(25 * mm, y, 'Student ID:')
+                p.drawString(label_x, y, 'Student ID:')
                 p.setFont('Helvetica', 11)
-                p.drawString(70 * mm, y, upper_val)
+                p.drawString(value_x, y, upper_val)
             
             y -= 20
 
@@ -972,9 +973,9 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.white)  # White text on blue background
             p.setFont('Helvetica-Bold', 11)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            # Better column positions for proper alignment - consistent right alignment for numbers
-            col_x = [28 * mm, 118 * mm, 148 * mm, 173 * mm]
-            col_widths = [85 * mm, 25 * mm, 20 * mm, 20 * mm]
+            # Government marksheet standard column distribution - balanced widths
+            col_x = [28 * mm, 110 * mm, 145 * mm, 170 * mm]
+            col_widths = [80 * mm, 32 * mm, 22 * mm, 25 * mm]
             for i, htxt in enumerate(headers):
                 if i == 0:
                     # Left align subject column header
@@ -1072,7 +1073,7 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.white)
             y -= 18
             
-            # Summary in elegant layout (white text on blue background)
+            # Summary in elegant layout (white text on blue background) - Government marksheet alignment
             p.setFillColor(colors.white)  # Keep white for text on blue
             summary_items = [
                 ('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"),
@@ -1082,14 +1083,29 @@ class ReportCardPDFView(APIView):
             if report_card.rank_in_class:
                 summary_items.append(('Class Rank', f"#{report_card.rank_in_class}"))
             
-            x_start = 25 * mm
-            item_width = (width - 50 * mm) / len(summary_items)
+            # Fixed positions for better alignment (government marksheet style)
+            summary_positions = [
+                (30 * mm, 100 * mm),    # Total Marks
+                (110 * mm, 140 * mm),   # Percentage
+                (150 * mm, 170 * mm),   # Grade
+            ]
+            if len(summary_items) == 4:
+                summary_positions.append((180 * mm, 195 * mm))  # Class Rank
+            
             for i, (label, value) in enumerate(summary_items):
-                x_pos = x_start + (i * item_width)
-                p.setFont('Helvetica-Bold', 10)
-                p.drawString(x_pos, y, label + ':')
-                p.setFont('Helvetica', 11)
-                p.drawString(x_pos, y - 12, value)
+                if i < len(summary_positions):
+                    label_pos, value_pos = summary_positions[i]
+                    p.setFont('Helvetica-Bold', 10)
+                    p.drawString(label_pos, y, label + ':')
+                    p.setFont('Helvetica', 11)
+                    p.drawString(value_pos, y - 12, value)
+                else:
+                    # Fallback for dynamic items
+                    x_pos = 25 * mm + (i * 50 * mm)
+                    p.setFont('Helvetica-Bold', 10)
+                    p.drawString(x_pos, y, label + ':')
+                    p.setFont('Helvetica', 11)
+                    p.drawString(x_pos + 15 * mm, y - 12, value)
             p.setFillColor(colors.black)  # Switch back to black for rest
             y -= 25
 
@@ -1882,15 +1898,21 @@ class FeePaymentReceiptPDFView(APIView):
             receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
             payment_date = payment.payment_date.strftime('%d/%m/%Y')
             
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'Receipt Number:')
-            p.setFont('Helvetica', 11)
-            p.drawString(75 * mm, y, receipt_number)
+            # Government marksheet standard alignment - consistent spacing
+            receipt_label_x = 25 * mm
+            receipt_value_x = 95 * mm
+            date_label_x = 130 * mm
+            date_value_x = 170 * mm
             
             p.setFont('Helvetica-Bold', 11)
-            p.drawString(130 * mm, y, 'Date:')
+            p.drawString(receipt_label_x, y, 'Receipt Number:')
             p.setFont('Helvetica', 11)
-            p.drawString(150 * mm, y, payment_date)
+            p.drawString(receipt_value_x, y, receipt_number)
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(date_label_x, y, 'Date:')
+            p.setFont('Helvetica', 11)
+            p.drawString(date_value_x, y, payment_date)
             y -= 18
 
             # Student information box - properly aligned
@@ -1906,11 +1928,11 @@ class FeePaymentReceiptPDFView(APIView):
             roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
-            # Properly aligned labels and values
-            label_x = 25 * mm
-            value_x = 75 * mm
-            label_x2 = 130 * mm
-            value_x2 = 160 * mm
+            # Properly aligned labels and values - Government marksheet standard alignment
+            label_x = 25 * mm          # Fixed label position (left column)
+            value_x = 95 * mm          # Fixed value position (consistent spacing)
+            label_x2 = 130 * mm        # Fixed label position (right column)
+            value_x2 = 170 * mm        # Fixed value position (consistent spacing)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Student Name:')
@@ -1950,11 +1972,11 @@ class FeePaymentReceiptPDFView(APIView):
             remaining = max(0, total_fee - amount_paid)
             discount = float(payment.discount_amount) if payment.discount_amount else 0
             
-            # Properly aligned labels and values
-            label_x = 25 * mm
-            value_x = 75 * mm
-            label_x2 = 130 * mm
-            value_x2 = 165 * mm
+            # Government marksheet standard alignment - consistent spacing
+            label_x = 25 * mm          # Fixed label position (left column)
+            value_x = 95 * mm          # Fixed value position for text
+            label_x2 = 130 * mm        # Fixed label position (right column)
+            currency_x = width - 25 * mm  # Fixed right-aligned position for all currency (like government receipts)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Payment Method:')
@@ -1965,21 +1987,21 @@ class FeePaymentReceiptPDFView(APIView):
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x2, y, 'Discount:')
                 p.setFont('Helvetica', 10)
-                p.drawRightString(value_x2, y, f"₹{discount:.2f}")  # Right align currency
+                p.drawRightString(currency_x, y, f"₹{discount:.2f}")  # Right align currency (consistent)
             y -= 15
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Amount Paid:')
             p.setFont('Helvetica', 11)
             p.setFillColor(colors.HexColor('#2e7d32'))
-            p.drawRightString(value_x2, y, f"₹{amount_paid:.2f}")  # Right align currency
+            p.drawRightString(currency_x, y, f"₹{amount_paid:.2f}")  # Right align currency (consistent)
             p.setFillColor(colors.black)
             
             if payment.fee_structure:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x2, y, 'Total Fee:')
                 p.setFont('Helvetica', 10)
-                p.drawRightString(value_x2, y, f"₹{total_fee:.2f}")  # Right align currency
+                p.drawRightString(currency_x, y, f"₹{total_fee:.2f}")  # Right align currency (consistent)
             y -= 15
             
             if payment.fee_structure and remaining > 0:
@@ -1987,7 +2009,7 @@ class FeePaymentReceiptPDFView(APIView):
                 p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
                 p.setFillColor(colors.HexColor('#d32f2f'))
-                p.drawRightString(value_x2, y, f"₹{remaining:.2f}")  # Right align currency
+                p.drawRightString(currency_x, y, f"₹{remaining:.2f}")  # Right align currency (consistent)
                 p.setFillColor(colors.black)
             y -= 25
 

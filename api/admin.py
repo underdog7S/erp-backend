@@ -1,8 +1,10 @@
 from django.contrib import admin
 from api.models.user import UserProfile, Role
 from api.models.audit import AuditLog
+from api.models.custom_service import CustomServiceRequest
 from .models.payments import PaymentTransaction
 from education.models import Class
+from api.admin_site import secure_admin_site
 
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'tenant', 'role', 'department', 'get_assigned_classes')
@@ -56,7 +58,8 @@ class UserProfileAdmin(admin.ModelAdmin):
                 kwargs['queryset'] = Class.objects.all()
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
-admin.site.register(UserProfile, UserProfileAdmin)
+# Register with secure admin site instead of default admin
+secure_admin_site.register(UserProfile, UserProfileAdmin)
 
 class AuditLogAdmin(admin.ModelAdmin):
     """Admin interface for audit logs - read-only for security"""
@@ -80,7 +83,7 @@ class AuditLogAdmin(admin.ModelAdmin):
         """Only allow deletion by superusers"""
         return request.user.is_superuser
 
-admin.site.register(AuditLog, AuditLogAdmin)
+secure_admin_site.register(AuditLog, AuditLogAdmin)
 
 class PaymentTransactionAdmin(admin.ModelAdmin):
     """Admin interface for payment transactions"""
@@ -91,4 +94,26 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
 
-admin.site.register(PaymentTransaction, PaymentTransactionAdmin)
+secure_admin_site.register(PaymentTransaction, PaymentTransactionAdmin)
+
+class CustomServiceRequestAdmin(admin.ModelAdmin):
+    """Admin interface for custom service requests"""
+    list_display = ('id', 'name', 'email', 'phone', 'service_type', 'company_name', 'status', 'submitted_at')
+    list_filter = ('service_type', 'status', 'submitted_at')
+    search_fields = ('name', 'email', 'phone', 'company_name', 'description')
+    readonly_fields = ('submitted_at',)
+    fieldsets = (
+        ('Contact Information', {
+            'fields': ('name', 'email', 'phone', 'company_name')
+        }),
+        ('Service Details', {
+            'fields': ('service_type', 'description', 'budget_range', 'timeline')
+        }),
+        ('Status & Notes', {
+            'fields': ('status', 'notes', 'submitted_at', 'contacted_at')
+        }),
+    )
+    date_hierarchy = 'submitted_at'
+    ordering = ('-submitted_at',)
+
+secure_admin_site.register(CustomServiceRequest, CustomServiceRequestAdmin)

@@ -16,6 +16,7 @@ from api.models.plan import Plan
 from api.models.payments import PaymentTransaction
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from datetime import timedelta
 import json
 from rest_framework import viewsets
 from api.models.serializers import PaymentTransactionSerializer
@@ -97,6 +98,42 @@ class RazorpayPaymentVerifyView(APIView):
                     try:
                         plan = Plan._default_manager.get(name__iexact=plan_name)
                         tenant.plan = plan
+                        
+                        # Calculate subscription expiration date based on billing cycle
+                        today = timezone.now().date()
+                        
+                        # Check if this is a renewal (existing subscription not expired)
+                        is_renewal = False
+                        if tenant.subscription_end_date and tenant.subscription_end_date >= today:
+                            is_renewal = True
+                        
+                        if plan.billing_cycle == 'annual':
+                            # 1 year (365 days)
+                            if is_renewal:
+                                # Extend from existing expiration date
+                                tenant.subscription_end_date = tenant.subscription_end_date + timedelta(days=365)
+                            else:
+                                # New subscription or expired plan - start from today
+                                tenant.subscription_start_date = today
+                                tenant.subscription_end_date = today + timedelta(days=365)
+                        elif plan.billing_cycle == 'monthly':
+                            # 1 month (30 days)
+                            if is_renewal:
+                                tenant.subscription_end_date = tenant.subscription_end_date + timedelta(days=30)
+                            else:
+                                tenant.subscription_start_date = today
+                                tenant.subscription_end_date = today + timedelta(days=30)
+                        else:
+                            # Custom or default to 30 days
+                            if is_renewal and tenant.subscription_end_date:
+                                tenant.subscription_end_date = tenant.subscription_end_date + timedelta(days=30)
+                            else:
+                                tenant.subscription_start_date = today
+                                tenant.subscription_end_date = today + timedelta(days=30)
+                        
+                        # Update subscription status
+                        tenant.subscription_status = 'active'
+                        tenant.grace_period_end_date = None  # Clear grace period if exists
                         tenant.save()
                     except Plan._default_manager.model.DoesNotExist:
                         return Response({'error': 'Selected plan does not exist.'}, status=status.HTTP_400_BAD_REQUEST)

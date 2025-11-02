@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from api.models.user import Tenant, UserProfile
+from api.models.custom_service import CustomServiceRequest
 from education.models import Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, StaffAttendance as EducationStaffAttendance, Department
 from pharmacy.models import (
     MedicineCategory, Supplier as PharmacySupplier, Medicine, MedicineBatch, Customer as PharmacyCustomer,
@@ -658,4 +659,99 @@ SaleItemSerializer = PharmacySaleItemSerializer
 PurchaseOrderSerializer = PharmacyPurchaseOrderSerializer
 PurchaseOrderItemSerializer = PharmacyPurchaseOrderItemSerializer
 StockAdjustmentSerializer = PharmacyStockAdjustmentSerializer
-StaffAttendanceSerializer = PharmacyStaffAttendanceSerializer 
+StaffAttendanceSerializer = PharmacyStaffAttendanceSerializer
+
+# Notification Serializers
+from api.models.notifications import Notification, NotificationPreference, NotificationTemplate, NotificationLog
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for Notification model"""
+    time_ago = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'title', 'message', 'notification_type', 'module', 'priority',
+            'action_url', 'action_label', 'reference_type', 'reference_id',
+            'read', 'read_at', 'icon', 'created_at', 'expires_at',
+            'time_ago', 'is_expired'
+        ]
+        read_only_fields = ['id', 'created_at', 'read_at']
+    
+    def get_time_ago(self, obj):
+        """Human-readable time difference"""
+        from django.utils import timezone
+        from datetime import timedelta
+        delta = timezone.now() - obj.created_at
+        if delta < timedelta(minutes=1):
+            return "Just now"
+        elif delta < timedelta(hours=1):
+            minutes = int(delta.total_seconds() / 60)
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif delta < timedelta(days=1):
+            hours = int(delta.total_seconds() / 3600)
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif delta < timedelta(days=7):
+            days = delta.days
+            return f"{days} day{'s' if days != 1 else ''} ago"
+        else:
+            return obj.created_at.strftime("%b %d, %Y")
+    
+    def get_is_expired(self, obj):
+        """Check if notification is expired"""
+        return obj.is_expired()
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    """Serializer for NotificationPreference model"""
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            'id', 'email_enabled', 'sms_enabled', 'push_enabled', 'in_app_enabled',
+            'module_preferences', 'type_preferences',
+            'quiet_hours_start', 'quiet_hours_end',
+            'max_emails_per_day', 'max_sms_per_day',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for NotificationTemplate model"""
+    class Meta:
+        model = NotificationTemplate
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationLogSerializer(serializers.ModelSerializer):
+    """Serializer for NotificationLog model"""
+    class Meta:
+        model = NotificationLog
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at']
+
+
+class NotificationStatsSerializer(serializers.Serializer):
+    """Serializer for notification statistics"""
+    total = serializers.IntegerField()
+    unread = serializers.IntegerField()
+    by_type = serializers.DictField()
+    by_module = serializers.DictField()
+    by_priority = serializers.DictField()
+    recent_count = serializers.IntegerField(help_text="Count of notifications from last 24 hours")
+
+class CustomServiceRequestSerializer(serializers.ModelSerializer):
+    """Serializer for Custom Service Request model"""
+    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = CustomServiceRequest
+        fields = [
+            'id', 'service_type', 'service_type_display', 'name', 'email', 
+            'phone', 'company_name', 'description', 'budget_range', 'timeline',
+            'status', 'status_display', 'notes', 'submitted_at', 'contacted_at'
+        ]
+        read_only_fields = ['id', 'status', 'submitted_at', 'contacted_at'] 
