@@ -7,6 +7,7 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.contrib.auth.models import User
 from api.models.user import Tenant, UserProfile, Role
 from api.models.plan import Plan
@@ -14,103 +15,150 @@ from api.models.email_verification import EmailVerification
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.conf import settings
 from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
+DEBUG = getattr(settings, 'DEBUG', False)
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     
     def post(self, request, *args, **kwargs):
         """Override to check subscription status before allowing login"""
+        response = None
         try:
             # First, get the tokens (this validates credentials)
             response = super().post(request, *args, **kwargs)
+        except (AuthenticationFailed, InvalidToken, TokenError) as auth_error:
+            # Handle authentication errors properly
+            logger.warning(f"Authentication failed: {type(auth_error).__name__}: {auth_error}")
+            return Response({
+                'error': 'Invalid username or password.',
+                'detail': 'Please check your credentials and try again.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except ValidationError as validation_error:
+            # Handle validation errors
+            logger.warning(f"Login validation error: {validation_error}")
+            error_detail = validation_error.detail if hasattr(validation_error, 'detail') else str(validation_error)
+            return Response({
+                'error': 'Invalid input.',
+                'detail': error_detail
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # If super().post() fails, log and re-raise
+            # If super().post() fails with unexpected error, log and return proper error
             logger.error(f"Login failed in parent class: {type(e).__name__}: {e}", exc_info=True)
-            raise
+            
+            # Return a proper error response instead of letting it 500
+            error_message = str(e)
+            if 'password' in error_message.lower() or 'credentials' in error_message.lower() or 'authentication' in error_message.lower():
+                return Response({
+                    'error': 'Invalid username or password.',
+                    'detail': 'Please check your credentials and try again.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                return Response({
+                    'error': 'Login failed. Please try again.',
+                    'detail': error_message if DEBUG else 'An error occurred during login.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # If no response was created, something went wrong
+        if response is None:
+            logger.error("Login view returned None response")
+            return Response({
+                'error': 'Login failed. Please try again.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Check if response has status_code attribute
+        if not hasattr(response, 'status_code'):
+            logger.error("Login response missing status_code attribute")
+            return Response({
+                'error': 'Login failed. Please try again.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # If login was not successful, return the error response as-is
+        if response.status_code != status.HTTP_200_OK:
+            return response
         
         # If login successful (status 200), check subscription
-        if response.status_code == status.HTTP_200_OK:
+        try:
+            # Get user from username
+            username = request.data.get('username')
+            if not username:
+                # No username provided, return response as-is
+                return response
+            
             try:
-                # Get user from username
-                username = request.data.get('username')
-                if not username:
-                    # No username provided, return response as-is
-                    return response
-                
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                logger.warning(f"User not found during login subscription check: {username}")
+                return response  # Let login proceed
+            
+            try:
+                profile = UserProfile.objects.get(user=user)
+            except UserProfile.DoesNotExist:
+                logger.warning(f"UserProfile not found for user: {username}")
+                return response  # Let login proceed - new users might not have profile yet
+            
+            # Check if tenant exists
+            if not hasattr(profile, 'tenant') or not profile.tenant:
+                logger.warning(f"Tenant not found for user profile: {username}")
+                return response  # Let login proceed
+            
+            tenant = profile.tenant
+            
+            # Check if subscription has expired (only if tenant has subscription dates set)
+            if tenant and hasattr(tenant, 'subscription_end_date') and tenant.subscription_end_date:
                 try:
-                    user = User.objects.get(username=username)
-                except User.DoesNotExist:
-                    logger.warning(f"User not found during login subscription check: {username}")
-                    return response  # Let login proceed
-                
-                try:
-                    profile = UserProfile.objects.get(user=user)
-                except UserProfile.DoesNotExist:
-                    logger.warning(f"UserProfile not found for user: {username}")
-                    return response  # Let login proceed - new users might not have profile yet
-                
-                # Check if tenant exists
-                if not hasattr(profile, 'tenant') or not profile.tenant:
-                    logger.warning(f"Tenant not found for user profile: {username}")
-                    return response  # Let login proceed
-                
-                tenant = profile.tenant
-                
-                # Check if subscription has expired (only if tenant has subscription dates set)
-                if tenant and hasattr(tenant, 'subscription_end_date') and tenant.subscription_end_date:
-                    try:
-                        if tenant.is_subscription_expired():
-                            if hasattr(tenant, 'subscription_status') and tenant.subscription_status == 'expired':
-                                # Block login completely
-                                return Response({
-                                    'error': 'Your plan has expired. Please renew your subscription to access the system.',
-                                    'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
-                                    'plan_name': tenant.plan.name if tenant.plan else 'No Plan',
-                                    'renewal_required': True
-                                }, status=status.HTTP_403_FORBIDDEN)
-                            elif tenant.is_in_grace_period():
-                                # Allow login but add warning to response
-                                if hasattr(response, 'data') and response.data:
-                                    # Convert response.data to dict if it's not already
-                                    if isinstance(response.data, dict):
-                                        data = response.data.copy()
-                                    else:
-                                        # If response.data is a custom type, convert to dict
-                                        try:
-                                            data = dict(response.data)
-                                        except (TypeError, ValueError):
-                                            # Fallback: extract access and refresh tokens
-                                            data = {}
-                                            if hasattr(response.data, 'access'):
-                                                data['access'] = str(response.data.access)
-                                            if hasattr(response.data, 'refresh'):
-                                                data['refresh'] = str(response.data.refresh)
-                                            # If still empty, try to get from original
-                                            if not data and isinstance(response.data, (list, tuple)) and len(response.data) > 0:
-                                                data = response.data[0] if isinstance(response.data[0], dict) else {}
-                                    
-                                    # Only add warning if data is a dict
-                                    if isinstance(data, dict):
-                                        data['subscription_warning'] = {
-                                            'message': 'Your plan has expired. You are in a grace period with limited access.',
-                                            'grace_period_end': tenant.grace_period_end_date.isoformat() if hasattr(tenant, 'grace_period_end_date') and tenant.grace_period_end_date else None,
-                                            'renewal_required': True
-                                        }
-                                        return Response(data, status=status.HTTP_200_OK)
-                    except Exception as subscription_check_error:
-                        # If subscription check fails, log but don't block login
-                        logger.warning(f"Subscription check failed for user {username}: {type(subscription_check_error).__name__}: {subscription_check_error}")
-                        # Continue with normal login
-                
-            except Exception as e:
-                # Log error but don't block login - subscription check should never break login
-                logger.error(f"Error checking subscription during login: {type(e).__name__}: {e}", exc_info=True)
-                # Return the original response to allow login to proceed
+                    if tenant.is_subscription_expired():
+                        if hasattr(tenant, 'subscription_status') and tenant.subscription_status == 'expired':
+                            # Block login completely
+                            return Response({
+                                'error': 'Your plan has expired. Please renew your subscription to access the system.',
+                                'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
+                                'plan_name': tenant.plan.name if tenant.plan else 'No Plan',
+                                'renewal_required': True
+                            }, status=status.HTTP_403_FORBIDDEN)
+                        elif tenant.is_in_grace_period():
+                            # Allow login but add warning to response
+                            if hasattr(response, 'data') and response.data:
+                                # Convert response.data to dict if it's not already
+                                if isinstance(response.data, dict):
+                                    data = response.data.copy()
+                                else:
+                                    # If response.data is a custom type, convert to dict
+                                    try:
+                                        data = dict(response.data)
+                                    except (TypeError, ValueError):
+                                        # Fallback: extract access and refresh tokens
+                                        data = {}
+                                        if hasattr(response.data, 'access'):
+                                            data['access'] = str(response.data.access)
+                                        if hasattr(response.data, 'refresh'):
+                                            data['refresh'] = str(response.data.refresh)
+                                        # If still empty, try to get from original
+                                        if not data and isinstance(response.data, (list, tuple)) and len(response.data) > 0:
+                                            data = response.data[0] if isinstance(response.data[0], dict) else {}
+                                
+                                # Only add warning if data is a dict
+                                if isinstance(data, dict):
+                                    data['subscription_warning'] = {
+                                        'message': 'Your plan has expired. You are in a grace period with limited access.',
+                                        'grace_period_end': tenant.grace_period_end_date.isoformat() if hasattr(tenant, 'grace_period_end_date') and tenant.grace_period_end_date else None,
+                                        'renewal_required': True
+                                    }
+                                    return Response(data, status=status.HTTP_200_OK)
+                except Exception as subscription_check_error:
+                    # If subscription check fails, log but don't block login
+                    logger.warning(f"Subscription check failed for user {username}: {type(subscription_check_error).__name__}: {subscription_check_error}")
+                    # Continue with normal login
+            
+        except Exception as e:
+            # Log error but don't block login - subscription check should never break login
+            logger.error(f"Error checking subscription during login: {type(e).__name__}: {e}", exc_info=True)
+            # Return the original response to allow login to proceed
         
         return response
 
