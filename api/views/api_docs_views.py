@@ -1,13 +1,38 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import BasePermission, AllowAny, IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
 from django.http import JsonResponse
 from django.conf import settings
 
+
+class IsSuperUserOrStaff(BasePermission):
+    """
+    Permission class to restrict API documentation to superusers or staff only.
+    This prevents regular authenticated users from accessing detailed API documentation.
+    """
+    def has_permission(self, request, view):
+        # In DEBUG mode, allow access (development only)
+        if settings.DEBUG:
+            return True
+        
+        # In production, require authentication
+        if not request.user or not request.user.is_authenticated:
+            return False
+        
+        # Require superuser or staff status
+        return request.user.is_superuser or request.user.is_staff
+
+
 class APIDocumentationView(APIView):
-    # Require authentication in production, allow any in DEBUG
-    permission_classes = [AllowAny] if settings.DEBUG else [IsAuthenticated]
+    """
+    API Documentation View - Restricted Access
+    
+    Security Levels:
+    - DEBUG mode: Public access (development only)
+    - Production: Superuser or Staff only
+    """
+    permission_classes = [AllowAny] if settings.DEBUG else [IsSuperUserOrStaff]
 
     def get(self, request):
         """Main API documentation page"""
@@ -236,7 +261,7 @@ class APIDocumentationView(APIView):
         return Response(docs)
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny] if settings.DEBUG else [IsSuperUserOrStaff])
 def api_examples(request):
     """Interactive API examples"""
     examples = {

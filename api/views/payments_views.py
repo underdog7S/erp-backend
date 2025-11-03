@@ -224,8 +224,27 @@ class PaymentReceiptPDFView(APIView):
             tenant = transaction.tenant
             company_name = getattr(tenant, 'name', '') or 'Zenith ERP'
             
-            # Draw logo on left side if available
+            # Get company contact information from admin user profile
+            company_address = ''
+            company_phone = ''
+            company_email = ''
+            try:
+                # Get admin user profile for contact info
+                admin_profile = UserProfile._default_manager.filter(
+                    tenant=tenant, 
+                    role__name='admin'
+                ).first()
+                if admin_profile:
+                    company_address = admin_profile.address or ''
+                    company_phone = admin_profile.phone or ''
+                    company_email = admin_profile.user.email if admin_profile.user else ''
+            except Exception:
+                pass
+            
+            # Draw logo on LEFT side (improved positioning and size)
             logo_drawn = False
+            logo_width = 0
+            logo_height_used = 0
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -233,7 +252,8 @@ class PaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        max_height = 18 * mm
+                        # Resize logo to better size (max 35mm height for better visibility)
+                        max_height = 35 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -243,22 +263,79 @@ class PaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
+                        # Position on LEFT side with proper margin
                         logo_x = 25 * mm
-                        logo_y = height - 12 - new_height
+                        logo_y = height - 25 - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
+                        logo_width = new_width + 10 * mm  # Add spacing after logo
+                        logo_height_used = new_height
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # Company name and title
+            # Company name and info on RIGHT of logo (or left if no logo)
             p.setFillColor(colors.black)
-            p.setFont('Helvetica-Bold', 20)
-            title_x = 25 * mm if not logo_drawn else 25 * mm + 40 * mm
-            p.drawString(title_x, height - 20, company_name.upper())
-            p.setFont('Helvetica', 10)
-            p.drawString(title_x, height - 35, 'PAYMENT RECEIPT - PRODUCT SUBSCRIPTION')
+            if logo_drawn:
+                # Text aligned to RIGHT of logo
+                text_x = 25 * mm + logo_width
+                p.setFont('Helvetica-Bold', 18)
+                company_y = height - 25
+                p.drawString(text_x, company_y, company_name.upper())
+                
+                # Company contact info below name
+                info_y = company_y - 16
+                p.setFont('Helvetica', 9)
+                if company_address:
+                    # Truncate address if too long
+                    max_addr_width = width - text_x - 25 * mm
+                    if p.stringWidth(company_address, 'Helvetica', 9) > max_addr_width:
+                        addr_lines = [company_address[i:i+50] for i in range(0, min(len(company_address), 100), 50)]
+                        for line in addr_lines[:2]:  # Max 2 lines
+                            p.drawString(text_x, info_y, line)
+                            info_y -= 11
+                    else:
+                        p.drawString(text_x, info_y, company_address)
+                        info_y -= 11
+                if company_phone:
+                    p.drawString(text_x, info_y, f"Phone: {company_phone}")
+                    info_y -= 11
+                if company_email:
+                    p.drawString(text_x, info_y, f"Email: {company_email}")
+                    info_y -= 11
+                
+                # Document title below contact info
+                info_y -= 5
+                p.setFont('Helvetica-Bold', 11)
+                p.drawString(text_x, info_y, 'PAYMENT RECEIPT - PRODUCT SUBSCRIPTION')
+            else:
+                # Left-aligned if no logo
+                text_x = 25 * mm
+                p.setFont('Helvetica-Bold', 20)
+                company_y = height - 25
+                p.drawString(text_x, company_y, company_name.upper())
+                
+                info_y = company_y - 16
+                p.setFont('Helvetica', 9)
+                if company_address:
+                    p.drawString(text_x, info_y, company_address[:60])
+                    info_y -= 11
+                if company_phone:
+                    p.drawString(text_x, info_y, f"Phone: {company_phone}")
+                    info_y -= 11
+                if company_email:
+                    p.drawString(text_x, info_y, f"Email: {company_email}")
+                    info_y -= 11
+                
+                info_y -= 5
+                p.setFont('Helvetica-Bold', 12)
+                p.drawString(text_x, info_y, 'PAYMENT RECEIPT - PRODUCT SUBSCRIPTION')
             
-            y = height - 70
+            # Adjust starting y position based on header height
+            if logo_drawn:
+                header_bottom = info_y - 15  # Document title + spacing
+            else:
+                header_bottom = info_y - 5
+            y = header_bottom - 20  # Add spacing before first section
             p.setFillColor(colors.black)
 
             # Receipt details section

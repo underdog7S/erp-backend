@@ -207,9 +207,9 @@ urlpatterns = [
     # # Storage
     # path('upload/', storage_views.FileUploadView.as_view(), name='file-upload'),
     
-    # # API Documentation
-    # path('docs/', api_docs_views.APIDocumentationView.as_view(), name='api-docs'),
-    # path('docs/examples/', api_docs_views.api_examples, name='api-examples'),
+    # API Documentation
+    path('docs/', api_docs_views.APIDocumentationView.as_view(), name='api-docs'),
+    path('docs/examples/', api_docs_views.api_examples, name='api-examples'),
     
     # # Support
     # path('support/tickets/<int:ticket_id>/assign/', SupportTicketViewSet.as_view({'post': 'assign'}), name='assign-ticket'),

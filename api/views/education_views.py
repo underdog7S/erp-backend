@@ -822,23 +822,40 @@ class ReportCardPDFView(APIView):
             p.setLineWidth(0.5)
             p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
 
-            # Header with logo on left and school name on right (standard format)
+            # Header with logo on LEFT and school name + info on RIGHT
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Draw logo on left side (standard position)
+            # Get school contact information from admin user profile
+            school_address = ''
+            school_phone = ''
+            school_email = ''
+            try:
+                # Get admin user profile for contact info
+                admin_profile = UserProfile._default_manager.filter(
+                    tenant=tenant, 
+                    role__name='admin'
+                ).first()
+                if admin_profile:
+                    school_address = admin_profile.address or ''
+                    school_phone = admin_profile.phone or ''
+                    school_email = admin_profile.user.email if admin_profile.user else ''
+            except Exception:
+                pass
+            
+            # Draw logo on LEFT side (improved positioning and size)
             logo_drawn = False
             logo_width = 0
+            logo_height_used = 0
             if tenant.logo:
                 try:
                     from PIL import Image
                     import os
-                    from django.conf import settings
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to reasonable size (max 35mm height)
-                        max_height = 35 * mm
+                        # Resize logo to better size (max 40mm height for better visibility)
+                        max_height = 40 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -851,38 +868,70 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position on left side with proper margin
+                        # Position on LEFT side with proper margin
                         logo_x = 25 * mm
-                        logo_y = height - 30 - new_height
+                        logo_y = height - 25 - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
                         logo_width = new_width + 10 * mm  # Add spacing after logo
+                        logo_height_used = new_height
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and title (aligned to right of logo, or centered if no logo)
-            p.setFillColor(colors.black)  # Black text (no background colors)
+            # School name and info on RIGHT of logo (or left if no logo)
+            p.setFillColor(colors.black)
             if logo_drawn:
-                # Text aligned to right of logo
+                # Text aligned to RIGHT of logo
                 text_x = 25 * mm + logo_width
-                p.setFont('Helvetica-Bold', 22)
+                p.setFont('Helvetica-Bold', 20)
                 school_y = height - 25
                 p.drawString(text_x, school_y, school_name.upper())
                 
-                p.setFont('Helvetica', 11)
-                p.drawString(text_x, school_y - 15, 'OFFICIAL REPORT CARD')
-                p.setFont('Helvetica-Bold', 10)
-                p.drawString(text_x, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
+                # School contact info below name
+                info_y = school_y - 18
+                p.setFont('Helvetica', 10)
+                if school_address:
+                    p.drawString(text_x, info_y, school_address)
+                    info_y -= 12
+                if school_phone:
+                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                    info_y -= 12
+                if school_email:
+                    p.drawString(text_x, info_y, f"Email: {school_email}")
+                    info_y -= 12
+                
+                # Document title below contact info
+                info_y -= 5
+                p.setFont('Helvetica-Bold', 12)
+                p.drawString(text_x, info_y, 'OFFICIAL REPORT CARD')
+                p.setFont('Helvetica', 10)
+                academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
+                p.drawString(text_x, info_y - 13, academic_year_text)
             else:
                 # Centered if no logo
                 p.setFont('Helvetica-Bold', 22)
                 school_y = height - 25
                 p.drawCentredString(width / 2, school_y, school_name.upper())
                 
-                p.setFont('Helvetica', 11)
-                p.drawCentredString(width / 2, school_y - 15, 'OFFICIAL REPORT CARD')
-                p.setFont('Helvetica-Bold', 10)
-                p.drawCentredString(width / 2, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
+                info_y = school_y - 18
+                p.setFont('Helvetica', 9)
+                info_lines = []
+                if school_address:
+                    info_lines.append(school_address)
+                if school_phone:
+                    info_lines.append(f"Phone: {school_phone}")
+                if school_email:
+                    info_lines.append(f"Email: {school_email}")
+                
+                for line in info_lines:
+                    p.drawCentredString(width / 2, info_y, line)
+                    info_y -= 11
+                
+                p.setFont('Helvetica-Bold', 12)
+                p.drawCentredString(width / 2, info_y - 8, 'OFFICIAL REPORT CARD')
+                p.setFont('Helvetica', 10)
+                academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
+                p.drawCentredString(width / 2, info_y - 21, academic_year_text)
             
             # Separator line (simple border, no background)
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -964,7 +1013,7 @@ class ReportCardPDFView(APIView):
             
             y -= 20
 
-            # Classic styled marks table - with formal borders
+            # Classic styled marks table - with formal borders (FIXED COLUMNS TO PREVENT OVERFLOW)
             y -= 5
             # Get marks entries first to calculate table height
             from education.models import MarksEntry
@@ -980,45 +1029,62 @@ class ReportCardPDFView(APIView):
                 table_height = y - 80
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(22 * mm, y - table_height, width - 44 * mm, table_height, stroke=1, fill=0)
+            # Ensure table fits within page margins
+            table_left = 22 * mm
+            table_right = width - 22 * mm
+            table_width = table_right - table_left
+            p.rect(table_left, y - table_height, table_width, table_height, stroke=1, fill=0)
             
             # Table header - no background color
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
+            p.line(table_left, y - 12, table_right, y - 12)
             
-            p.setFillColor(colors.black)  # Black text on white background
-            p.setFont('Helvetica-Bold', 11)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 10)  # Slightly smaller font to fit better
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            # Government marksheet standard column distribution - balanced widths
-            col_x = [28 * mm, 110 * mm, 145 * mm, 170 * mm]
-            col_widths = [80 * mm, 32 * mm, 22 * mm, 25 * mm]
+            # FIXED column positions - adjusted to fit within margins (no overflow)
+            # Using percentage-based positioning to ensure fit
+            col_x = [
+                25 * mm,           # SUBJECT (left-aligned)
+                width - 85 * mm,   # MARKS OBTAINED (right-aligned)
+                width - 60 * mm,   # MAX MARKS (right-aligned)
+                width - 30 * mm    # PERCENTAGE (right-aligned)
+            ]
+            col_widths = [
+                105 * mm,          # SUBJECT width
+                20 * mm,           # MARKS OBTAINED width
+                20 * mm,           # MAX MARKS width
+                22 * mm            # PERCENTAGE width
+            ]
+            
             for i, htxt in enumerate(headers):
                 if i == 0:
-                    # Left align subject column header
+                    # Left align subject column header (truncate if too long)
+                    max_subject_width = col_widths[0] - 3 * mm
+                    if p.stringWidth(htxt, 'Helvetica-Bold', 10) > max_subject_width:
+                        htxt = htxt[:15] + '...'
                     p.drawString(col_x[i], y - 8, htxt)
                 else:
-                    # Right align number column headers to match data alignment
+                    # Right align number column headers
                     p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
-            p.setFillColor(colors.black)  # Black text for table rows
+            p.setFillColor(colors.black)
             y -= 15
             
-            # Vertical column separators
+            # Vertical column separators (fixed positions)
             p.setStrokeColor(colors.HexColor('#cccccc'))
             p.setLineWidth(0.3)
-            for i in range(1, len(col_x)):
-                sep_x = col_x[i] - 2
+            sep_positions = [width - 85 * mm, width - 60 * mm, width - 30 * mm]  # Between columns
+            for sep_x in sep_positions:
                 p.line(sep_x, y, sep_x, y - table_height + 12)
 
-            # Table rows with alternating colors - properly aligned
-            # (marks_entries already fetched above)
-            p.setFont('Helvetica', 10)
+            # Table rows - properly aligned within fixed columns
+            p.setFont('Helvetica', 9)  # Slightly smaller font to prevent overflow
             row_num = 0
             for entry in marks_entries:
                 if y < 80:
-                    # New page - reset background and redraw borders
+                    # New page - reset and redraw
                     p.showPage()
-                    # Redraw page border
                     p.setStrokeColor(colors.HexColor('#1a237e'))
                     p.setLineWidth(2)
                     p.rect(15 * mm, 15 * mm, width - 30 * mm, height - 30 * mm, stroke=1, fill=0)
@@ -1026,43 +1092,52 @@ class ReportCardPDFView(APIView):
                     p.setLineWidth(0.5)
                     p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
                     
-                    # Redraw table header on new page (no background color)
+                    # Redraw table header on new page
                     p.setStrokeColor(colors.HexColor('#000000'))
                     p.setLineWidth(1)
-                    p.line(22 * mm, height - 40 - 12, width - 22 * mm, height - 40 - 12)
+                    p.line(table_left, height - 40 - 12, table_right, height - 40 - 12)
                     p.setFillColor(colors.black)
-                    p.setFont('Helvetica-Bold', 11)
+                    p.setFont('Helvetica-Bold', 10)
                     for i, htxt in enumerate(headers):
                         if i == 0:
-                            p.drawString(col_x[i], height - 40 - 8, htxt)  # Left align subject
+                            max_subject_width = col_widths[0] - 3 * mm
+                            display_htxt = htxt[:15] + '...' if p.stringWidth(htxt, 'Helvetica-Bold', 10) > max_subject_width else htxt
+                            p.drawString(col_x[i], height - 40 - 8, display_htxt)
                         else:
-                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)  # Right align numbers
-                    p.setFont('Helvetica', 10)
+                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)
+                    p.setFont('Helvetica', 9)
                     y = height - 40 - 15
-                    row_num = 0  # Reset row number for alternating
+                    row_num = 0
                 
                 subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
                 percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
                 
-                # No background colors - clean white background only
-                # Simple row border line for separation
+                # Row separator line
                 p.setStrokeColor(colors.HexColor('#d0d0d0'))
                 p.setLineWidth(0.5)
-                p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
+                p.line(table_left, y - 12, table_right, y - 12)
                 p.setFillColor(colors.black)
                 
-                # Properly aligned values - match header alignment
-                p.drawString(col_x[0], y, subject_name[:28])  # Left align subject (matches header)
-                # Right align numbers - consistent with header alignment
+                # Truncate subject name if too long to fit in column
+                max_subject_width = col_widths[0] - 3 * mm
+                display_subject = subject_name
+                if p.stringWidth(subject_name, 'Helvetica', 9) > max_subject_width:
+                    # Truncate to fit
+                    for i in range(len(subject_name), 0, -1):
+                        test_name = subject_name[:i] + '...'
+                        if p.stringWidth(test_name, 'Helvetica', 9) <= max_subject_width:
+                            display_subject = test_name
+                            break
+                
+                # Properly aligned values - within fixed column widths
+                p.drawString(col_x[0], y, display_subject)  # Left align subject (truncated if needed)
+                # Right align numbers
                 marks_str = str(int(float(entry.marks_obtained)))
-                marks_x = col_x[1] + col_widths[1]
-                p.drawRightString(marks_x, y, marks_str)
+                p.drawRightString(col_x[1] + col_widths[1], y, marks_str)
                 max_marks_str = str(int(float(entry.max_marks)))
-                max_x = col_x[2] + col_widths[2]
-                p.drawRightString(max_x, y, max_marks_str)
+                p.drawRightString(col_x[2] + col_widths[2], y, max_marks_str)
                 percent_str = f"{percent:.1f}%"
-                percent_x = col_x[3] + col_widths[3]
-                p.drawRightString(percent_x, y, percent_str)
+                p.drawRightString(col_x[3] + col_widths[3], y, percent_str)
                 y -= 14
                 row_num += 1
 
@@ -1859,9 +1934,27 @@ class FeePaymentReceiptPDFView(APIView):
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Draw logo on left side (standard position)
+            # Get school contact information from admin user profile
+            school_address = ''
+            school_phone = ''
+            school_email = ''
+            try:
+                # Get admin user profile for contact info
+                admin_profile = UserProfile._default_manager.filter(
+                    tenant=tenant, 
+                    role__name='admin'
+                ).first()
+                if admin_profile:
+                    school_address = admin_profile.address or ''
+                    school_phone = admin_profile.phone or ''
+                    school_email = admin_profile.user.email if admin_profile.user else ''
+            except Exception:
+                pass
+            
+            # Draw logo on LEFT side (improved positioning and size)
             logo_drawn = False
             logo_width = 0
+            logo_height_used = 0
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -1869,8 +1962,8 @@ class FeePaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to be small (max 18mm height for corner)
-                        max_height = 18 * mm
+                        # Resize logo to better size (max 35mm height)
+                        max_height = 35 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -1880,19 +1973,72 @@ class FeePaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position in top-right corner with proper margin (avoid text overlap)
-                        logo_x = width - 18 * mm - new_width
-                        logo_y = height - 12 - new_height
+                        # Position on LEFT side with proper margin
+                        logo_x = 25 * mm
+                        logo_y = height - 25 - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
+                        logo_drawn = True
+                        logo_width = new_width + 10 * mm  # Add spacing after logo
+                        logo_height_used = new_height
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and title (left side, white text on blue background)
-            p.setFillColor(colors.white)  # White text for visibility on blue
-            p.setFont('Helvetica-Bold', 20)
-            p.drawString(20 * mm, height - 20, school_name.upper())
-            p.setFont('Helvetica', 10)
-            p.drawString(20 * mm, height - 35, 'OFFICIAL FEE PAYMENT RECEIPT')
+            # School name and info on RIGHT of logo (or left if no logo)
+            p.setFillColor(colors.black)  # Black text on white background
+            if logo_drawn:
+                # Text aligned to RIGHT of logo
+                text_x = 25 * mm + logo_width
+                p.setFont('Helvetica-Bold', 18)
+                school_y = height - 25
+                p.drawString(text_x, school_y, school_name.upper())
+                
+                # School contact info below name
+                info_y = school_y - 16
+                p.setFont('Helvetica', 9)
+                if school_address:
+                    # Truncate address if too long
+                    max_addr_width = width - text_x - 25 * mm
+                    if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
+                        addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                        for line in addr_lines[:2]:  # Max 2 lines
+                            p.drawString(text_x, info_y, line)
+                            info_y -= 11
+                    else:
+                        p.drawString(text_x, info_y, school_address)
+                        info_y -= 11
+                if school_phone:
+                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                    info_y -= 11
+                if school_email:
+                    p.drawString(text_x, info_y, f"Email: {school_email}")
+                    info_y -= 11
+                
+                # Document title below contact info
+                info_y -= 5
+                p.setFont('Helvetica-Bold', 11)
+                p.drawString(text_x, info_y, 'OFFICIAL FEE PAYMENT RECEIPT')
+            else:
+                # Left-aligned if no logo
+                text_x = 25 * mm
+                p.setFont('Helvetica-Bold', 20)
+                school_y = height - 25
+                p.drawString(text_x, school_y, school_name.upper())
+                
+                info_y = school_y - 16
+                p.setFont('Helvetica', 9)
+                if school_address:
+                    p.drawString(text_x, info_y, school_address[:60])
+                    info_y -= 11
+                if school_phone:
+                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                    info_y -= 11
+                if school_email:
+                    p.drawString(text_x, info_y, f"Email: {school_email}")
+                    info_y -= 11
+                
+                info_y -= 5
+                p.setFont('Helvetica-Bold', 12)
+                p.drawString(text_x, info_y, 'OFFICIAL FEE PAYMENT RECEIPT')
             
             y = height - 70
             p.setFillColor(colors.black)
