@@ -9,10 +9,11 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication
 )
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
 from api.models.serializers_education import (
+    AdmissionApplicationSerializer,
     ClassSerializer, StudentSerializer, FeeStructureSerializer, FeePaymentSerializer, 
     FeeDiscountSerializer, AttendanceSerializer, ReportCardSerializer, 
     StaffAttendanceSerializer, DepartmentSerializer, AcademicYearSerializer, 
@@ -1051,33 +1052,49 @@ class ReportCardPDFView(APIView):
             table_left = 22 * mm
             table_right = width - 22 * mm
             
-            # Column positions - ensure they fit within available width
-            # SUBJECT: flexible width (takes remaining space)
-            # MARKS OBTAINED: 25mm
-            # MAX MARKS: 25mm  
-            # PERCENTAGE: 25mm
-            # Total fixed columns = 75mm
-            fixed_cols_width = 75 * mm
-            subject_col_width = available_width - fixed_cols_width - 5 * mm  # Reserve 5mm for spacing
+            # Column positions - IMPROVED: Better calculation to prevent overflow
+            # SUBJECT: flexible width (takes remaining space after fixed columns)
+            # MARKS OBTAINED: 24mm (fixed)
+            # MAX MARKS: 24mm (fixed)
+            # PERCENTAGE: 24mm (fixed)
+            # Total fixed columns = 72mm
+            # Column spacing = 3mm between columns
+            fixed_cols_width = 72 * mm
+            col_spacing = 3 * mm
+            subject_col_width = available_width - fixed_cols_width - (col_spacing * 3)  # Reserve space for 3 gaps
             
+            # Ensure minimum subject column width
+            if subject_col_width < 30 * mm:
+                subject_col_width = 30 * mm
+            
+            # Calculate exact column positions from left edge
+            # All columns aligned within table boundaries
             col_x = [
-                table_left + 3 * mm,                    # SUBJECT (left-aligned, 3mm padding)
-                table_right - 75 * mm,                   # MARKS OBTAINED (right-aligned, starts before fixed cols)
-                table_right - 50 * mm,                   # MAX MARKS (right-aligned)
-                table_right - 25 * mm                    # PERCENTAGE (right-aligned, 3mm padding from edge)
-            ]
-            col_widths = [
-                subject_col_width,                        # SUBJECT width (dynamic, but capped)
-                23 * mm,                                  # MARKS OBTAINED width
-                23 * mm,                                  # MAX MARKS width
-                22 * mm                                   # PERCENTAGE width
+                table_left + 3 * mm,                           # SUBJECT (left-aligned, 3mm padding from left edge)
+                table_left + subject_col_width + col_spacing,   # MARKS OBTAINED (starts after subject + gap)
+                table_left + subject_col_width + 24 * mm + (col_spacing * 2),  # MAX MARKS
+                table_left + subject_col_width + 48 * mm + (col_spacing * 3)   # PERCENTAGE
             ]
             
-            # Validate columns don't exceed page width
-            if col_x[0] + subject_col_width > col_x[1] - 3 * mm:
-                # Adjust if columns overlap - reduce subject width
-                subject_col_width = col_x[1] - col_x[0] - 10 * mm
-                col_widths[0] = subject_col_width
+            # Validate rightmost column doesn't exceed table boundary
+            if col_x[3] + 24 * mm > table_right - 3 * mm:
+                # Adjust: reduce subject width to fit
+                excess = (col_x[3] + 24 * mm) - (table_right - 3 * mm)
+                subject_col_width = max(30 * mm, subject_col_width - excess - col_spacing)
+                # Recalculate positions
+                col_x = [
+                    table_left + 3 * mm,
+                    table_left + subject_col_width + col_spacing,
+                    table_left + subject_col_width + 24 * mm + (col_spacing * 2),
+                    table_left + subject_col_width + 48 * mm + (col_spacing * 3)
+                ]
+            
+            col_widths = [
+                subject_col_width,      # SUBJECT width (adjusted to fit)
+                24 * mm,                # MARKS OBTAINED width
+                24 * mm,                # MAX MARKS width
+                24 * mm                 # PERCENTAGE width
+            ]
             
             for i, htxt in enumerate(headers):
                 if i == 0:
@@ -1159,23 +1176,19 @@ class ReportCardPDFView(APIView):
                             high = mid - 1
                     display_subject = subject_name[:low] + '...' if low < len(subject_name) else subject_name[:low]
                 
-                # Properly aligned values - within fixed column widths - ensure no overflow
-                # Left align subject (truncated if needed) - clamp to column boundary
-                subject_draw_x = min(col_x[0], table_left + 3 * mm)
-                p.drawString(subject_draw_x, y, display_subject)
+                # Properly aligned values - IMPROVED: Exact alignment within column boundaries
+                # Left align subject within column
+                p.drawString(col_x[0], y, display_subject)
                 
-                # Right align numbers - ensure they stay within column boundaries
+                # Right align numbers within their respective column boundaries
                 marks_str = str(int(float(entry.marks_obtained)))
-                marks_draw_x = min(col_x[1] + col_widths[1], table_right - 3 * mm)
-                p.drawRightString(marks_draw_x, y, marks_str[:8])  # Limit to 8 chars
+                p.drawRightString(col_x[1] + col_widths[1] - 2 * mm, y, marks_str)
                 
                 max_marks_str = str(int(float(entry.max_marks)))
-                max_marks_draw_x = min(col_x[2] + col_widths[2], table_right - 28 * mm)
-                p.drawRightString(max_marks_draw_x, y, max_marks_str[:8])  # Limit to 8 chars
+                p.drawRightString(col_x[2] + col_widths[2] - 2 * mm, y, max_marks_str)
                 
                 percent_str = f"{percent:.1f}%"
-                percent_draw_x = min(col_x[3] + col_widths[3], table_right - 3 * mm)
-                p.drawRightString(percent_draw_x, y, percent_str[:10])  # Limit to 10 chars
+                p.drawRightString(col_x[3] + col_widths[3] - 2 * mm, y, percent_str)
                 y -= 14
                 row_num += 1
 
@@ -1205,34 +1218,49 @@ class ReportCardPDFView(APIView):
             if report_card.rank_in_class:
                 summary_items.append(('Class Rank', f"#{report_card.rank_in_class}"))
             
-            # Fixed positions for better alignment (government marksheet style) - ensure within margins
+            # IMPROVED: Better alignment for summary items - consistent spacing within margins
             # Use page width minus margins (22mm each side) to calculate safe positions
             available_summary_width = width - 44 * mm
             summary_start_x = 25 * mm
+            summary_end_x = width - 25 * mm
             
-            # Distribute items evenly across available width
+            # Distribute items evenly with proper alignment
             if len(summary_items) <= 3:
-                # 3 items: distribute evenly
+                # 3 items: distribute evenly with proper spacing
                 item_spacing = available_summary_width / (len(summary_items) + 1)
                 for i, (label, value) in enumerate(summary_items):
-                    label_pos = summary_start_x + (i + 1) * item_spacing - p.stringWidth(label + ':', 'Helvetica-Bold', 10) / 2
-                    value_pos = summary_start_x + (i + 1) * item_spacing - p.stringWidth(value, 'Helvetica', 11) / 2
+                    center_x = summary_start_x + (i + 1) * item_spacing
+                    # Center-align label
+                    label_width = p.stringWidth(label + ':', 'Helvetica-Bold', 10)
+                    label_x = max(summary_start_x, center_x - label_width / 2)
                     p.setFont('Helvetica-Bold', 10)
-                    p.drawString(max(25 * mm, label_pos), y, label + ':')
+                    p.drawString(min(label_x, summary_end_x - label_width), y, label + ':')
+                    # Center-align value
+                    value_width = p.stringWidth(value, 'Helvetica', 11)
+                    value_x = max(summary_start_x, center_x - value_width / 2)
                     p.setFont('Helvetica', 11)
-                    p.drawString(max(25 * mm, value_pos), y - 12, value)
+                    p.drawString(min(value_x, summary_end_x - value_width), y - 12, value)
             else:
-                # 4 items: use 2x2 grid
-                left_col = 30 * mm
-                right_col = width / 2 + 10 * mm
+                # 4 items: use 2x2 grid with proper alignment
+                left_col_label = 30 * mm
+                left_col_value = 95 * mm
+                right_col_label = width / 2 + 10 * mm
+                right_col_value = width / 2 + 75 * mm
                 for i, (label, value) in enumerate(summary_items):
-                    col_x = right_col if i >= 2 else left_col
-                    row_y = y if i < 2 else y - 30
+                    if i < 2:
+                        # Left column
+                        label_x = left_col_label
+                        value_x = left_col_value
+                        row_y = y if i == 0 else y - 30
+                    else:
+                        # Right column
+                        label_x = right_col_label
+                        value_x = right_col_value
+                        row_y = y if i == 2 else y - 30
                     p.setFont('Helvetica-Bold', 10)
-                    p.drawString(col_x, row_y, label + ':')
+                    p.drawString(label_x, row_y, label + ':')
                     p.setFont('Helvetica', 11)
-                    # Calculate value position to stay within margins
-                    value_x = col_x + 20 * mm
+                    # Ensure value doesn't exceed right margin
                     max_value_x = width - 25 * mm
                     if value_x + p.stringWidth(value, 'Helvetica', 11) > max_value_x:
                         value_x = max_value_x - p.stringWidth(value, 'Helvetica', 11)
@@ -4572,7 +4600,8 @@ class TransferCertificatePDFView(APIView):
             p.drawString(25 * mm, y, 'STUDENT INFORMATION')
             y -= 20
             
-            # Student details with proper alignment and truncation
+            # IMPROVED: Student details with proper alignment - consistent spacing
+            # Two-column layout: labels on left, values aligned consistently
             label_x = 25 * mm
             value_x = 95 * mm
             value_max_width = width - value_x - 25 * mm
@@ -4592,13 +4621,26 @@ class TransferCertificatePDFView(APIView):
                 if y < content_height + 20:
                     p.showPage()
                     y = height - 40
+                # Draw label
                 p.drawString(label_x, y, label)
                 p.setFont('Helvetica', 10)
-                # Truncate value if too long
+                # Truncate value if too long to fit in available width
                 value_str = str(value)
-                if p.stringWidth(value_str, 'Helvetica', 10) > value_max_width:
-                    value_str = value_str[:int(value_max_width / 6)] + '...'
-                p.drawString(value_x, y, value_str)
+                value_width = p.stringWidth(value_str, 'Helvetica', 10)
+                if value_width > value_max_width:
+                    # Binary search for optimal truncation
+                    low, high = 0, len(value_str)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_str = value_str[:mid] + '...'
+                        if p.stringWidth(test_str, 'Helvetica', 10) <= value_max_width:
+                            low = mid
+                        else:
+                            high = mid - 1
+                    value_str = value_str[:low] + '...' if low < len(value_str) else value_str[:low]
+                # Ensure value doesn't exceed right margin
+                final_value_x = min(value_x, width - 25 * mm - value_max_width)
+                p.drawString(final_value_x, y, value_str)
                 y -= 15
                 p.setFont('Helvetica-Bold', 10)
             
@@ -4613,10 +4655,12 @@ class TransferCertificatePDFView(APIView):
             p.drawString(25 * mm, y, 'FEES & DUES')
             y -= 20
             
+            # IMPROVED: Consistent alignment for fees & dues
             p.setFont('Helvetica-Bold', 10)
             p.drawString(25 * mm, y, 'All Dues Cleared:')
             p.setFont('Helvetica', 10)
             dues_status = 'Yes' if tc.dues_paid else 'No'
+            # Ensure value aligns consistently with other fields
             p.drawString(95 * mm, y, dues_status)
             y -= 15
             
@@ -4645,10 +4689,26 @@ class TransferCertificatePDFView(APIView):
                 p.drawString(25 * mm, y, 'TRANSFER DETAILS')
                 y -= 20
                 
+                # IMPROVED: Better text truncation and alignment
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(25 * mm, y, 'Transferring To:')
                 p.setFont('Helvetica', 10)
-                school_name_trunc = str(tc.transferring_to_school)[:60] if len(str(tc.transferring_to_school)) > 60 else str(tc.transferring_to_school)
+                school_name = str(tc.transferring_to_school)
+                # Calculate max width and truncate if needed
+                max_school_width = width - 95 * mm - 25 * mm
+                if p.stringWidth(school_name, 'Helvetica', 10) > max_school_width:
+                    # Binary search for optimal truncation
+                    low, high = 0, len(school_name)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_str = school_name[:mid] + '...'
+                        if p.stringWidth(test_str, 'Helvetica', 10) <= max_school_width:
+                            low = mid
+                        else:
+                            high = mid - 1
+                    school_name_trunc = school_name[:low] + '...' if low < len(school_name) else school_name[:low]
+                else:
+                    school_name_trunc = school_name
                 p.drawString(95 * mm, y, school_name_trunc)
                 y -= 15
                 
@@ -4750,4 +4810,175 @@ class TransferCertificatePDFView(APIView):
             return Response({
                 'error': f'TC PDF generation failed: {str(e)}',
                 'details': 'Check server logs for more information.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AdmissionApplicationListCreateView(APIView):
+    """List and create Admission Applications"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request):
+        """List all admission applications with filtering"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        applications = AdmissionApplication._default_manager.filter(tenant=profile.tenant)
+        
+        # Filtering
+        status_filter = request.query_params.get('status')
+        class_id = request.query_params.get('class_id')
+        search = request.query_params.get('search')
+        
+        if status_filter:
+            applications = applications.filter(status=status_filter)
+        if class_id:
+            applications = applications.filter(desired_class_id=class_id)
+        if search:
+            applications = applications.filter(
+                Q(applicant_name__icontains=search) | 
+                Q(email__icontains=search) | 
+                Q(phone__icontains=search)
+            )
+        
+        serializer = AdmissionApplicationSerializer(applications.order_by('-created_at'), many=True)
+        return Response(serializer.data)
+    
+    @role_required('admin', 'principal')
+    def post(self, request):
+        """Create a new admission application"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        
+        serializer = AdmissionApplicationSerializer(data=data)
+        if serializer.is_valid():
+            application = serializer.save(tenant=profile.tenant)
+            return Response(AdmissionApplicationSerializer(application).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdmissionApplicationDetailView(APIView):
+    """Get, update, or delete an Admission Application"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request, pk):
+        """Get a specific admission application"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            application = AdmissionApplication._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = AdmissionApplicationSerializer(application)
+            return Response(serializer.data)
+        except AdmissionApplication.DoesNotExist:
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def put(self, request, pk):
+        """Update an admission application"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            application = AdmissionApplication._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = AdmissionApplicationSerializer(application, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except AdmissionApplication.DoesNotExist:
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def delete(self, request, pk):
+        """Delete an admission application"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            application = AdmissionApplication._default_manager.get(id=pk, tenant=profile.tenant)
+            application.delete()
+            return Response({'message': 'Admission Application deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        except AdmissionApplication.DoesNotExist:
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AdmissionApplicationApproveView(APIView):
+    """Approve an admission application and optionally convert to student"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal')
+    def post(self, request, pk):
+        """Approve admission application and optionally create student record"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            application = AdmissionApplication._default_manager.get(id=pk, tenant=profile.tenant)
+        except AdmissionApplication.DoesNotExist:
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Update status to approved
+        application.status = 'approved'
+        application.save()
+        
+        # Optionally convert to student
+        create_student = request.data.get('create_student', False)
+        student_data = None
+        
+        if create_student:
+            # Get additional student data from request
+            student_name = request.data.get('student_name') or application.applicant_name
+            student_email = request.data.get('student_email') or application.email
+            student_phone = request.data.get('student_phone') or application.phone
+            upper_id = request.data.get('upper_id', '')
+            admission_date = request.data.get('admission_date')
+            assigned_class_id = request.data.get('assigned_class_id') or (application.desired_class.id if application.desired_class else None)
+            
+            if not assigned_class_id:
+                return Response({'error': 'Class assignment required to create student.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            try:
+                # Create student
+                student = Student._default_manager.create(
+                    tenant=profile.tenant,
+                    name=student_name,
+                    email=student_email,
+                    phone=student_phone,
+                    upper_id=upper_id,
+                    assigned_class_id=assigned_class_id,
+                    admission_date=admission_date or timezone.now().date(),
+                    is_active=True
+                )
+                student_data = StudentSerializer(student).data
+            except Exception as e:
+                logger.error(f"Error creating student from application: {str(e)}", exc_info=True)
+                return Response({'error': f'Failed to create student: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        serializer = AdmissionApplicationSerializer(application)
+        return Response({
+            'message': 'Application approved successfully.',
+            'application': serializer.data,
+            'student': student_data
+        }, status=status.HTTP_200_OK)
+
+
+class AdmissionApplicationRejectView(APIView):
+    """Reject an admission application"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal')
+    def post(self, request, pk):
+        """Reject admission application"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            application = AdmissionApplication._default_manager.get(id=pk, tenant=profile.tenant)
+            application.status = 'rejected'
+            # Optionally add rejection reason to notes
+            rejection_reason = request.data.get('rejection_reason', '')
+            if rejection_reason:
+                application.notes = f"{application.notes or ''}\nRejection Reason: {rejection_reason}".strip()
+            application.save()
+            serializer = AdmissionApplicationSerializer(application)
+            return Response({
+                'message': 'Application rejected successfully.',
+                'application': serializer.data
+            }, status=status.HTTP_200_OK)
+        except AdmissionApplication.DoesNotExist:
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND) 

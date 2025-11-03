@@ -265,6 +265,12 @@ urlpatterns += [
     path('education/tc/<int:pk>/', education_views.TransferCertificateDetailView.as_view(), name='education-tc-detail'),
     path('education/tc/<int:pk>/pdf/', education_views.TransferCertificatePDFView.as_view(), name='education-tc-pdf'),
     
+    # Admission Application endpoints
+    path('education/admission-applications/', education_views.AdmissionApplicationListCreateView.as_view(), name='education-admission-applications'),
+    path('education/admission-applications/<int:pk>/', education_views.AdmissionApplicationDetailView.as_view(), name='education-admission-application-detail'),
+    path('education/admission-applications/<int:pk>/approve/', education_views.AdmissionApplicationApproveView.as_view(), name='education-admission-application-approve'),
+    path('education/admission-applications/<int:pk>/reject/', education_views.AdmissionApplicationRejectView.as_view(), name='education-admission-application-reject'),
+    
     # Pharmacy Export endpoints
     path('pharmacy/medicines/export/', pharmacy_views.MedicineExportView.as_view(), name='pharmacy-medicines-export'),
     path('pharmacy/sales/export/', pharmacy_views.PharmacySaleExportView.as_view(), name='pharmacy-sales-export'),

@@ -3,7 +3,7 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication
 )
 from api.models.user import UserProfile
 
@@ -474,4 +474,13 @@ class TransferCertificateSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransferCertificate
         fields = '__all__'
-        read_only_fields = ['tc_number', 'created_at', 'updated_at'] 
+        read_only_fields = ['tc_number', 'created_at', 'updated_at']
+
+class AdmissionApplicationSerializer(serializers.ModelSerializer):
+    """Serializer for Admission Application model"""
+    desired_class_name = serializers.CharField(source='desired_class.name', read_only=True)
+    
+    class Meta:
+        model = AdmissionApplication
+        fields = '__all__'
+        read_only_fields = ['created_at'] 
