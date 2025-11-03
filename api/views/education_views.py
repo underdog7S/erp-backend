@@ -845,10 +845,14 @@ class ReportCardPDFView(APIView):
             except Exception:
                 pass
             
-            # Draw logo on LEFT side (improved positioning and size)
+            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
+            # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            logo_width = 0
-            logo_height_used = 0
+            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
+            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            logo_x = 25 * mm
+            logo_y_top = height - 25 * mm
+            
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -856,84 +860,61 @@ class ReportCardPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to better size (max 40mm height for better visibility)
-                        max_height = 40 * mm
+                        # Fixed logo size: max 35mm height
+                        max_height = 35 * mm
+                        max_width = 35 * mm
                         img_width, img_height = img.size
-                        scale = min(max_height / img_height, max_height / img_width)
+                        scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
                         new_height = int(img_height * scale)
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
                         
-                        # Convert to RGB if needed
                         if img.mode != 'RGB':
                             img = img.convert('RGB')
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position on LEFT side with proper margin
-                        logo_x = 25 * mm
-                        logo_y = height - 25 - new_height
+                        # Draw logo at fixed position (top-left of reserved area)
+                        logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
-                        logo_width = new_width + 10 * mm  # Add spacing after logo
-                        logo_height_used = new_height
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and info on RIGHT of logo (or left if no logo)
+            # Text always starts at FIXED position (regardless of logo size)
             p.setFillColor(colors.black)
-            if logo_drawn:
-                # Text aligned to RIGHT of logo
-                text_x = 25 * mm + logo_width
-                p.setFont('Helvetica-Bold', 20)
-                school_y = height - 25
-                p.drawString(text_x, school_y, school_name.upper())
-                
-                # School contact info below name
-                info_y = school_y - 18
-                p.setFont('Helvetica', 10)
-                if school_address:
+            text_x = FIXED_TEXT_START_X  # Fixed position for text
+            p.setFont('Helvetica-Bold', 20)
+            school_y = logo_y_top
+            p.drawString(text_x, school_y, school_name.upper())
+            
+            # School contact info below name
+            info_y = school_y - 18
+            p.setFont('Helvetica', 10)
+            if school_address:
+                max_addr_width = width - text_x - 25 * mm
+                if p.stringWidth(school_address, 'Helvetica', 10) > max_addr_width:
+                    addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                    for line in addr_lines[:2]:
+                        p.drawString(text_x, info_y, line)
+                        info_y -= 12
+                else:
                     p.drawString(text_x, info_y, school_address)
                     info_y -= 12
-                if school_phone:
-                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
-                    info_y -= 12
-                if school_email:
-                    p.drawString(text_x, info_y, f"Email: {school_email}")
-                    info_y -= 12
-                
-                # Document title below contact info
-                info_y -= 5
-                p.setFont('Helvetica-Bold', 12)
-                p.drawString(text_x, info_y, 'OFFICIAL REPORT CARD')
-                p.setFont('Helvetica', 10)
-                academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
-                p.drawString(text_x, info_y - 13, academic_year_text)
-            else:
-                # Centered if no logo
-                p.setFont('Helvetica-Bold', 22)
-                school_y = height - 25
-                p.drawCentredString(width / 2, school_y, school_name.upper())
-                
-                info_y = school_y - 18
-                p.setFont('Helvetica', 9)
-                info_lines = []
-                if school_address:
-                    info_lines.append(school_address)
-                if school_phone:
-                    info_lines.append(f"Phone: {school_phone}")
-                if school_email:
-                    info_lines.append(f"Email: {school_email}")
-                
-                for line in info_lines:
-                    p.drawCentredString(width / 2, info_y, line)
-                    info_y -= 11
-                
-                p.setFont('Helvetica-Bold', 12)
-                p.drawCentredString(width / 2, info_y - 8, 'OFFICIAL REPORT CARD')
-                p.setFont('Helvetica', 10)
-                academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
-                p.drawCentredString(width / 2, info_y - 21, academic_year_text)
+            if school_phone:
+                p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                info_y -= 12
+            if school_email:
+                p.drawString(text_x, info_y, f"Email: {school_email}")
+                info_y -= 12
+            
+            # Document title below contact info
+            info_y -= 5
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(text_x, info_y, 'OFFICIAL REPORT CARD')
+            p.setFont('Helvetica', 10)
+            academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
+            p.drawString(text_x, info_y - 13, academic_year_text)
             
             # Separator line (simple border, no background)
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -2051,10 +2032,14 @@ class FeePaymentReceiptPDFView(APIView):
             except Exception:
                 pass
             
-            # Draw logo on LEFT side (improved positioning and size)
+            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
+            # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            logo_width = 0
-            logo_height_used = 0
+            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
+            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            logo_x = 25 * mm
+            logo_y_top = height - 25 * mm
+            
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -2062,10 +2047,11 @@ class FeePaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to better size (max 35mm height)
+                        # Fixed logo size: max 35mm height
                         max_height = 35 * mm
+                        max_width = 35 * mm
                         img_width, img_height = img.size
-                        scale = min(max_height / img_height, max_height / img_width)
+                        scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
                         new_height = int(img_height * scale)
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -2073,72 +2059,44 @@ class FeePaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position on LEFT side with proper margin
-                        logo_x = 25 * mm
-                        logo_y = height - 25 - new_height
+                        # Draw logo at fixed position
+                        logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
-                        logo_width = new_width + 10 * mm  # Add spacing after logo
-                        logo_height_used = new_height
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and info on RIGHT of logo (or left if no logo)
-            p.setFillColor(colors.black)  # Black text on white background
-            if logo_drawn:
-                # Text aligned to RIGHT of logo
-                text_x = 25 * mm + logo_width
-                p.setFont('Helvetica-Bold', 18)
-                school_y = height - 25
-                p.drawString(text_x, school_y, school_name.upper())
-                
-                # School contact info below name
-                info_y = school_y - 16
-                p.setFont('Helvetica', 9)
-                if school_address:
-                    # Truncate address if too long
-                    max_addr_width = width - text_x - 25 * mm
-                    if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
-                        addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
-                        for line in addr_lines[:2]:  # Max 2 lines
-                            p.drawString(text_x, info_y, line)
-                            info_y -= 11
-                    else:
-                        p.drawString(text_x, info_y, school_address)
+            # Text always starts at FIXED position (regardless of logo size)
+            p.setFillColor(colors.black)
+            text_x = FIXED_TEXT_START_X  # Fixed position for text
+            p.setFont('Helvetica-Bold', 18)
+            school_y = logo_y_top
+            p.drawString(text_x, school_y, school_name.upper())
+            
+            # School contact info below name
+            info_y = school_y - 16
+            p.setFont('Helvetica', 9)
+            if school_address:
+                max_addr_width = width - text_x - 25 * mm
+                if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
+                    addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                    for line in addr_lines[:2]:
+                        p.drawString(text_x, info_y, line)
                         info_y -= 11
-                if school_phone:
-                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                else:
+                    p.drawString(text_x, info_y, school_address)
                     info_y -= 11
-                if school_email:
-                    p.drawString(text_x, info_y, f"Email: {school_email}")
-                    info_y -= 11
-                
-                # Document title below contact info
-                info_y -= 5
-                p.setFont('Helvetica-Bold', 11)
-                p.drawString(text_x, info_y, 'OFFICIAL FEE PAYMENT RECEIPT')
-            else:
-                # Left-aligned if no logo
-                text_x = 25 * mm
-                p.setFont('Helvetica-Bold', 20)
-                school_y = height - 25
-                p.drawString(text_x, school_y, school_name.upper())
-                
-                info_y = school_y - 16
-                p.setFont('Helvetica', 9)
-                if school_address:
-                    p.drawString(text_x, info_y, school_address[:60])
-                    info_y -= 11
-                if school_phone:
-                    p.drawString(text_x, info_y, f"Phone: {school_phone}")
-                    info_y -= 11
-                if school_email:
-                    p.drawString(text_x, info_y, f"Email: {school_email}")
-                    info_y -= 11
-                
-                info_y -= 5
-                p.setFont('Helvetica-Bold', 12)
-                p.drawString(text_x, info_y, 'OFFICIAL FEE PAYMENT RECEIPT')
+            if school_phone:
+                p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                info_y -= 11
+            if school_email:
+                p.drawString(text_x, info_y, f"Email: {school_email}")
+                info_y -= 11
+            
+            # Document title below contact info
+            info_y -= 5
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(text_x, info_y, 'FEE PAYMENT RECEIPT')
             
             y = height - 70
             p.setFillColor(colors.black)
@@ -4512,9 +4470,14 @@ class TransferCertificatePDFView(APIView):
             except Exception:
                 pass
             
-            # Header with logo on LEFT
+            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
+            # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            logo_width = 0
+            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
+            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            logo_x = 25 * mm
+            logo_y_top = height - 25 * mm
+            
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -4522,9 +4485,11 @@ class TransferCertificatePDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
+                        # Fixed logo size: max 35mm height
                         max_height = 35 * mm
+                        max_width = 35 * mm
                         img_width, img_height = img.size
-                        scale = min(max_height / img_height, max_height / img_width)
+                        scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
                         new_height = int(img_height * scale)
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
@@ -4532,23 +4497,18 @@ class TransferCertificatePDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        logo_x = 25 * mm
-                        logo_y = height - 25 - new_height
+                        # Draw logo at fixed position
+                        logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
-                        logo_width = new_width + 10 * mm
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and info on RIGHT of logo
+            # Text always starts at FIXED position (regardless of logo size)
             p.setFillColor(colors.black)
-            if logo_drawn:
-                text_x = 25 * mm + logo_width
-            else:
-                text_x = 25 * mm
-            
+            text_x = FIXED_TEXT_START_X  # Fixed position for text
             p.setFont('Helvetica-Bold', 18)
-            school_y = height - 25
+            school_y = logo_y_top
             p.drawString(text_x, school_y, school_name.upper())
             
             # School contact info
