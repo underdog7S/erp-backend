@@ -3,7 +3,7 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate
 )
 from api.models.user import UserProfile
 
@@ -58,8 +58,9 @@ class StudentSerializer(serializers.ModelSerializer):
         model = Student
         fields = [
             'id', 'name', 'email', 'upper_id', 'admission_date', 'assigned_class', 'assigned_class_id',
-            'phone', 'address', 'date_of_birth', 'gender', 'cast', 'religion', 'parent_name', 'parent_phone', 'is_active',
-            'created_at', 'updated_at'
+            'phone', 'address', 'date_of_birth', 'gender', 'cast', 'religion', 'parent_name', 'parent_phone',
+            'aadhaar_uid', 'father_name', 'father_aadhaar', 'mother_name', 'mother_aadhaar',
+            'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
     
@@ -459,4 +460,18 @@ class StaffAttendanceSerializer(serializers.ModelSerializer):
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
-        fields = ['id', 'name'] 
+        fields = ['id', 'name']
+
+
+class TransferCertificateSerializer(serializers.ModelSerializer):
+    """Serializer for Transfer Certificate model"""
+    student_name_display = serializers.CharField(source='student.name', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    issued_by_name = serializers.CharField(source='issued_by.user.get_full_name', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.user.get_full_name', read_only=True)
+    
+    class Meta:
+        model = TransferCertificate
+        fields = '__all__'
+        read_only_fields = ['tc_number', 'created_at', 'updated_at'] 

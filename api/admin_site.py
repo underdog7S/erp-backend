@@ -54,9 +54,15 @@ class SecureAdminSite(AdminSite):
         # Add API documentation link to context
         extra_context = extra_context or {}
         from django.urls import reverse
-        api_docs_url = reverse('api-docs')
-        extra_context['api_docs_url'] = api_docs_url
-        extra_context['api_docs_title'] = 'API Documentation'
+        try:
+            api_docs_url = reverse('api-docs')
+            extra_context['api_docs_url'] = request.build_absolute_uri(api_docs_url)
+            extra_context['api_docs_title'] = 'API Documentation'
+            extra_context['api_docs_available'] = True
+        except Exception:
+            extra_context['api_docs_url'] = None
+            extra_context['api_docs_title'] = None
+            extra_context['api_docs_available'] = False
         
         return super().index(request, extra_context)
     
@@ -94,6 +100,26 @@ class SecureAdminSite(AdminSite):
             context['api_docs_url'] = None
             context['api_docs_title'] = None
         return context
+    
+    def get_urls(self):
+        """
+        Override to add custom API docs redirect URL
+        """
+        from django.urls import path
+        from django.contrib.admin.views.decorators import staff_member_required
+        from django.shortcuts import redirect
+        
+        @staff_member_required
+        def api_docs_admin_redirect(request):
+            """Admin view to redirect to API documentation"""
+            api_docs_url = reverse('api-docs')
+            return redirect(api_docs_url)
+        
+        urls = super().get_urls()
+        custom_urls = [
+            path('api-docs/', api_docs_admin_redirect, name='admin-api-docs'),
+        ]
+        return custom_urls + urls
 
 
 # Create custom admin site instance

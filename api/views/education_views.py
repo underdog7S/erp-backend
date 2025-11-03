@@ -9,7 +9,7 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate
 )
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
 from api.models.serializers_education import (
@@ -18,7 +18,8 @@ from api.models.serializers_education import (
     StaffAttendanceSerializer, DepartmentSerializer, AcademicYearSerializer, 
     TermSerializer, SubjectSerializer, UnitSerializer, AssessmentTypeSerializer, 
     AssessmentSerializer, MarksEntrySerializer, FeeInstallmentPlanSerializer, 
-    FeeInstallmentSerializer, OldBalanceSerializer, BalanceAdjustmentSerializer
+    FeeInstallmentSerializer, OldBalanceSerializer, BalanceAdjustmentSerializer,
+    TransferCertificateSerializer
 )
 from django.http import HttpResponse
 import csv
@@ -1043,20 +1044,40 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 10)  # Slightly smaller font to fit better
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            # FIXED column positions - adjusted to fit within margins (no overflow)
-            # Using percentage-based positioning to ensure fit
+            # FIXED column positions - properly calculated to fit within page margins
+            # Page width margins: 22mm left, 22mm right = 44mm total margin
+            # Available width = width - 44mm
+            available_width = width - 44 * mm
+            table_left = 22 * mm
+            table_right = width - 22 * mm
+            
+            # Column positions - ensure they fit within available width
+            # SUBJECT: flexible width (takes remaining space)
+            # MARKS OBTAINED: 25mm
+            # MAX MARKS: 25mm  
+            # PERCENTAGE: 25mm
+            # Total fixed columns = 75mm
+            fixed_cols_width = 75 * mm
+            subject_col_width = available_width - fixed_cols_width - 5 * mm  # Reserve 5mm for spacing
+            
             col_x = [
-                25 * mm,           # SUBJECT (left-aligned)
-                width - 85 * mm,   # MARKS OBTAINED (right-aligned)
-                width - 60 * mm,   # MAX MARKS (right-aligned)
-                width - 30 * mm    # PERCENTAGE (right-aligned)
+                table_left + 3 * mm,                    # SUBJECT (left-aligned, 3mm padding)
+                table_right - 75 * mm,                   # MARKS OBTAINED (right-aligned, starts before fixed cols)
+                table_right - 50 * mm,                   # MAX MARKS (right-aligned)
+                table_right - 25 * mm                    # PERCENTAGE (right-aligned, 3mm padding from edge)
             ]
             col_widths = [
-                105 * mm,          # SUBJECT width
-                20 * mm,           # MARKS OBTAINED width
-                20 * mm,           # MAX MARKS width
-                22 * mm            # PERCENTAGE width
+                subject_col_width,                        # SUBJECT width (dynamic, but capped)
+                23 * mm,                                  # MARKS OBTAINED width
+                23 * mm,                                  # MAX MARKS width
+                22 * mm                                   # PERCENTAGE width
             ]
+            
+            # Validate columns don't exceed page width
+            if col_x[0] + subject_col_width > col_x[1] - 3 * mm:
+                # Adjust if columns overlap - reduce subject width
+                subject_col_width = col_x[1] - col_x[0] - 10 * mm
+                col_widths[0] = subject_col_width
             
             for i, htxt in enumerate(headers):
                 if i == 0:
@@ -1071,10 +1092,15 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)
             y -= 15
             
-            # Vertical column separators (fixed positions)
+            # Vertical column separators (fixed positions - match column boundaries)
             p.setStrokeColor(colors.HexColor('#cccccc'))
             p.setLineWidth(0.3)
-            sep_positions = [width - 85 * mm, width - 60 * mm, width - 30 * mm]  # Between columns
+            # Separators at column boundaries (between SUBJECT/MARKS, MARKS/MAX, MAX/PERCENTAGE)
+            sep_positions = [
+                col_x[1] - 1 * mm,  # Between SUBJECT and MARKS OBTAINED
+                col_x[2] - 1 * mm,  # Between MARKS OBTAINED and MAX MARKS
+                col_x[3] - 1 * mm   # Between MAX MARKS and PERCENTAGE
+            ]
             for sep_x in sep_positions:
                 p.line(sep_x, y, sep_x, y - table_height + 12)
 
@@ -1118,26 +1144,38 @@ class ReportCardPDFView(APIView):
                 p.line(table_left, y - 12, table_right, y - 12)
                 p.setFillColor(colors.black)
                 
-                # Truncate subject name if too long to fit in column
+                # Truncate subject name if too long to fit in column - prevent overflow
                 max_subject_width = col_widths[0] - 3 * mm
                 display_subject = subject_name
                 if p.stringWidth(subject_name, 'Helvetica', 9) > max_subject_width:
-                    # Truncate to fit
-                    for i in range(len(subject_name), 0, -1):
-                        test_name = subject_name[:i] + '...'
+                    # Truncate to fit - binary search for optimal truncation
+                    low, high = 0, len(subject_name)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_name = subject_name[:mid] + '...'
                         if p.stringWidth(test_name, 'Helvetica', 9) <= max_subject_width:
-                            display_subject = test_name
-                            break
+                            low = mid
+                        else:
+                            high = mid - 1
+                    display_subject = subject_name[:low] + '...' if low < len(subject_name) else subject_name[:low]
                 
-                # Properly aligned values - within fixed column widths
-                p.drawString(col_x[0], y, display_subject)  # Left align subject (truncated if needed)
-                # Right align numbers
+                # Properly aligned values - within fixed column widths - ensure no overflow
+                # Left align subject (truncated if needed) - clamp to column boundary
+                subject_draw_x = min(col_x[0], table_left + 3 * mm)
+                p.drawString(subject_draw_x, y, display_subject)
+                
+                # Right align numbers - ensure they stay within column boundaries
                 marks_str = str(int(float(entry.marks_obtained)))
-                p.drawRightString(col_x[1] + col_widths[1], y, marks_str)
+                marks_draw_x = min(col_x[1] + col_widths[1], table_right - 3 * mm)
+                p.drawRightString(marks_draw_x, y, marks_str[:8])  # Limit to 8 chars
+                
                 max_marks_str = str(int(float(entry.max_marks)))
-                p.drawRightString(col_x[2] + col_widths[2], y, max_marks_str)
+                max_marks_draw_x = min(col_x[2] + col_widths[2], table_right - 28 * mm)
+                p.drawRightString(max_marks_draw_x, y, max_marks_str[:8])  # Limit to 8 chars
+                
                 percent_str = f"{percent:.1f}%"
-                p.drawRightString(col_x[3] + col_widths[3], y, percent_str)
+                percent_draw_x = min(col_x[3] + col_widths[3], table_right - 3 * mm)
+                p.drawRightString(percent_draw_x, y, percent_str[:10])  # Limit to 10 chars
                 y -= 14
                 row_num += 1
 
@@ -1167,29 +1205,38 @@ class ReportCardPDFView(APIView):
             if report_card.rank_in_class:
                 summary_items.append(('Class Rank', f"#{report_card.rank_in_class}"))
             
-            # Fixed positions for better alignment (government marksheet style)
-            summary_positions = [
-                (30 * mm, 100 * mm),    # Total Marks
-                (110 * mm, 140 * mm),   # Percentage
-                (150 * mm, 170 * mm),   # Grade
-            ]
-            if len(summary_items) == 4:
-                summary_positions.append((180 * mm, 195 * mm))  # Class Rank
+            # Fixed positions for better alignment (government marksheet style) - ensure within margins
+            # Use page width minus margins (22mm each side) to calculate safe positions
+            available_summary_width = width - 44 * mm
+            summary_start_x = 25 * mm
             
-            for i, (label, value) in enumerate(summary_items):
-                if i < len(summary_positions):
-                    label_pos, value_pos = summary_positions[i]
+            # Distribute items evenly across available width
+            if len(summary_items) <= 3:
+                # 3 items: distribute evenly
+                item_spacing = available_summary_width / (len(summary_items) + 1)
+                for i, (label, value) in enumerate(summary_items):
+                    label_pos = summary_start_x + (i + 1) * item_spacing - p.stringWidth(label + ':', 'Helvetica-Bold', 10) / 2
+                    value_pos = summary_start_x + (i + 1) * item_spacing - p.stringWidth(value, 'Helvetica', 11) / 2
                     p.setFont('Helvetica-Bold', 10)
-                    p.drawString(label_pos, y, label + ':')
+                    p.drawString(max(25 * mm, label_pos), y, label + ':')
                     p.setFont('Helvetica', 11)
-                    p.drawString(value_pos, y - 12, value)
-                else:
-                    # Fallback for dynamic items
-                    x_pos = 25 * mm + (i * 50 * mm)
+                    p.drawString(max(25 * mm, value_pos), y - 12, value)
+            else:
+                # 4 items: use 2x2 grid
+                left_col = 30 * mm
+                right_col = width / 2 + 10 * mm
+                for i, (label, value) in enumerate(summary_items):
+                    col_x = right_col if i >= 2 else left_col
+                    row_y = y if i < 2 else y - 30
                     p.setFont('Helvetica-Bold', 10)
-                    p.drawString(x_pos, y, label + ':')
+                    p.drawString(col_x, row_y, label + ':')
                     p.setFont('Helvetica', 11)
-                    p.drawString(x_pos + 15 * mm, y - 12, value)
+                    # Calculate value position to stay within margins
+                    value_x = col_x + 20 * mm
+                    max_value_x = width - 25 * mm
+                    if value_x + p.stringWidth(value, 'Helvetica', 11) > max_value_x:
+                        value_x = max_value_x - p.stringWidth(value, 'Helvetica', 11)
+                    p.drawString(value_x, row_y - 12, value)
             p.setFillColor(colors.black)  # Switch back to black for rest
             y -= 25
 
@@ -1349,7 +1396,14 @@ class StudentExportView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error getting user profile in StudentExportView: {str(e)}", exc_info=True)
+            return Response({'error': 'An error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         students = Student._default_manager.filter(tenant=profile.tenant)
         # Filtering (same as list)
         search = request.query_params.get('search')
@@ -1405,19 +1459,37 @@ class StudentExportView(APIView):
                 return Response({'error': f'PDF export failed: {str(e)}'}, status=500)
         else:
             # CSV export
-            response = HttpResponse(content_type='text/csv')
-            response['Content-Disposition'] = 'attachment; filename="students.csv"'
-            writer = csv.writer(response)
-            writer.writerow(["ID", "Name", "Email", "Admission Date", "Assigned Class"])
-            for s in students:
+            try:
+                response = HttpResponse(content_type='text/csv')
+                response['Content-Disposition'] = 'attachment; filename="students.csv"'
+                writer = csv.writer(response)
+                # Include new fields: Aadhaar, Father, Mother details
                 writer.writerow([
-                    s.id,
-                    s.name,
-                    s.email,
-                    s.admission_date.strftime('%Y-%m-%d'),
-                    s.assigned_class.name if s.assigned_class else ""
+                    "ID", "Name", "Email", "Admission Date", "Assigned Class",
+                    "Aadhaar UID", "Father Name", "Father Aadhaar", "Mother Name", "Mother Aadhaar",
+                    "Phone", "Address", "Date of Birth", "Gender"
                 ])
-            return response 
+                for s in students:
+                    writer.writerow([
+                        s.id,
+                        s.name,
+                        s.email,
+                        s.admission_date.strftime('%Y-%m-%d') if s.admission_date else "",
+                        s.assigned_class.name if s.assigned_class else "",
+                        getattr(s, 'aadhaar_uid', '') or "",
+                        getattr(s, 'father_name', '') or "",
+                        getattr(s, 'father_aadhaar', '') or "",
+                        getattr(s, 'mother_name', '') or "",
+                        getattr(s, 'mother_aadhaar', '') or "",
+                        s.phone or "",
+                        s.address or "",
+                        s.date_of_birth.strftime('%Y-%m-%d') if s.date_of_birth else "",
+                        s.gender or ""
+                    ])
+                return response
+            except Exception as e:
+                logger.error(f"Error in CSV export: {str(e)}", exc_info=True)
+                return Response({'error': f'CSV export failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 class ClassFeeStructureListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -4257,4 +4329,425 @@ class ClassPromotionHistoryView(APIView):
                 'created_at': promo.created_at.isoformat()
             })
         
-        return Response(result) 
+        return Response(result)
+
+
+class TransferCertificateListCreateView(APIView):
+    """List and create Transfer Certificates"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request):
+        """List all TCs with filtering"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        tcs = TransferCertificate._default_manager.filter(tenant=profile.tenant)
+        
+        # Filtering
+        student_id = request.query_params.get('student_id')
+        class_id = request.query_params.get('class_id')
+        academic_year_id = request.query_params.get('academic_year_id')
+        tc_number = request.query_params.get('tc_number')
+        
+        if student_id:
+            tcs = tcs.filter(student_id=student_id)
+        if class_id:
+            tcs = tcs.filter(class_obj_id=class_id)
+        if academic_year_id:
+            tcs = tcs.filter(academic_year_id=academic_year_id)
+        if tc_number:
+            tcs = tcs.filter(tc_number__icontains=tc_number)
+        
+        serializer = TransferCertificateSerializer(tcs.order_by('-issue_date', '-created_at'), many=True)
+        return Response(serializer.data)
+    
+    @role_required('admin', 'principal')
+    def post(self, request):
+        """Create a new Transfer Certificate"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data.copy()
+        data['tenant'] = profile.tenant.id
+        
+        # Auto-populate student details if student_id provided
+        student_id = data.get('student_id') or data.get('student')
+        if student_id:
+            try:
+                student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+                if not data.get('student_name'):
+                    data['student_name'] = student.name
+                if not data.get('date_of_birth'):
+                    data['date_of_birth'] = student.date_of_birth
+                if not data.get('admission_number'):
+                    data['admission_number'] = student.upper_id or str(student.id)
+                if not data.get('admission_date'):
+                    data['admission_date'] = student.admission_date
+                if not data.get('class_obj') and not data.get('class_obj_id'):
+                    data['class_obj_id'] = student.assigned_class_id
+            except Student.DoesNotExist:
+                return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Set issuer if not provided
+        if not data.get('issued_by') and not data.get('issued_by_id'):
+            data['issued_by_id'] = profile.id
+        
+        serializer = TransferCertificateSerializer(data=data, context={'request': request})
+        if serializer.is_valid():
+            tc = serializer.save(tenant=profile.tenant)
+            return Response(TransferCertificateSerializer(tc).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TransferCertificateDetailView(APIView):
+    """Get, update, or delete a Transfer Certificate"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant', 'teacher')
+    def get(self, request, pk):
+        """Get a specific TC"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = TransferCertificateSerializer(tc)
+            return Response(serializer.data)
+        except TransferCertificate.DoesNotExist:
+            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def put(self, request, pk):
+        """Update a TC"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except TransferCertificate.DoesNotExist:
+            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def delete(self, request, pk):
+        """Delete a TC"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+            tc.delete()
+            return Response({'message': 'Transfer Certificate deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        except TransferCertificate.DoesNotExist:
+            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class TransferCertificatePDFView(APIView):
+    """Generate PDF for Transfer Certificate"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'accountant')
+    def get(self, request, pk):
+        """Generate standard TC PDF"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+        except TransferCertificate.DoesNotExist:
+            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.lib import colors
+            from reportlab.lib.units import mm
+            from io import BytesIO
+            
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+            
+            # Get tenant/school info
+            tenant = profile.tenant
+            school_name = getattr(tenant, 'name', '') or 'School'
+            
+            # Get school contact information from admin user profile
+            school_address = ''
+            school_phone = ''
+            school_email = ''
+            try:
+                admin_profile = UserProfile._default_manager.filter(
+                    tenant=tenant, 
+                    role__name='admin'
+                ).first()
+                if admin_profile:
+                    school_address = admin_profile.address or ''
+                    school_phone = admin_profile.phone or ''
+                    school_email = admin_profile.user.email if admin_profile.user else ''
+            except Exception:
+                pass
+            
+            # Header with logo on LEFT
+            logo_drawn = False
+            logo_width = 0
+            if tenant.logo:
+                try:
+                    from PIL import Image
+                    import os
+                    logo_path = tenant.logo.path
+                    if os.path.exists(logo_path):
+                        img = Image.open(logo_path)
+                        max_height = 35 * mm
+                        img_width, img_height = img.size
+                        scale = min(max_height / img_height, max_height / img_width)
+                        new_width = int(img_width * scale)
+                        new_height = int(img_height * scale)
+                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        from reportlab.lib.utils import ImageReader
+                        logo_reader = ImageReader(img)
+                        logo_x = 25 * mm
+                        logo_y = height - 25 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
+                        logo_drawn = True
+                        logo_width = new_width + 10 * mm
+                except Exception as e:
+                    logger.warning(f"Could not load tenant logo: {e}")
+            
+            # School name and info on RIGHT of logo
+            p.setFillColor(colors.black)
+            if logo_drawn:
+                text_x = 25 * mm + logo_width
+            else:
+                text_x = 25 * mm
+            
+            p.setFont('Helvetica-Bold', 18)
+            school_y = height - 25
+            p.drawString(text_x, school_y, school_name.upper())
+            
+            # School contact info
+            info_y = school_y - 16
+            p.setFont('Helvetica', 9)
+            if school_address:
+                max_addr_width = width - text_x - 25 * mm
+                if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
+                    addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                    for line in addr_lines[:2]:
+                        p.drawString(text_x, info_y, line)
+                        info_y -= 11
+                else:
+                    p.drawString(text_x, info_y, school_address)
+                    info_y -= 11
+            if school_phone:
+                p.drawString(text_x, info_y, f"Phone: {school_phone}")
+                info_y -= 11
+            if school_email:
+                p.drawString(text_x, info_y, f"Email: {school_email}")
+                info_y -= 11
+            
+            # Document title
+            info_y -= 5
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(text_x, info_y, 'TRANSFER CERTIFICATE')
+            
+            y = height - 110
+            
+            # TC Number and Date
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y, f'TC Number: {tc.tc_number}')
+            p.setFont('Helvetica', 12)
+            issue_date_str = tc.issue_date.strftime('%d/%m/%Y') if tc.issue_date else 'N/A'
+            p.drawRightString(width - 25 * mm, y, f'Date: {issue_date_str}')
+            y -= 25
+            
+            # Border box for TC content
+            content_y_start = y
+            content_height = 40 * mm
+            p.setStrokeColor(colors.black)
+            p.setLineWidth(1.5)
+            p.rect(20 * mm, content_height, width - 40 * mm, content_y_start - content_height, stroke=1, fill=0)
+            
+            y -= 15
+            
+            # Student Information Section
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y, 'STUDENT INFORMATION')
+            y -= 20
+            
+            # Student details with proper alignment and truncation
+            label_x = 25 * mm
+            value_x = 95 * mm
+            value_max_width = width - value_x - 25 * mm
+            
+            details = [
+                ('Student Name:', tc.student_name or 'N/A'),
+                ('Date of Birth:', tc.date_of_birth.strftime('%d/%m/%Y') if tc.date_of_birth else 'N/A'),
+                ('Admission Number:', tc.admission_number or 'N/A'),
+                ('Admission Date:', tc.admission_date.strftime('%d/%m/%Y') if tc.admission_date else 'N/A'),
+                ('Class:', tc.class_obj.name if tc.class_obj else 'N/A'),
+                ('Academic Year:', tc.academic_year.name if tc.academic_year else 'N/A'),
+                ('Last Class Promoted:', tc.last_class_promoted or 'N/A'),
+            ]
+            
+            p.setFont('Helvetica-Bold', 10)
+            for label, value in details:
+                if y < content_height + 20:
+                    p.showPage()
+                    y = height - 40
+                p.drawString(label_x, y, label)
+                p.setFont('Helvetica', 10)
+                # Truncate value if too long
+                value_str = str(value)
+                if p.stringWidth(value_str, 'Helvetica', 10) > value_max_width:
+                    value_str = value_str[:int(value_max_width / 6)] + '...'
+                p.drawString(value_x, y, value_str)
+                y -= 15
+                p.setFont('Helvetica-Bold', 10)
+            
+            y -= 10
+            
+            # Fees and Dues Section
+            if y < content_height + 30:
+                p.showPage()
+                y = height - 40
+            
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y, 'FEES & DUES')
+            y -= 20
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, 'All Dues Cleared:')
+            p.setFont('Helvetica', 10)
+            dues_status = 'Yes' if tc.dues_paid else 'No'
+            p.drawString(95 * mm, y, dues_status)
+            y -= 15
+            
+            if tc.dues_details:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Dues Details:')
+                y -= 12
+                p.setFont('Helvetica', 9)
+                dues_lines = [tc.dues_details[i:i+80] for i in range(0, min(len(tc.dues_details), 240), 80)]
+                for line in dues_lines[:3]:
+                    if y < content_height + 15:
+                        break
+                    p.drawString(25 * mm, y, line)
+                    y -= 11
+                y -= 5
+            
+            y -= 10
+            
+            # Transfer Details Section
+            if y < content_height + 30:
+                p.showPage()
+                y = height - 40
+            
+            if tc.transferring_to_school:
+                p.setFont('Helvetica-Bold', 12)
+                p.drawString(25 * mm, y, 'TRANSFER DETAILS')
+                y -= 20
+                
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Transferring To:')
+                p.setFont('Helvetica', 10)
+                school_name_trunc = str(tc.transferring_to_school)[:60] if len(str(tc.transferring_to_school)) > 60 else str(tc.transferring_to_school)
+                p.drawString(95 * mm, y, school_name_trunc)
+                y -= 15
+                
+                if tc.transferring_to_address:
+                    p.setFont('Helvetica-Bold', 10)
+                    p.drawString(25 * mm, y, 'Address:')
+                    y -= 12
+                    p.setFont('Helvetica', 9)
+                    addr_lines = [tc.transferring_to_address[i:i+80] for i in range(0, min(len(tc.transferring_to_address), 240), 80)]
+                    for line in addr_lines[:3]:
+                        if y < content_height + 15:
+                            break
+                        p.drawString(25 * mm, y, line)
+                        y -= 11
+            
+            y -= 10
+            
+            # Reason and Remarks
+            if y < content_height + 40:
+                p.showPage()
+                y = height - 40
+            
+            if tc.reason_for_leaving:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Reason for Leaving:')
+                y -= 12
+                p.setFont('Helvetica', 10)
+                reason_trunc = str(tc.reason_for_leaving)[:80] if len(str(tc.reason_for_leaving)) > 80 else str(tc.reason_for_leaving)
+                p.drawString(25 * mm, y, reason_trunc)
+                y -= 20
+            
+            if tc.conduct_remarks:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Conduct Remarks:')
+                y -= 12
+                p.setFont('Helvetica', 10)
+                conduct_trunc = str(tc.conduct_remarks)[:90] if len(str(tc.conduct_remarks)) > 90 else str(tc.conduct_remarks)
+                p.drawString(25 * mm, y, conduct_trunc)
+                y -= 20
+            
+            if tc.remarks:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(25 * mm, y, 'Additional Remarks:')
+                y -= 12
+                p.setFont('Helvetica', 9)
+                remarks_lines = [tc.remarks[i:i+85] for i in range(0, min(len(tc.remarks), 255), 85)]
+                for line in remarks_lines[:4]:
+                    if y < content_height + 15:
+                        break
+                    p.drawString(25 * mm, y, line)
+                    y -= 11
+            
+            # Authority signatures section (bottom)
+            p.showPage()
+            y = height - 60
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y, 'AUTHORITY SIGNATURES')
+            y -= 25
+            
+            # Issued by
+            if tc.issued_by:
+                issuer_name = tc.issued_by.user.get_full_name() or tc.issued_by.user.username if tc.issued_by.user else 'N/A'
+                p.setFont('Helvetica', 10)
+                p.drawString(25 * mm, y, f'Issued By: {issuer_name}')
+                y -= 20
+                p.drawString(25 * mm, y, 'Signature: ___________________')
+                y -= 25
+            
+            # Approved by
+            if tc.approved_by:
+                approver_name = tc.approved_by.user.get_full_name() or tc.approved_by.user.username if tc.approved_by.user else 'N/A'
+                p.setFont('Helvetica', 10)
+                p.drawString(25 * mm, y, f'Approved By: {approver_name}')
+                y -= 20
+                p.drawString(25 * mm, y, 'Signature: ___________________')
+            
+            # Footer
+            p.setFont('Helvetica', 8)
+            p.setFillColor(colors.black)
+            footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            p.drawCentredString(width / 2, 20 * mm, footer_text)
+            
+            p.save()
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            tc_filename = f"transfer_certificate_{tc.tc_number}_{tc.id}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{tc_filename}"'
+            return response
+            
+        except ImportError as e:
+            logger.error(f"PDF generation import error: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'PDF generation library not installed.',
+                'details': 'Install required packages: pip install reportlab Pillow'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"Error generating TC PDF: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'TC PDF generation failed: {str(e)}',
+                'details': 'Check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

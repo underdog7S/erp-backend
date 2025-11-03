@@ -562,6 +562,8 @@ class GuestSerializer(serializers.ModelSerializer):
 
 class BookingSerializer(serializers.ModelSerializer):
 	room_number = serializers.CharField(source='room.room_number', read_only=True)
+	room = RoomSerializer(read_only=True)
+	guest = GuestSerializer(read_only=True)
 	guest_name = serializers.SerializerMethodField()
 
 	class Meta:
@@ -569,8 +571,10 @@ class BookingSerializer(serializers.ModelSerializer):
 		fields = '__all__'
 
 	def get_guest_name(self, obj):
-		name = f"{obj.guest.first_name} {obj.guest.last_name}".strip()
-		return name
+		if obj.guest:
+			name = f"{obj.guest.first_name} {obj.guest.last_name}".strip()
+			return name
+		return ""
 
 # Restaurant Serializers
 class MenuCategorySerializer(serializers.ModelSerializer):
@@ -597,6 +601,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
 	items = OrderItemSerializer(many=True, read_only=True)
+	table = TableSerializer(read_only=True)
 	table_number = serializers.CharField(source='table.number', read_only=True, allow_null=True)
 	class Meta:
 		model = Order

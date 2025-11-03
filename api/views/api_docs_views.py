@@ -1,7 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission, AllowAny, IsAuthenticated
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.http import JsonResponse
 from django.conf import settings
 
@@ -31,7 +33,11 @@ class APIDocumentationView(APIView):
     Security Levels:
     - DEBUG mode: Public access (development only)
     - Production: Superuser or Staff only
+    
+    Authentication:
+    - Supports both JWT (for API clients) and Session (for Django admin users)
     """
+    authentication_classes = [SessionAuthentication, JWTAuthentication]  # Support both session (Django admin) and JWT (API clients)
     permission_classes = [AllowAny] if settings.DEBUG else [IsSuperUserOrStaff]
 
     def get(self, request):
@@ -261,6 +267,7 @@ class APIDocumentationView(APIView):
         return Response(docs)
 
 @api_view(['GET'])
+@authentication_classes([SessionAuthentication, JWTAuthentication])  # Support both session (Django admin) and JWT (API clients)
 @permission_classes([AllowAny] if settings.DEBUG else [IsSuperUserOrStaff])
 def api_examples(request):
     """Interactive API examples"""

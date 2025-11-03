@@ -61,6 +61,12 @@ class Student(models.Model):
     religion = models.CharField(max_length=100, blank=True, null=True, help_text="Student's religion")
     parent_name = models.CharField(max_length=100, blank=True, null=True)
     parent_phone = models.CharField(max_length=20, blank=True, null=True)
+    # Aadhaar and Parent Details
+    aadhaar_uid = models.CharField(max_length=12, blank=True, null=True, help_text="Student's Aadhaar UID (12 digits)")
+    father_name = models.CharField(max_length=100, blank=True, null=True, help_text="Father's full name")
+    father_aadhaar = models.CharField(max_length=12, blank=True, null=True, help_text="Father's Aadhaar UID (12 digits)")
+    mother_name = models.CharField(max_length=100, blank=True, null=True, help_text="Mother's full name")
+    mother_aadhaar = models.CharField(max_length=12, blank=True, null=True, help_text="Mother's Aadhaar UID (12 digits)")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -695,9 +701,71 @@ class StudentPromotion(models.Model):
     
     class Meta:
         ordering = ['-promotion_date', '-created_at']
-        unique_together = ['tenant', 'student', 'from_academic_year', 'to_academic_year']
+        unique_together = [['tenant', 'student', 'promotion_date', 'from_class']]
     
     def __str__(self):
-        from_name = self.from_class.name if self.from_class else "N/A"
-        to_name = self.to_class.name if self.to_class else "N/A"
-        return f"{self.student.name}: {from_name} → {to_name} ({self.promotion_date})" 
+        return f"{self.student.name} - {self.from_class} to {self.to_class} ({self.promotion_date})"
+
+
+class TransferCertificate(models.Model):
+    """Transfer Certificate (TC) - Year-wise, class-wise data storage"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='transfer_certificates')
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='transfer_certificates', null=True, blank=True)
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='transfer_certificates', help_text="Class at time of TC issue")
+    
+    # TC Details
+    tc_number = models.CharField(max_length=50, unique=True, help_text="Unique TC number (auto-generated)")
+    issue_date = models.DateField(help_text="Date of TC issue")
+    reason_for_leaving = models.CharField(max_length=200, blank=True, null=True, help_text="Reason for leaving school")
+    last_attended_date = models.DateField(blank=True, null=True, help_text="Last date student attended classes")
+    
+    # Student Details at time of TC
+    student_name = models.CharField(max_length=100, help_text="Student name at time of TC")
+    date_of_birth = models.DateField(blank=True, null=True)
+    admission_number = models.CharField(max_length=50, blank=True, null=True)
+    admission_date = models.DateField(blank=True, null=True, help_text="Original admission date")
+    last_class_promoted = models.CharField(max_length=100, blank=True, null=True, help_text="Last class in which student was promoted")
+    
+    # Fees and Dues
+    dues_paid = models.BooleanField(default=True, help_text="Whether all dues are cleared")
+    dues_details = models.TextField(blank=True, help_text="Details of any pending dues")
+    
+    # Transfer Details
+    transferring_to_school = models.CharField(max_length=200, blank=True, null=True, help_text="Name of school/college transferring to")
+    transferring_to_address = models.TextField(blank=True, help_text="Address of new school")
+    
+    # Remarks
+    remarks = models.TextField(blank=True, help_text="Additional remarks")
+    conduct_remarks = models.CharField(max_length=200, blank=True, help_text="Conduct and character remarks")
+    
+    # Authority
+    issued_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='issued_tcs', help_text="Admin/Principal who issued TC")
+    approved_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_tcs', help_text="Principal who approved TC")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-issue_date', '-created_at']
+        unique_together = [['tenant', 'tc_number']]
+    
+    def save(self, *args, **kwargs):
+        if not self.tc_number:
+            # Auto-generate TC number
+            self.tc_number = self.generate_tc_number()
+        super().save(*args, **kwargs)
+    
+    def generate_tc_number(self):
+        """Generate unique TC number"""
+        import uuid
+        from datetime import datetime
+        
+        # Format: TC-YYYY-MMDD-XXXX (e.g., TC-2024-1102-A1B2)
+        year = datetime.now().year
+        month_day = datetime.now().strftime('%m%d')
+        unique_part = uuid.uuid4().hex[:4].upper()
+        return f"TC-{year}-{month_day}-{unique_part}"
+    
+    def __str__(self):
+        return f"TC-{self.tc_number} - {self.student_name} ({self.class_obj})" 

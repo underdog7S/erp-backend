@@ -260,6 +260,11 @@ urlpatterns += [
     path('education/students/<int:student_id>/fee-reminder/', education_views.StudentFeeReminderView.as_view(), name='education-student-fee-reminder'),
     path('education/classes/<int:class_id>/fee-summary/', education_views.ClassFeeSummaryView.as_view(), name='education-class-fee-summary'),
     
+    # Transfer Certificate (TC) endpoints
+    path('education/tc/', education_views.TransferCertificateListCreateView.as_view(), name='education-tc-list'),
+    path('education/tc/<int:pk>/', education_views.TransferCertificateDetailView.as_view(), name='education-tc-detail'),
+    path('education/tc/<int:pk>/pdf/', education_views.TransferCertificatePDFView.as_view(), name='education-tc-pdf'),
+    
     # Pharmacy Export endpoints
     path('pharmacy/medicines/export/', pharmacy_views.MedicineExportView.as_view(), name='pharmacy-medicines-export'),
     path('pharmacy/sales/export/', pharmacy_views.PharmacySaleExportView.as_view(), name='pharmacy-sales-export'),
