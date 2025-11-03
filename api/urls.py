@@ -63,6 +63,7 @@ router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-pa
 urlpatterns = [
     # API Root
     path('', public_views.APIRootView.as_view(), name='api-root'),
+    path('sitemap.xml', public_views.SitemapView.as_view(), name='sitemap'),
     
     # Authentication
     path('register/', auth_views.RegisterView.as_view(), name='register'),
@@ -152,6 +153,10 @@ urlpatterns = [
     path('education/old-balances/summary/', education_views.OldBalanceSummaryView.as_view(), name='education-old-balance-summary'),
     path('education/balance-adjustments/', education_views.BalanceAdjustmentListCreateView.as_view(), name='education-balance-adjustments'),
     
+    # Class Promotion endpoints
+    path('education/promotions/', education_views.BulkClassPromotionView.as_view(), name='education-bulk-promotion'),
+    path('education/promotions/history/', education_views.ClassPromotionHistoryView.as_view(), name='education-promotion-history'),
+    
     path('education/fee-discounts/', education_views.FeeDiscountViewSet.as_view({'get': 'list', 'post': 'create'}), name='education-fee-discounts'),
     path('education/fee-discounts/<int:pk>/', education_views.FeeDiscountViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='education-fee-discount-detail'),
     path('education/departments/', education_views.DepartmentViewSet.as_view({'get': 'list', 'post': 'create'}), name='education-departments'),
@@ -239,6 +244,7 @@ urlpatterns += [
     path('education/analytics/monthly-report/export/', ExportMonthlyReportCSVView.as_view(), name='export-monthly-report'),
     path('payments/razorpay/order/', payments_views.RazorpayOrderCreateView.as_view(), name='razorpay-order'),
     path('payments/razorpay/verify/', payments_views.RazorpayPaymentVerifyView.as_view(), name='razorpay-verify'),
+    path('payments/receipt/<int:pk>/', payments_views.PaymentReceiptPDFView.as_view(), name='payment-receipt-pdf'),
     path('education/staff-attendance/check-in/', StaffAttendanceCheckInView.as_view(), name='staff-attendance-check-in'),
     path('education/staff-attendance/check-out/', StaffAttendanceCheckOutView.as_view(), name='staff-attendance-check-out'),
     

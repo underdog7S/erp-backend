@@ -186,4 +186,304 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
         profile = UserProfile._default_manager.get(user=request.user)
         if not profile.role or profile.role.name != 'admin':
             return Response({'error': 'Permission denied.'}, status=403)
-        return super().destroy(request, *args, **kwargs) 
+        return super().destroy(request, *args, **kwargs)
+
+class PaymentReceiptPDFView(APIView):
+    """Generate PDF receipt for a plan purchase payment"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            transaction = PaymentTransaction._default_manager.get(id=pk)
+            
+            # Check permissions - user can only download their own receipts or admin can download any
+            if transaction.user != request.user and (not profile.role or profile.role.name != 'admin'):
+                return Response({'error': 'Permission denied. You can only download your own receipts.'}, status=status.HTTP_403_FORBIDDEN)
+        except PaymentTransaction.DoesNotExist:
+            return Response({'error': 'Payment transaction not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.lib import colors
+            from reportlab.lib.units import mm
+            from io import BytesIO
+            from django.http import HttpResponse
+            from django.utils import timezone
+
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer, pagesize=A4)
+            width, height = A4
+
+            # Get tenant and company info
+            tenant = transaction.tenant
+            company_name = getattr(tenant, 'name', '') or 'Zenith ERP'
+            
+            # Draw logo on left side if available
+            logo_drawn = False
+            if tenant.logo:
+                try:
+                    from PIL import Image
+                    import os
+                    logo_path = tenant.logo.path
+                    if os.path.exists(logo_path):
+                        img = Image.open(logo_path)
+                        max_height = 18 * mm
+                        img_width, img_height = img.size
+                        scale = min(max_height / img_height, max_height / img_width)
+                        new_width = int(img_width * scale)
+                        new_height = int(img_height * scale)
+                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        from reportlab.lib.utils import ImageReader
+                        logo_reader = ImageReader(img)
+                        logo_x = 25 * mm
+                        logo_y = height - 12 - new_height
+                        p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
+                        logo_drawn = True
+                except Exception as e:
+                    logger.warning(f"Could not load tenant logo: {e}")
+            
+            # Company name and title
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 20)
+            title_x = 25 * mm if not logo_drawn else 25 * mm + 40 * mm
+            p.drawString(title_x, height - 20, company_name.upper())
+            p.setFont('Helvetica', 10)
+            p.drawString(title_x, height - 35, 'PAYMENT RECEIPT - PRODUCT SUBSCRIPTION')
+            
+            y = height - 70
+            p.setFillColor(colors.black)
+
+            # Receipt details section
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'PAYMENT DETAILS')
+            y -= 18
+            
+            receipt_number = f"PYT-{transaction.id:08X}"
+            payment_date = transaction.verified_at.strftime('%d/%m/%Y') if transaction.verified_at else transaction.created_at.strftime('%d/%m/%Y')
+            
+            label_x = 25 * mm
+            value_x = 95 * mm
+            label_x2 = 130 * mm
+            value_x2 = 170 * mm
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(label_x, y, 'Receipt Number:')
+            p.setFont('Helvetica', 11)
+            p.drawString(value_x, y, receipt_number)
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(label_x2, y, 'Payment Date:')
+            p.setFont('Helvetica', 11)
+            p.drawString(value_x2, y, payment_date)
+            y -= 18
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(label_x, y, 'Order ID:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, transaction.order_id)
+            
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(label_x2, y, 'Payment ID:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, transaction.payment_id[:20] + '...' if len(transaction.payment_id) > 20 else transaction.payment_id)
+            y -= 40
+
+            # Customer information section
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'CUSTOMER INFORMATION')
+            y -= 18
+            
+            customer_name = transaction.user.get_full_name() or transaction.user.username
+            customer_email = transaction.user.email or 'N/A'
+            tenant_name = transaction.tenant.name if transaction.tenant else 'N/A'
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Customer Name:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, customer_name.upper())
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Email:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, customer_email)
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Organization:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, tenant_name)
+            
+            plan_name = transaction.plan.name if transaction.plan else 'N/A'
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Plan:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, plan_name)
+            y -= 35
+
+            # Payment information section
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 90, width - 40 * mm, 90, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 8, 'SUBSCRIPTION DETAILS')
+            y -= 18
+            
+            amount_paid = float(transaction.amount)
+            currency = transaction.currency or 'INR'
+            billing_cycle = transaction.plan.billing_cycle if transaction.plan else 'N/A'
+            
+            label_x = 25 * mm
+            value_x = 95 * mm
+            label_x2 = 130 * mm
+            currency_x = width - 25 * mm
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Plan Name:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, plan_name)
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Billing Cycle:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x2, y, billing_cycle.upper())
+            y -= 15
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x, y, 'Currency:')
+            p.setFont('Helvetica', 10)
+            p.drawString(value_x, y, currency)
+            
+            p.setFont('Helvetica-Bold', 10)
+            p.drawString(label_x2, y, 'Status:')
+            p.setFont('Helvetica', 10)
+            status_text = transaction.status.upper() if transaction.status else 'VERIFIED'
+            p.drawString(value_x2, y, status_text)
+            y -= 20
+            
+            # Important notice about charges
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y, 'IMPORTANT: CHARGE BREAKDOWN')
+            y -= 15
+            p.setFont('Helvetica', 9)
+            notice_lines = [
+                "• This payment is for PRODUCT SUBSCRIPTION charges only.",
+                "• Training services are NOT included and require separate payment.",
+                "• Customization services (PC apps, PLC programming, etc.) have different pricing.",
+                "• API-based integrations and web creation services are charged separately.",
+                "• All additional services require separate quotes and agreements."
+            ]
+            for line in notice_lines:
+                p.drawString(30 * mm, y, line)
+                y -= 12
+            y -= 15
+
+            # Total amount section
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1.5)
+            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 14)
+            p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
+            p.setFont('Helvetica-Bold', 18)
+            p.drawRightString(width - 25 * mm, y - 10, f"₹{amount_paid:.2f}")
+            y -= 45
+
+            # Additional services and policies section
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 120, width - 40 * mm, 120, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 11)
+            p.drawString(25 * mm, y - 8, 'ADDITIONAL SERVICES & POLICIES')
+            y -= 18
+            
+            p.setFont('Helvetica-Bold', 9)
+            p.drawString(25 * mm, y, 'Training Services:')
+            y -= 12
+            p.setFont('Helvetica', 8)
+            training_text = [
+                "Training is a separate service with dedicated pricing. Training charges are not included",
+                "in this subscription. Please contact support for training packages and pricing."
+            ]
+            for line in training_text:
+                p.drawString(30 * mm, y, line)
+                y -= 11
+            
+            y -= 5
+            p.setFont('Helvetica-Bold', 9)
+            p.drawString(25 * mm, y, 'Customization Services:')
+            y -= 12
+            p.setFont('Helvetica', 8)
+            custom_text = [
+                "Custom development services (PC applications, PLC programming, TCP/IP & Ethernet PLC",
+                "connections, custom workflows) are available at additional costs. Each customization",
+                "project is quoted separately based on requirements and complexity."
+            ]
+            for line in custom_text:
+                p.drawString(30 * mm, y, line)
+                y -= 11
+            
+            y -= 5
+            p.setFont('Helvetica-Bold', 9)
+            p.drawString(25 * mm, y, 'API & Web Development:')
+            y -= 12
+            p.setFont('Helvetica', 8)
+            api_text = [
+                "API-based integrations and custom web application development are separate services",
+                "with different pricing structures. Contact our sales team for API integration and",
+                "web development service quotes."
+            ]
+            for line in api_text:
+                p.drawString(30 * mm, y, line)
+                y -= 11
+            
+            y -= 25
+
+            # Footer with policies
+            p.setFont('Helvetica', 8)
+            p.setFillColor(colors.black)
+            footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {company_name.upper()}"
+            p.drawCentredString(width / 2, 25 * mm, footer_text)
+            p.setFont('Helvetica-Oblique', 7)
+            policy_line1 = "For detailed pricing on training, customization, API, and web services, please contact support."
+            policy_line2 = "This is a computer-generated receipt and does not require a physical signature."
+            p.drawCentredString(width / 2, 18 * mm, policy_line1)
+            p.drawCentredString(width / 2, 12 * mm, policy_line2)
+
+            p.showPage()
+            p.save()
+            buffer.seek(0)
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            receipt_filename = f"payment_receipt_{receipt_number}_{transaction.id}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{receipt_filename}"'
+            return response
+        except ImportError as e:
+            logger.error(f"PDF generation import error: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'PDF generation library not installed.',
+                'details': 'Install required packages: pip install reportlab Pillow',
+                'missing': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.error(f"Error generating receipt PDF: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Receipt PDF generation failed: {str(e)}',
+                'details': 'Check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

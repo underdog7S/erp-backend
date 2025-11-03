@@ -242,3 +242,49 @@ class PublicEducationAdmissionCreateView(APIView):
 		)
 		return Response({'id': app.id, 'status': app.status}, status=201)
 
+class SitemapView(APIView):
+	"""Generate sitemap.xml for SEO"""
+	permission_classes = [AllowAny]
+	authentication_classes = []
+	
+	def get(self, request):
+		from django.http import HttpResponse
+		from datetime import datetime
+		
+		base_url = 'https://zenitherp.online'
+		current_date = datetime.now().strftime('%Y-%m-%d')
+		
+		# Public pages that should be indexed
+		public_pages = [
+			{'url': '', 'priority': '1.0', 'changefreq': 'weekly'},
+			{'url': '/about', 'priority': '0.8', 'changefreq': 'monthly'},
+			{'url': '/pricing', 'priority': '0.9', 'changefreq': 'monthly'},
+			{'url': '/faq', 'priority': '0.7', 'changefreq': 'monthly'},
+			{'url': '/contact', 'priority': '0.8', 'changefreq': 'monthly'},
+			{'url': '/privacy', 'priority': '0.5', 'changefreq': 'yearly'},
+			{'url': '/terms', 'priority': '0.5', 'changefreq': 'yearly'},
+			{'url': '/refund', 'priority': '0.5', 'changefreq': 'yearly'},
+			{'url': '/delivery', 'priority': '0.5', 'changefreq': 'yearly'},
+		]
+		
+		sitemap = f'''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+'''
+		
+		for page in public_pages:
+			sitemap += f'''  <url>
+    <loc>{base_url}{page['url']}</loc>
+    <lastmod>{current_date}</lastmod>
+    <changefreq>{page['changefreq']}</changefreq>
+    <priority>{page['priority']}</priority>
+  </url>
+'''
+		
+		sitemap += '</urlset>'
+		
+		response = HttpResponse(sitemap, content_type='application/xml')
+		return response
+

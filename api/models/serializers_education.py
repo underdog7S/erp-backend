@@ -3,15 +3,18 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment
+    OldBalance, BalanceAdjustment, StudentPromotion
 )
 from api.models.user import UserProfile
 
 class ClassSerializer(serializers.ModelSerializer):
     """Serializer for Class model."""
+    next_class_name = serializers.CharField(source='next_class.name', read_only=True)
+    
     class Meta:
         model = Class
-        fields = ['id', 'name', 'schedule']
+        fields = ['id', 'name', 'schedule', 'order', 'next_class', 'next_class_name']
+        read_only_fields = ['next_class_name']
 
 class OldBalanceSerializer(serializers.ModelSerializer):
     """Serializer for OldBalance model"""

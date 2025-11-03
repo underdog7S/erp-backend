@@ -6,8 +6,31 @@ class Class(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
     schedule = models.TextField(blank=True)
+    order = models.IntegerField(default=0, help_text="Class order/sequence (1 for 1st std, 2 for 2nd std, etc.). Used for automatic promotion.")
+    next_class = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='previous_classes', help_text="Next class for promotion (optional, if not set, will use order+1)")
+    
+    class Meta:
+        ordering = ['order', 'name']
+        unique_together = ['tenant', 'name']
+    
     def __str__(self):
         return self.name
+    
+    def get_next_class(self):
+        """Get the next class for promotion"""
+        if self.next_class:
+            return self.next_class
+        
+        # Find class with order = self.order + 1 in same tenant
+        try:
+            return Class._default_manager.get(tenant=self.tenant, order=self.order + 1)
+        except Class.DoesNotExist:
+            return None
+    
+    @property
+    def is_highest_class(self):
+        """Check if this is the highest class (no next class available)"""
+        return self.get_next_class() is None
 
 class Student(models.Model):
     GENDER_CHOICES = [
@@ -648,4 +671,33 @@ class BalanceAdjustment(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.student.name} - {self.adjustment_type}: ₹{abs(self.amount)}" 
+        return f"{self.student.name} - {self.adjustment_type}: ₹{abs(self.amount)}"
+
+class StudentPromotion(models.Model):
+    """Track student class promotions"""
+    PROMOTION_TYPE_CHOICES = [
+        ('PROMOTED', 'Promoted'),
+        ('REPEAT', 'Repeat Same Class'),
+        ('DEMOTED', 'Demoted'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='promotions')
+    from_class = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='promotions_from', null=True, blank=True, help_text="Previous class")
+    to_class = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='promotions_to', null=True, blank=True, help_text="New class")
+    from_academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='promotions_from', null=True, blank=True)
+    to_academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='promotions_to', null=True, blank=True)
+    promotion_type = models.CharField(max_length=20, choices=PROMOTION_TYPE_CHOICES, default='PROMOTED')
+    promotion_date = models.DateField(help_text="Date of promotion")
+    notes = models.TextField(blank=True, help_text="Additional notes about promotion")
+    promoted_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='promoted_students')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-promotion_date', '-created_at']
+        unique_together = ['tenant', 'student', 'from_academic_year', 'to_academic_year']
+    
+    def __str__(self):
+        from_name = self.from_class.name if self.from_class else "N/A"
+        to_name = self.to_class.name if self.to_class else "N/A"
+        return f"{self.student.name}: {from_name} → {to_name} ({self.promotion_date})" 

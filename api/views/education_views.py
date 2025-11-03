@@ -9,7 +9,7 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment
+    OldBalance, BalanceAdjustment, StudentPromotion
 )
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
 from api.models.serializers_education import (
@@ -794,22 +794,13 @@ class ReportCardPDFView(APIView):
             p.setLineWidth(0.5)
             p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
 
-            # Header banner with school name and logo
+            # Header with logo on left and school name on right (standard format)
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Classic header banner with double border
-            header_y_start = height - 70
-            p.setFillColor(colors.HexColor('#1a237e'))  # Classic deep blue
-            p.rect(20 * mm, header_y_start, width - 40 * mm, 55, stroke=0, fill=1)
-            
-            # Decorative border on header
-            p.setStrokeColor(colors.white)
-            p.setLineWidth(1)
-            p.rect(20 * mm, header_y_start, width - 40 * mm, 55, stroke=1, fill=0)
-            
-            # Draw logo in top-right corner (small, 20mm max, properly positioned)
+            # Draw logo on left side (standard position)
             logo_drawn = False
+            logo_width = 0
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -818,8 +809,8 @@ class ReportCardPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Resize logo to be small (max 20mm height for corner)
-                        max_height = 20 * mm
+                        # Resize logo to reasonable size (max 35mm height)
+                        max_height = 35 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_height / img_width)
                         new_width = int(img_width * scale)
@@ -832,61 +823,62 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Position in top-right corner with proper margin (avoid border overlap)
-                        # Ensure logo stays within page border (15mm margin)
-                        logo_x = width - 20 * mm - new_width  # 20mm from right, but ensure it's inside 15mm border
-                        if logo_x < 15 * mm + 2:  # If too close to border, adjust
-                            logo_x = width - 18 * mm - new_width
-                        logo_y = height - 18 - new_height  # Slightly lower to avoid border
-                        if logo_y > height - 70:  # Don't overlap header
-                            logo_y = height - 70 - new_height - 2
+                        # Position on left side with proper margin
+                        logo_x = 25 * mm
+                        logo_y = height - 30 - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
+                        logo_width = new_width + 10 * mm  # Add spacing after logo
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # School name and title (centered, formal styling)
-            p.setFillColor(colors.white)  # White text for visibility on blue
-            p.setFont('Helvetica-Bold', 24)
-            school_y = height - 30
-            p.drawCentredString(width / 2, school_y, school_name.upper())
+            # School name and title (aligned to right of logo, or centered if no logo)
+            p.setFillColor(colors.black)  # Black text (no background colors)
+            if logo_drawn:
+                # Text aligned to right of logo
+                text_x = 25 * mm + logo_width
+                p.setFont('Helvetica-Bold', 22)
+                school_y = height - 25
+                p.drawString(text_x, school_y, school_name.upper())
+                
+                p.setFont('Helvetica', 11)
+                p.drawString(text_x, school_y - 15, 'OFFICIAL REPORT CARD')
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(text_x, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
+            else:
+                # Centered if no logo
+                p.setFont('Helvetica-Bold', 22)
+                school_y = height - 25
+                p.drawCentredString(width / 2, school_y, school_name.upper())
+                
+                p.setFont('Helvetica', 11)
+                p.drawCentredString(width / 2, school_y - 15, 'OFFICIAL REPORT CARD')
+                p.setFont('Helvetica-Bold', 10)
+                p.drawCentredString(width / 2, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
             
-            # Decorative line under school name
-            p.setStrokeColor(colors.white)
-            p.setLineWidth(1.5)
-            p.line(60 * mm, school_y - 8, width - 60 * mm, school_y - 8)
-            
-            p.setFont('Helvetica', 12)
-            p.drawCentredString(width / 2, school_y - 18, 'OFFICIAL REPORT CARD')
-            p.setFont('Helvetica-Bold', 10)
-            p.drawCentredString(width / 2, school_y - 28, 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else ''))
-
-            # Decorative separator line
-            y = height - 75
-            p.setStrokeColor(colors.HexColor('#1a237e'))
+            # Separator line (simple border, no background)
+            p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
+            y = height - 75
             p.line(20 * mm, y, width - 20 * mm, y)
             
-            y -= 10
+            y -= 20
             p.setFillColor(colors.black)
 
-            # Classic styled student information box - clean white background
+            # Student information section - clean white background, no colors
             y = height - 90
             # Outer border only - no background color
-            p.setStrokeColor(colors.HexColor('#1a237e'))
-            p.setLineWidth(1.5)
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
             p.rect(22 * mm, y - 65, width - 44 * mm, 65, stroke=1, fill=0)
-            # Simple header section with border
-            p.setFillColor(colors.HexColor('#1a237e'))
-            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
-            # Header text
-            p.setFillColor(colors.white)  # White text on blue background
+            # Simple header line (no background color)
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
+            # Header text (black on white)
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 13)
             p.drawCentredString(width / 2, y - 7, 'STUDENT INFORMATION')
-            # Simple line under header
-            p.setStrokeColor(colors.black)
-            p.setLineWidth(0.5)
-            p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
             
             y -= 18
             p.setFillColor(colors.black)
@@ -958,19 +950,16 @@ class ReportCardPDFView(APIView):
             table_height = len(marks_entries) * 14 + 15
             if table_height > y - 80:
                 table_height = y - 80
-            p.setStrokeColor(colors.HexColor('#1a237e'))
-            p.setLineWidth(1.5)
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
             p.rect(22 * mm, y - table_height, width - 44 * mm, table_height, stroke=1, fill=0)
             
-            # Table header with classic styling
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
-            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
-            # Decorative line in header
-            p.setStrokeColor(colors.white)
-            p.setLineWidth(0.5)
-            p.line(22 * mm, y - 6, width - 22 * mm, y - 6)
+            # Table header - no background color
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
             
-            p.setFillColor(colors.white)  # White text on blue background
+            p.setFillColor(colors.black)  # Black text on white background
             p.setFont('Helvetica-Bold', 11)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
             # Government marksheet standard column distribution - balanced widths
@@ -1009,20 +998,17 @@ class ReportCardPDFView(APIView):
                     p.setLineWidth(0.5)
                     p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
                     
-                    # Redraw table header on new page
-                    p.setFillColor(colors.HexColor('#1a237e'))
-                    p.rect(22 * mm, height - 40 - 12, width - 44 * mm, 12, stroke=0, fill=1)
-                    p.setStrokeColor(colors.white)
-                    p.setLineWidth(0.5)
-                    p.line(22 * mm, height - 40 - 6, width - 22 * mm, height - 40 - 6)
-                    p.setFillColor(colors.white)
+                    # Redraw table header on new page (no background color)
+                    p.setStrokeColor(colors.HexColor('#000000'))
+                    p.setLineWidth(1)
+                    p.line(22 * mm, height - 40 - 12, width - 22 * mm, height - 40 - 12)
+                    p.setFillColor(colors.black)
                     p.setFont('Helvetica-Bold', 11)
                     for i, htxt in enumerate(headers):
                         if i == 0:
                             p.drawString(col_x[i], height - 40 - 8, htxt)  # Left align subject
                         else:
                             p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)  # Right align numbers
-                    p.setFillColor(colors.black)
                     p.setFont('Helvetica', 10)
                     y = height - 40 - 15
                     row_num = 0  # Reset row number for alternating
@@ -1052,29 +1038,24 @@ class ReportCardPDFView(APIView):
                 y -= 14
                 row_num += 1
 
-            # Classic styled summary box - with formal borders
+            # Academic summary section - no background colors
             y -= 8
-            # Outer border
-            p.setStrokeColor(colors.HexColor('#1a237e'))
-            p.setLineWidth(1.5)
-            p.rect(22 * mm, y - 55, width - 44 * mm, 55, stroke=1, fill=0)
-            # Background
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
-            p.rect(22 * mm, y - 55, width - 44 * mm, 55, stroke=0, fill=1)
-            # Header section
-            p.setStrokeColor(colors.white)
+            # Outer border only
+            p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=1, fill=0)
+            p.rect(22 * mm, y - 55, width - 44 * mm, 55, stroke=1, fill=0)
+            # Header line
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
             
-            p.setFillColor(colors.white)  # White text on blue background
+            p.setFillColor(colors.black)  # Black text on white background
             p.setFont('Helvetica-Bold', 14)
             p.drawCentredString(width / 2, y - 7, 'ACADEMIC SUMMARY')
-            # Summary values in white on blue background
-            p.setFillColor(colors.white)
             y -= 18
             
-            # Summary in elegant layout (white text on blue background) - Government marksheet alignment
-            p.setFillColor(colors.white)  # Keep white for text on blue
+            # Summary layout - black text on white
+            p.setFillColor(colors.black)
             summary_items = [
                 ('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"),
                 ('Percentage', f"{float(report_card.percentage):.2f}%"),
@@ -1109,23 +1090,20 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)  # Switch back to black for rest
             y -= 25
 
-            # Attendance and Conduct - clean white background
+            # Attendance and Conduct - clean white background, no colors
             y -= 5
             # Outer border only - no background color
-            p.setStrokeColor(colors.HexColor('#1a237e'))
-            p.setLineWidth(1.5)
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
             p.rect(22 * mm, y - 45, width - 44 * mm, 45, stroke=1, fill=0)
-            # Header section
-            p.setFillColor(colors.HexColor('#1a237e'))
-            p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
-            p.setStrokeColor(colors.black)
-            p.setLineWidth(0.5)
+            # Header line
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
             p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
             
-            p.setFillColor(colors.white)  # White text on blue background
+            p.setFillColor(colors.black)  # Black text on white background
             p.setFont('Helvetica-Bold', 12)
             p.drawCentredString(width / 2, y - 7, 'ATTENDANCE & CONDUCT')
-            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             p.setFont('Helvetica-Bold', 10)
@@ -1160,16 +1138,16 @@ class ReportCardPDFView(APIView):
                     remarks_height += (len(report_card.principal_remarks) // 95 + 1) * 12 + 20
                 
                 # Border only - no background color
-                p.setStrokeColor(colors.HexColor('#1a237e'))
-                p.setLineWidth(1.5)
+                p.setStrokeColor(colors.HexColor('#000000'))
+                p.setLineWidth(1)
                 p.rect(22 * mm, y - remarks_height - 15, width - 44 * mm, remarks_height + 15, stroke=1, fill=0)
-                # Simple header
-                p.setFillColor(colors.HexColor('#1a237e'))
-                p.rect(22 * mm, y - 12, width - 44 * mm, 12, stroke=0, fill=1)
-                p.setFillColor(colors.white)
+                # Header line
+                p.setStrokeColor(colors.HexColor('#000000'))
+                p.setLineWidth(1)
+                p.line(22 * mm, y - 12, width - 22 * mm, y - 12)
+                p.setFillColor(colors.black)
                 p.setFont('Helvetica-Bold', 12)
                 p.drawCentredString(width / 2, y - 7, 'REMARKS')
-                p.setFillColor(colors.black)  # Black text for remarks content
                 y -= 18
                 
                 p.setFont('Helvetica', 10)
@@ -1196,17 +1174,18 @@ class ReportCardPDFView(APIView):
                         y -= 12
                 y -= 8
 
-            # Classic signature section - clean white background
+            # Signature section - clean white background, no colors
             sig_y_start = 25 * mm
             sig_height = 40 * mm
             # Outer border only - no background color
-            p.setStrokeColor(colors.HexColor('#1a237e'))
-            p.setLineWidth(1.5)
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
             p.rect(22 * mm, sig_y_start, width - 44 * mm, sig_height, stroke=1, fill=0)
-            # Simple header
-            p.setFillColor(colors.HexColor('#1a237e'))
-            p.rect(22 * mm, sig_y_start + sig_height - 12, width - 44 * mm, 12, stroke=0, fill=1)
-            p.setFillColor(colors.white)
+            # Header line
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.line(22 * mm, sig_y_start + sig_height - 12, width - 22 * mm, sig_y_start + sig_height - 12)
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 10)
             p.drawCentredString(width / 2, sig_y_start + sig_height - 7, 'AUTHENTICATION')
             
@@ -1236,10 +1215,9 @@ class ReportCardPDFView(APIView):
             
             # Footer with classic styling
             p.setFont('Helvetica', 8)
-            p.setFillColor(colors.HexColor('#666666'))
+            p.setFillColor(colors.black)
             footer_text = f"Generated on {report_card.generated_at.strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
             p.drawCentredString(width / 2, 20 * mm, footer_text)
-            p.setFillColor(colors.HexColor('#1a237e'))
             p.setFont('Helvetica-Oblique', 7)
             p.drawCentredString(width / 2, 15 * mm, 'This is a computer-generated document and does not require a physical signature.')
 
@@ -1846,11 +1824,9 @@ class FeePaymentReceiptPDFView(APIView):
             tenant = profile.tenant
             school_name = getattr(tenant, 'name', '') or 'School'
             
-            # Classic header with deep blue banner (draw first)
-            p.setFillColor(colors.HexColor('#1a237e'))
-            p.rect(0, height - 55, width, 55, stroke=0, fill=1)
-            
-            # Draw logo in top-right corner (small, 18mm max, properly positioned)
+            # Draw logo on left side (standard position)
+            logo_drawn = False
+            logo_width = 0
             if tenant.logo:
                 try:
                     from PIL import Image
@@ -1886,13 +1862,13 @@ class FeePaymentReceiptPDFView(APIView):
             y = height - 70
             p.setFillColor(colors.black)
 
-            # Receipt number and date box
-            p.setFillColor(colors.HexColor('#f5f5f5'))  # Light gray background
-            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
+            # Receipt number and date section - no background colors
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=0)
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'RECEIPT DETAILS')
-            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
@@ -1915,13 +1891,13 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(date_value_x, y, payment_date)
             y -= 18
 
-            # Student information box - properly aligned
-            p.setFillColor(colors.HexColor('#f9f9f9'))  # Light gray background
-            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on light gray (good contrast)
+            # Student information section - no background colors
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=0)
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'STUDENT INFORMATION')
-            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             student_name = payment.student.name if payment.student else 'N/A'
@@ -1957,13 +1933,13 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(value_x2, y, fee_type)
             y -= 35
 
-            # Payment details box - properly aligned
-            p.setFillColor(colors.HexColor('#fff9e6'))  # Cream background
-            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=1)
-            p.setFillColor(colors.HexColor('#8b6914'))  # Brown text on cream (good contrast)
+            # Payment details section - no background colors
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=0)
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 8, 'PAYMENT INFORMATION')
-            p.setFillColor(colors.black)  # Black text for content
             y -= 18
             
             payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
@@ -1992,10 +1968,9 @@ class FeePaymentReceiptPDFView(APIView):
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Amount Paid:')
-            p.setFont('Helvetica', 11)
-            p.setFillColor(colors.HexColor('#2e7d32'))
+            p.setFont('Helvetica-Bold', 11)  # Bold for emphasis, but black color
+            p.setFillColor(colors.black)  # Black text on white
             p.drawRightString(currency_x, y, f"₹{amount_paid:.2f}")  # Right align currency (consistent)
-            p.setFillColor(colors.black)
             
             if payment.fee_structure:
                 p.setFont('Helvetica-Bold', 10)
@@ -2008,9 +1983,8 @@ class FeePaymentReceiptPDFView(APIView):
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
-                p.setFillColor(colors.HexColor('#d32f2f'))
+                p.setFillColor(colors.black)  # Black text on white
                 p.drawRightString(currency_x, y, f"₹{remaining:.2f}")  # Right align currency (consistent)
-                p.setFillColor(colors.black)
             y -= 25
 
             # Notes section (if exists)
@@ -2028,26 +2002,26 @@ class FeePaymentReceiptPDFView(APIView):
             else:
                 y -= 15
 
-            # Total amount highlight box
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue background
-            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=1)
-            p.setFillColor(colors.white)  # White text on blue background
+            # Total amount section - no background colors
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1.5)
+            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=0)
+            p.setFillColor(colors.black)  # Black text on white
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
             p.setFont('Helvetica-Bold', 18)
             p.drawRightString(width - 25 * mm, y - 10, f"₹{amount_paid:.2f}")
-            p.setFillColor(colors.black)  # Switch back to black
             y -= 45
 
-            # Thank you message (dark blue text on white background)
+            # Thank you message (black text on white background)
             p.setFont('Helvetica', 11)
-            p.setFillColor(colors.HexColor('#1a237e'))  # Dark blue text on white (good contrast)
+            p.setFillColor(colors.black)  # Black text on white
             p.drawCentredString(width / 2, y, 'Thank you for your payment!')
             y -= 15
 
             # Footer
             p.setFont('Helvetica', 8)
-            p.setFillColor(colors.HexColor('#666666'))
+            p.setFillColor(colors.black)
             footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
             p.drawCentredString(width / 2, 20 * mm, footer_text)
             p.setFont('Helvetica-Oblique', 7)
@@ -3856,4 +3830,246 @@ class OldBalanceSummaryView(APIView):
             'by_class': class_summary,
             'total_outstanding': sum(float(b.balance_amount) for b in balances),
             'total_students_with_balance': len(set(b.student.id for b in balances))
-        }) 
+        })
+
+class BulkClassPromotionView(APIView):
+    """Bulk promote students from one class to the next class"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal')
+    def post(self, request):
+        """
+        Bulk promote students from one class to the next.
+        
+        Request body:
+        {
+            "from_class_id": 1,  # Optional: If not provided, will promote all students from all classes
+            "to_class_id": 2,  # Optional: If not provided, will auto-detect next class using order
+            "from_academic_year_id": 1,  # Current academic year
+            "to_academic_year_id": 2,  # New academic year
+            "promotion_date": "2025-04-01",  # Date of promotion
+            "promote_all": false,  # If true, promote all students regardless of eligibility
+            "student_ids": [1, 2, 3],  # Optional: Specific student IDs to promote
+            "exclude_student_ids": [4, 5],  # Optional: Student IDs to exclude from promotion
+            "notes": "Annual promotion 2025"  # Optional notes
+        }
+        """
+        profile = UserProfile._default_manager.get(user=request.user)
+        data = request.data
+        
+        from_class_id = data.get('from_class_id')
+        to_class_id = data.get('to_class_id')
+        from_academic_year_id = data.get('from_academic_year_id')
+        to_academic_year_id = data.get('to_academic_year_id')
+        promotion_date = data.get('promotion_date')
+        promote_all = data.get('promote_all', False)
+        student_ids = data.get('student_ids', [])
+        exclude_student_ids = data.get('exclude_student_ids', [])
+        notes = data.get('notes', '')
+        
+        # Validate required fields
+        if not from_academic_year_id or not to_academic_year_id:
+            return Response(
+                {'error': 'Both from_academic_year_id and to_academic_year_id are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not promotion_date:
+            return Response(
+                {'error': 'promotion_date is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            from_academic_year = AcademicYear._default_manager.get(id=from_academic_year_id, tenant=profile.tenant)
+            to_academic_year = AcademicYear._default_manager.get(id=to_academic_year_id, tenant=profile.tenant)
+        except AcademicYear.DoesNotExist:
+            return Response(
+                {'error': 'Academic year not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Parse promotion date
+        from datetime import datetime
+        try:
+            promotion_date_obj = datetime.strptime(promotion_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid promotion_date format. Use YYYY-MM-DD'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get students to promote
+        students_query = Student._default_manager.filter(
+            tenant=profile.tenant,
+            is_active=True
+        )
+        
+        # Filter by from_class if provided
+        if from_class_id:
+            try:
+                from_class = Class._default_manager.get(id=from_class_id, tenant=profile.tenant)
+                students_query = students_query.filter(assigned_class=from_class)
+            except Class.DoesNotExist:
+                return Response(
+                    {'error': 'From class not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Filter by specific student IDs if provided
+        if student_ids:
+            students_query = students_query.filter(id__in=student_ids)
+        
+        # Exclude specific student IDs if provided
+        if exclude_student_ids:
+            students_query = students_query.exclude(id__in=exclude_student_ids)
+        
+        students = list(students_query)
+        
+        if not students:
+            return Response(
+                {'error': 'No students found to promote'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Process promotions
+        promoted_students = []
+        skipped_students = []
+        errors = []
+        
+        for student in students:
+            try:
+                current_class = student.assigned_class
+                
+                # Determine next class
+                if to_class_id:
+                    try:
+                        next_class = Class._default_manager.get(id=to_class_id, tenant=profile.tenant)
+                    except Class.DoesNotExist:
+                        errors.append({
+                            'student_id': student.id,
+                            'student_name': student.name,
+                            'error': 'To class not found'
+                        })
+                        continue
+                elif current_class:
+                    next_class = current_class.get_next_class()
+                    if not next_class:
+                        skipped_students.append({
+                            'student_id': student.id,
+                            'student_name': student.name,
+                            'reason': f'No next class available for {current_class.name}'
+                        })
+                        continue
+                else:
+                    skipped_students.append({
+                        'student_id': student.id,
+                        'student_name': student.name,
+                        'reason': 'Student has no assigned class'
+                    })
+                    continue
+                
+                # Create promotion record
+                promotion, created = StudentPromotion._default_manager.get_or_create(
+                    tenant=profile.tenant,
+                    student=student,
+                    from_academic_year=from_academic_year,
+                    to_academic_year=to_academic_year,
+                    defaults={
+                        'from_class': current_class,
+                        'to_class': next_class,
+                        'promotion_type': 'PROMOTED',
+                        'promotion_date': promotion_date_obj,
+                        'notes': notes,
+                        'promoted_by': profile
+                    }
+                )
+                
+                # Update student's assigned class
+                student.assigned_class = next_class
+                student.save()
+                
+                promoted_students.append({
+                    'student_id': student.id,
+                    'student_name': student.name,
+                    'from_class': current_class.name if current_class else None,
+                    'to_class': next_class.name,
+                    'promotion_id': promotion.id
+                })
+                
+            except Exception as e:
+                errors.append({
+                    'student_id': student.id,
+                    'student_name': student.name,
+                    'error': str(e)
+                })
+        
+        return Response({
+            'message': f'Promoted {len(promoted_students)} students successfully',
+            'promoted_count': len(promoted_students),
+            'skipped_count': len(skipped_students),
+            'error_count': len(errors),
+            'promoted_students': promoted_students,
+            'skipped_students': skipped_students,
+            'errors': errors
+        }, status=status.HTTP_200_OK)
+
+class ClassPromotionHistoryView(APIView):
+    """View promotion history for a student or class"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    
+    @role_required('admin', 'principal', 'teacher')
+    def get(self, request):
+        """
+        Get promotion history.
+        Query params:
+        - student_id: Filter by student ID
+        - class_id: Filter by class ID
+        - academic_year_id: Filter by academic year
+        """
+        profile = UserProfile._default_manager.get(user=request.user)
+        
+        promotions = StudentPromotion._default_manager.filter(tenant=profile.tenant)
+        
+        student_id = request.query_params.get('student_id')
+        class_id = request.query_params.get('class_id')
+        academic_year_id = request.query_params.get('academic_year_id')
+        
+        if student_id:
+            promotions = promotions.filter(student_id=student_id)
+        
+        if class_id:
+            promotions = promotions.filter(
+                Q(from_class_id=class_id) | Q(to_class_id=class_id)
+            )
+        
+        if academic_year_id:
+            promotions = promotions.filter(
+                Q(from_academic_year_id=academic_year_id) | Q(to_academic_year_id=academic_year_id)
+            )
+        
+        promotions = promotions.select_related(
+            'student', 'from_class', 'to_class', 
+            'from_academic_year', 'to_academic_year', 'promoted_by'
+        ).order_by('-promotion_date', '-created_at')
+        
+        result = []
+        for promo in promotions:
+            result.append({
+                'id': promo.id,
+                'student_id': promo.student.id,
+                'student_name': promo.student.name,
+                'from_class': promo.from_class.name if promo.from_class else None,
+                'to_class': promo.to_class.name if promo.to_class else None,
+                'from_academic_year': promo.from_academic_year.name if promo.from_academic_year else None,
+                'to_academic_year': promo.to_academic_year.name if promo.to_academic_year else None,
+                'promotion_type': promo.promotion_type,
+                'promotion_date': promo.promotion_date.isoformat(),
+                'notes': promo.notes,
+                'promoted_by': promo.promoted_by.user.username if promo.promoted_by else None,
+                'created_at': promo.created_at.isoformat()
+            })
+        
+        return Response(result) 

@@ -285,12 +285,54 @@ secure_admin_site.register(AuditLog, AuditLogAdmin)
 
 class PaymentTransactionAdmin(admin.ModelAdmin):
     """Admin interface for payment transactions"""
-    list_display = ('id', 'user', 'tenant', 'plan', 'amount', 'currency', 'status', 'order_id', 'payment_id', 'created_at', 'verified_at')
+    list_display = ('id', 'user', 'tenant', 'plan', 'amount', 'currency', 'status', 'order_id', 'payment_id', 'created_at', 'verified_at', 'download_receipt')
     list_filter = ('status', 'currency', 'created_at', 'verified_at', 'tenant', 'plan')
     search_fields = ('user__username', 'user__email', 'order_id', 'payment_id', 'tenant__name')
-    readonly_fields = ('order_id', 'payment_id', 'signature', 'created_at', 'verified_at')
+    readonly_fields = ('order_id', 'payment_id', 'signature', 'created_at', 'verified_at', 'receipt_link')
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
+    
+    fieldsets = (
+        ('Transaction Details', {
+            'fields': ('user', 'tenant', 'plan', 'amount', 'currency', 'status')
+        }),
+        ('Payment Information', {
+            'fields': ('order_id', 'payment_id', 'signature')
+        }),
+        ('Receipt', {
+            'fields': ('receipt_link',),
+            'description': 'Download PDF receipt for this payment transaction'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'verified_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def download_receipt(self, obj):
+        """Generate download link for receipt PDF"""
+        if obj.status == 'verified':
+            from django.urls import reverse
+            from django.utils.html import format_html
+            url = reverse('payment-receipt-pdf', args=[obj.pk])
+            return format_html('<a href="{}" target="_blank" class="button">📄 Download Receipt</a>', url)
+        return '-'
+    download_receipt.short_description = 'Receipt'
+    download_receipt.allow_tags = True
+    
+    def receipt_link(self, obj):
+        """Display receipt download link in detail view"""
+        if obj.status == 'verified':
+            from django.urls import reverse
+            from django.utils.html import format_html
+            url = reverse('payment-receipt-pdf', args=[obj.pk])
+            return format_html(
+                '<a href="{}" target="_blank" class="button" style="background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0;">📄 Download Receipt PDF</a><br>'
+                '<small style="color: #666;">This receipt includes product charges, training policies, and additional service information.</small>', 
+                url
+            )
+        return format_html('<small style="color: #999;">Receipt will be available after payment verification.</small>')
+    receipt_link.short_description = 'Download Receipt'
 
 secure_admin_site.register(PaymentTransaction, PaymentTransactionAdmin)
 
