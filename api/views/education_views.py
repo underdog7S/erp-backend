@@ -40,10 +40,17 @@ class ClassListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        classes = Class._default_manager.filter(tenant=profile.tenant)  # type: ignore
-        serializer = ClassSerializer(classes, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            classes = Class._default_manager.filter(tenant=profile.tenant)  # type: ignore
+            serializer = ClassSerializer(classes, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in ClassListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal')
     def post(self, request):
@@ -97,29 +104,36 @@ class StudentListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
-            students = Student._default_manager.filter(tenant=profile.tenant)  # type: ignore
-        else:
-            # Staff/Teachers: only students in their assigned classes
-            students = Student._default_manager.filter(tenant=profile.tenant, assigned_class__in=profile.assigned_classes.all())  # type: ignore
-        # Filtering
-        search = request.query_params.get('search')
-        class_id = request.query_params.get('class')
-        date_from = request.query_params.get('admission_date_from')
-        date_to = request.query_params.get('admission_date_to')
-        if search:
-            students = students.filter(
-                (Q(name__icontains=search) | Q(email__icontains=search))
-            )
-        if class_id:
-            students = students.filter(assigned_class_id=class_id)
-        if date_from:
-            students = students.filter(admission_date__gte=date_from)
-        if date_to:
-            students = students.filter(admission_date__lte=date_to)
-        serializer = StudentSerializer(students, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
+                students = Student._default_manager.filter(tenant=profile.tenant)  # type: ignore
+            else:
+                # Staff/Teachers: only students in their assigned classes
+                students = Student._default_manager.filter(tenant=profile.tenant, assigned_class__in=profile.assigned_classes.all())  # type: ignore
+            # Filtering
+            search = request.query_params.get('search')
+            class_id = request.query_params.get('class')
+            date_from = request.query_params.get('admission_date_from')
+            date_to = request.query_params.get('admission_date_to')
+            if search:
+                students = students.filter(
+                    (Q(name__icontains=search) | Q(email__icontains=search))
+                )
+            if class_id:
+                students = students.filter(assigned_class_id=class_id)
+            if date_from:
+                students = students.filter(admission_date__gte=date_from)
+            if date_to:
+                students = students.filter(admission_date__lte=date_to)
+            serializer = StudentSerializer(students, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in StudentListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher', 'staff', 'accountant')
     def post(self, request):
@@ -193,14 +207,21 @@ class AttendanceListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if profile.role and profile.role.name == 'admin':
-            attendance = Attendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
-        else:
-            # Staff: only attendance for students in their assigned classes
-            attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())  # type: ignore
-        serializer = AttendanceSerializer(attendance, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if profile.role and profile.role.name == 'admin':
+                attendance = Attendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
+            else:
+                # Staff: only attendance for students in their assigned classes
+                attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())  # type: ignore
+            serializer = AttendanceSerializer(attendance, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in AttendanceListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher')
     def post(self, request):
@@ -254,10 +275,17 @@ class ReportCardListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        reportcards = ReportCard._default_manager.filter(tenant=profile.tenant)
-        serializer = ReportCardSerializer(reportcards, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            reportcards = ReportCard._default_manager.filter(tenant=profile.tenant)
+            serializer = ReportCardSerializer(reportcards, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in ReportCardListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher')
     def post(self, request):
@@ -1321,13 +1349,20 @@ class ClassFeeStructureListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
-        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
-            return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
-        fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)  # type: ignore
-        serializer = FeeStructureSerializer(fee_structures, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
+            if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
+                return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+            fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)  # type: ignore
+            serializer = FeeStructureSerializer(fee_structures, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in ClassFeeStructureListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -3581,8 +3616,12 @@ class EducationAnalyticsView(APIView):
             }
             
             return Response(data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error in EducationAnalyticsView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Old Balance Management Views
 class OldBalanceListCreateView(APIView):
