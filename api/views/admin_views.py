@@ -329,7 +329,24 @@ class TenantPublicSettingsView(APIView):
 			profile = UserProfile.objects.get(user=request.user)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
+			
+			# Check if user has a paid plan
 			tenant = profile.tenant
+			if not tenant or not tenant.plan:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
+					'requires_paid_plan': True
+				}, status=403)
+			
+			plan = tenant.plan
+			# Free plan users cannot access (price = 0)
+			if plan.price is not None and plan.price == 0:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade from the Free plan to access this feature.',
+					'requires_paid_plan': True,
+					'current_plan': plan.name
+				}, status=403)
+			
 			serializer = TenantSerializer(tenant, context={'request': request})
 			settings_data = {
 				'slug': tenant.slug,
@@ -350,7 +367,23 @@ class TenantPublicSettingsView(APIView):
 			profile = UserProfile.objects.get(user=request.user)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
+			
+			# Check if user has a paid plan
 			tenant = profile.tenant
+			if not tenant or not tenant.plan:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
+					'requires_paid_plan': True
+				}, status=403)
+			
+			plan = tenant.plan
+			# Free plan users cannot access (price = 0)
+			if plan.price is not None and plan.price == 0:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade from the Free plan to access this feature.',
+					'requires_paid_plan': True,
+					'current_plan': plan.name
+				}, status=403)
 			data = request.data or {}
 			
 			# Handle logo upload

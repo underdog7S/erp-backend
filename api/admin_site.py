@@ -20,7 +20,7 @@ class SecureAdminSite(AdminSite):
     """
     site_header = "Zenith ERP Administration"
     site_title = "Zenith ERP Admin"
-    index_title = "Welcome to Zenith ERP Administration"
+    index_title = "Welcome to Zenith ERP Administration | API Docs: /api/docs/"
     
     def has_permission(self, request):
         """
@@ -46,10 +46,18 @@ class SecureAdminSite(AdminSite):
     
     def index(self, request, extra_context=None):
         """
-        Custom admin index page
+        Custom admin index page with API documentation link
         """
         if not self.has_permission(request):
             return self.redirect_to_home(request)
+        
+        # Add API documentation link to context
+        extra_context = extra_context or {}
+        from django.urls import reverse
+        api_docs_url = reverse('api-docs')
+        extra_context['api_docs_url'] = api_docs_url
+        extra_context['api_docs_title'] = 'API Documentation'
+        
         return super().index(request, extra_context)
     
     def redirect_to_home(self, request):
@@ -77,6 +85,14 @@ class SecureAdminSite(AdminSite):
         """
         context = super().each_context(request)
         context['site_url'] = getattr(settings, 'FRONTEND_URL', '/')
+        # Add API documentation link to all admin pages
+        try:
+            from django.urls import reverse
+            context['api_docs_url'] = reverse('api-docs')
+            context['api_docs_title'] = 'API Documentation'
+        except Exception:
+            context['api_docs_url'] = None
+            context['api_docs_title'] = None
         return context
 
 
