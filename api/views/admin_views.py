@@ -357,6 +357,10 @@ class TenantPublicSettingsView(APIView):
 				'public_api_key': tenant.public_api_key or '',
 				'logo': serializer.data.get('logo_url'),
 				'logo_url': serializer.data.get('logo_url'),
+				# Education module percentage calculation settings
+				'percentage_calculation_method': getattr(tenant, 'percentage_calculation_method', 'SIMPLE'),
+				'percentage_excluded_subjects': getattr(tenant, 'percentage_excluded_subjects', []),
+				'percentage_rounding': getattr(tenant, 'percentage_rounding', 2),
 			}
 			return Response(settings_data)
 		except Exception as e:
@@ -415,11 +419,62 @@ class TenantPublicSettingsView(APIView):
 				tenant.public_admissions_enabled = bool(data.get('public_admissions_enabled'))
 			if data.get('generate_api_key'):
 				tenant.public_api_key = secrets.token_urlsafe(32)
+			# Education module percentage calculation settings
+			if 'percentage_calculation_method' in data:
+				method = data.get('percentage_calculation_method', 'SIMPLE')
+				if method in ['SIMPLE', 'SUBJECT_WISE', 'WEIGHTED']:
+					tenant.percentage_calculation_method = method
+				else:
+					return Response({'error': 'Invalid calculation method. Must be SIMPLE, SUBJECT_WISE, or WEIGHTED'}, status=400)
+			
+			if 'percentage_excluded_subjects' in data:
+				excluded = data.get('percentage_excluded_subjects')
+				if isinstance(excluded, list):
+					# Validate that all subject IDs exist and belong to tenant
+					from education.models import Subject
+					valid_subject_ids = []
+					for sub_id in excluded:
+						if isinstance(sub_id, int) or (isinstance(sub_id, str) and sub_id.isdigit()):
+							sub_id_int = int(sub_id)
+							if Subject.objects.filter(id=sub_id_int, tenant=tenant).exists():
+								valid_subject_ids.append(sub_id_int)
+					tenant.percentage_excluded_subjects = valid_subject_ids
+				elif isinstance(excluded, str):
+					# Try to parse JSON string
+					import json
+					try:
+						parsed = json.loads(excluded)
+						if isinstance(parsed, list):
+							# Validate subject IDs
+							from education.models import Subject
+							valid_subject_ids = []
+							for sub_id in parsed:
+								if isinstance(sub_id, int) or (isinstance(sub_id, str) and sub_id.isdigit()):
+									sub_id_int = int(sub_id)
+									if Subject.objects.filter(id=sub_id_int, tenant=tenant).exists():
+										valid_subject_ids.append(sub_id_int)
+							tenant.percentage_excluded_subjects = valid_subject_ids
+						else:
+							tenant.percentage_excluded_subjects = []
+					except:
+						tenant.percentage_excluded_subjects = []
+				else:
+					tenant.percentage_excluded_subjects = []
+			
+			if 'percentage_rounding' in data:
+				rounding = data.get('percentage_rounding')
+				if rounding in [0, 1, 2]:
+					tenant.percentage_rounding = rounding
+				else:
+					return Response({'error': 'Invalid rounding value. Must be 0, 1, or 2'}, status=400)
 			tenant.save()
 			serializer = TenantSerializer(tenant, context={'request': request})
 			return Response({
 				'message': 'Settings updated', 
-				'slug': tenant.slug, 
+				'slug': tenant.slug,
+				'percentage_calculation_method': tenant.percentage_calculation_method,
+				'percentage_excluded_subjects': tenant.percentage_excluded_subjects,
+				'percentage_rounding': tenant.percentage_rounding, 
 				'has_api_key': bool(tenant.public_api_key), 
 				'public_api_key': tenant.public_api_key or '',
 				'logo_url': serializer.data.get('logo_url')

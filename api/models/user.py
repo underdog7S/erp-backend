@@ -55,6 +55,28 @@ class Tenant(models.Model):
     has_salon = models.BooleanField(default=False)
     storage_used_mb = models.FloatField(default=0)
     logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True, help_text="Organization logo for reports, bills, and documents")
+    # Education module: Percentage calculation settings
+    PERCENTAGE_CALCULATION_CHOICES = [
+        ('SIMPLE', 'Simple: (Total Marks / Max Marks) × 100'),
+        ('SUBJECT_WISE', 'Subject-wise: Average of subject percentages'),
+        ('WEIGHTED', 'Weighted: Based on subject weightage (if configured)'),
+    ]
+    percentage_calculation_method = models.CharField(
+        max_length=20,
+        choices=PERCENTAGE_CALCULATION_CHOICES,
+        default='SIMPLE',
+        help_text="Method for calculating overall percentage in report cards"
+    )
+    percentage_excluded_subjects = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of subject IDs to exclude from percentage calculation (JSON array)"
+    )
+    percentage_rounding = models.IntegerField(
+        default=2,
+        choices=[(0, '0 decimal places'), (1, '1 decimal place'), (2, '2 decimal places')],
+        help_text="Number of decimal places for percentage display"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     def is_subscription_active(self):

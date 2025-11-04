@@ -108,10 +108,19 @@ class TermAdmin(admin.ModelAdmin):
     ordering = ('academic_year', 'order')
 
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'class_obj', 'code', 'max_marks', 'has_practical', 'is_active', 'tenant')
+    list_display = ('name', 'class_obj', 'code', 'max_marks', 'weightage', 'has_practical', 'is_active', 'tenant')
     list_filter = ('class_obj', 'has_practical', 'is_active', 'tenant')
     search_fields = ('name', 'code', 'class_obj__name')
     ordering = ('class_obj', 'order', 'name')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'class_obj', 'name', 'code', 'order', 'is_active')
+        }),
+        ('Marks & Weightage', {
+            'fields': ('max_marks', 'weightage', 'has_practical', 'practical_max_marks'),
+            'description': 'Weightage is used for weighted percentage calculation. Default is 100% (equal weight).'
+        }),
+    )
 
 class UnitAdmin(admin.ModelAdmin):
     list_display = ('name', 'subject', 'number', 'order', 'is_active', 'tenant')

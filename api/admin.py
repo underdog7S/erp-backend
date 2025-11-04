@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from api.models.user import UserProfile, Role
+from api.models.user import UserProfile, Role, Tenant
 from api.models.audit import AuditLog
 from api.models.custom_service import CustomServiceRequest
 from .models.payments import PaymentTransaction
@@ -9,7 +9,7 @@ from .models.invoice import Invoice, InvoiceItem, InvoicePayment
 from .models.notifications import Notification, NotificationPreference, NotificationTemplate, NotificationLog
 from .models.plan import Plan
 from .models.support import TicketSLA
-from education.models import Class
+from education.models import Class, Subject
 from api.admin_site import secure_admin_site
 
 class UserProfileAdmin(admin.ModelAdmin):
@@ -651,3 +651,90 @@ class TicketSLAAdmin(admin.ModelAdmin):
     readonly_fields = ('tenant',)  # Tenant is auto-set, don't allow editing
 
 secure_admin_site.register(TicketSLA, TicketSLAAdmin)
+
+# Tenant Admin
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'get_percentage_method')
+    list_filter = ('industry', 'subscription_status', 'percentage_calculation_method')
+    search_fields = ('name', 'slug')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'industry', 'slug', 'logo')
+        }),
+        ('Subscription & Plan', {
+            'fields': ('plan', 'subscription_start_date', 'subscription_end_date', 'subscription_status', 'grace_period_end_date')
+        }),
+        ('Public Features', {
+            'fields': ('public_booking_enabled', 'public_orders_enabled', 'public_admissions_enabled', 'public_api_key'),
+            'classes': ('collapse',)
+        }),
+        ('Module Access', {
+            'fields': ('has_hotel', 'has_restaurant', 'has_salon'),
+            'classes': ('collapse',)
+        }),
+        ('Education Module: Percentage Calculation Settings', {
+            'fields': ('percentage_calculation_method', 'percentage_rounding', 'percentage_excluded_subjects'),
+            'description': '''
+                <div style="background: #e3f2fd; color: #000; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
+                    <strong style="color: #1976d2;">📊 Percentage Calculation Configuration:</strong>
+                    <p style="margin: 10px 0 0 0; color: #212121;">Different schools calculate percentages differently. Configure how overall percentage should be calculated in report cards.</p>
+                    
+                    <h4 style="color: #1976d2; margin-top: 15px;">Calculation Methods:</h4>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Simple:</strong> (Total Marks / Max Marks) × 100<br>
+                            <small style="color: #666;">Example: Student got 450/500 = 90%</small></li>
+                        <li style="color: #212121;"><strong>Subject-wise:</strong> Calculate percentage for each subject, then average them<br>
+                            <small style="color: #666;">Example: Math 80%, Science 90%, English 85% → Average = 85%</small></li>
+                        <li style="color: #212121;"><strong>Weighted:</strong> Based on subject weightage (if configured)<br>
+                            <small style="color: #666;">Example: Math (30% weight), Science (30%), English (20%), Others (20%)</small></li>
+                    </ul>
+                    
+                    <h4 style="color: #1976d2; margin-top: 15px;">Excluded Subjects:</h4>
+                    <p style="margin: 5px 0; color: #212121;">Enter subject IDs (comma-separated) that should be excluded from percentage calculation. For example: <code>[1, 5, 8]</code></p>
+                    <p style="margin: 5px 0; color: #666; font-size: 0.9em;">💡 Tip: Some schools exclude Physical Education, Art, or other non-academic subjects from overall percentage.</p>
+                    
+                    <h4 style="color: #1976d2; margin-top: 15px;">Rounding:</h4>
+                    <p style="margin: 5px 0; color: #212121;">Choose how many decimal places to show in percentage (0, 1, or 2).</p>
+                    <p style="margin: 5px 0; color: #666; font-size: 0.9em;">Example: 89.456% → 89% (0 decimals), 89.5% (1 decimal), 89.46% (2 decimals)</p>
+                </div>
+            '''
+        }),
+        ('Storage', {
+            'fields': ('storage_used_mb',),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ('storage_used_mb',)
+    
+    def get_percentage_method(self, obj):
+        """Display percentage calculation method"""
+        if hasattr(obj, 'percentage_calculation_method') and obj.percentage_calculation_method:
+            method = obj.percentage_calculation_method
+            # Access choices from Tenant model
+            from api.models.user import Tenant
+            methods = dict(Tenant.PERCENTAGE_CALCULATION_CHOICES)
+            return methods.get(method, method)
+        return '-'
+    get_percentage_method.short_description = 'Percentage Method'
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Filter subjects by tenant for excluded subjects selection"""
+        if db_field.name == 'percentage_excluded_subjects':
+            # This is a JSONField, so we don't need to filter
+            pass
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Customize form for excluded subjects field"""
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Add help text for excluded subjects JSON field
+        if 'percentage_excluded_subjects' in form.base_fields:
+            form.base_fields['percentage_excluded_subjects'].help_text = (
+                'Enter subject IDs as a JSON array. Example: [1, 5, 8]. '
+                'You can find subject IDs in the Education → Subjects section.'
+            )
+        
+        return form
+
+secure_admin_site.register(Tenant, TenantAdmin)

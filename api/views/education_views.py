@@ -845,24 +845,23 @@ class ReportCardPDFView(APIView):
             except Exception:
                 pass
             
-            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
-            # This ensures consistent text alignment regardless of logo size
-            logo_drawn = False
-            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
-            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
-            logo_x = 25 * mm
-            logo_y_top = height - 25 * mm
+            # OPTION: Remove logo completely for cleaner PDFs (or keep it small)
+            # Set REMOVE_LOGO = True to remove logos from all PDFs
+            REMOVE_LOGO = True  # Set to True to remove logos completely
             
-            if tenant.logo:
+            logo_drawn = False
+            FIXED_TEXT_START_X = 25 * mm  # Text starts at left margin (no logo space needed)
+            
+            if not REMOVE_LOGO and tenant.logo:
                 try:
                     from PIL import Image
                     import os
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Reduced logo size: max 20mm height (was 35mm)
-                        max_height = 20 * mm
-                        max_width = 20 * mm
+                        # Very small logo: max 15mm to avoid text overlap
+                        max_height = 15 * mm
+                        max_width = 15 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
@@ -874,14 +873,18 @@ class ReportCardPDFView(APIView):
                         
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Draw logo at fixed position (top-left of reserved area)
+                        # Logo at top-left corner, very small
+                        logo_x = 25 * mm
+                        logo_y_top = height - 25 * mm
                         logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
+                        # Adjust text start if logo is drawn
+                        FIXED_TEXT_START_X = logo_x + new_width + 5 * mm
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # Text always starts at FIXED position (regardless of logo size)
+            # Text always starts at FIXED position
             p.setFillColor(colors.black)
             text_x = FIXED_TEXT_START_X  # Fixed position for text
             p.setFont('Helvetica-Bold', 20)
@@ -1142,45 +1145,65 @@ class ReportCardPDFView(APIView):
                 p.line(table_left, y - 12, table_right, y - 12)
                 p.setFillColor(colors.black)
                 
-                # Truncate subject name if too long to fit in column - prevent overflow
-                max_subject_width = col_widths[0] - 3 * mm
+                # IMPROVED: Truncate subject name to fit EXACTLY within column boundaries
+                # Calculate available width more precisely (column width minus padding)
+                max_subject_width = col_widths[0] - 6 * mm  # 3mm padding on each side
                 display_subject = subject_name
                 if p.stringWidth(subject_name, 'Helvetica', 9) > max_subject_width:
-                    # Truncate to fit - binary search for optimal truncation
+                    # Binary search for optimal truncation
                     low, high = 0, len(subject_name)
                     while low < high:
                         mid = (low + high + 1) // 2
-                        test_name = subject_name[:mid] + '...'
-                        if p.stringWidth(test_name, 'Helvetica', 9) <= max_subject_width:
+                        test_name = subject_name[:mid]
+                        if p.stringWidth(test_name, 'Helvetica', 9) <= max_subject_width - p.stringWidth('...', 'Helvetica', 9):
                             low = mid
                         else:
                             high = mid - 1
                     display_subject = subject_name[:low] + '...' if low < len(subject_name) else subject_name[:low]
+                    # Final safety check - ensure it fits
+                    if p.stringWidth(display_subject, 'Helvetica', 9) > max_subject_width:
+                        display_subject = display_subject[:max(0, len(display_subject) - 3)] + '...'
                 
-                # Properly aligned values - IMPROVED: Exact alignment within column boundaries
-                # Left align subject within column
-                p.drawString(col_x[0], y, display_subject)
+                # Draw subject name - ensure it stays within column boundary
+                subject_x = col_x[0] + 3 * mm  # 3mm padding from left edge
+                subject_max_x = col_x[0] + col_widths[0] - 3 * mm  # Right boundary
+                # Clamp to ensure it doesn't exceed column
+                if p.stringWidth(display_subject, 'Helvetica', 9) + subject_x > subject_max_x:
+                    display_subject = display_subject[:max(0, len(display_subject) - 5)] + '...'
+                p.drawString(subject_x, y, display_subject)
                 
-                # Right align numbers within their respective column boundaries
-                # Ensure values don't exceed column boundaries
+                # Right align numbers - ensure they stay within column boundaries
+                # Marks Obtained
                 marks_str = str(int(float(entry.marks_obtained)))
+                marks_col_right = col_x[1] + col_widths[1] - 3 * mm  # Right boundary with padding
+                marks_col_left = col_x[1] + 2 * mm  # Left boundary with padding
                 marks_width = p.stringWidth(marks_str, 'Helvetica', 9)
-                marks_x = min(col_x[1] + col_widths[1] - 2 * mm, col_x[1] + col_widths[1] - marks_width)
-                p.drawRightString(col_x[1] + col_widths[1] - 2 * mm, y, marks_str)
+                # Truncate if too long (unlikely but safety check)
+                if marks_width > col_widths[1] - 6 * mm:
+                    marks_str = marks_str[:3] + '...'
+                    marks_width = p.stringWidth(marks_str, 'Helvetica', 9)
+                p.drawRightString(marks_col_right, y, marks_str)
                 
+                # Max Marks
                 max_marks_str = str(int(float(entry.max_marks)))
+                max_marks_col_right = col_x[2] + col_widths[2] - 3 * mm
                 max_marks_width = p.stringWidth(max_marks_str, 'Helvetica', 9)
-                max_marks_x = min(col_x[2] + col_widths[2] - 2 * mm, col_x[2] + col_widths[2] - max_marks_width)
-                p.drawRightString(col_x[2] + col_widths[2] - 2 * mm, y, max_marks_str)
+                if max_marks_width > col_widths[2] - 6 * mm:
+                    max_marks_str = max_marks_str[:3] + '...'
+                    max_marks_width = p.stringWidth(max_marks_str, 'Helvetica', 9)
+                p.drawRightString(max_marks_col_right, y, max_marks_str)
                 
+                # Percentage - ensure it fits
                 percent_str = f"{percent:.1f}%"
+                percent_col_right = col_x[3] + col_widths[3] - 3 * mm
                 percent_width = p.stringWidth(percent_str, 'Helvetica', 9)
-                percent_x = min(col_x[3] + col_widths[3] - 2 * mm, col_x[3] + col_widths[3] - percent_width)
-                # Validate that rightmost column doesn't exceed table boundary
-                if col_x[3] + col_widths[3] > table_right - 3 * mm:
-                    # Further adjust if needed
-                    percent_str = percent_str[:6] if len(percent_str) > 6 else percent_str
-                p.drawRightString(col_x[3] + col_widths[3] - 2 * mm, y, percent_str)
+                if percent_width > col_widths[3] - 6 * mm:
+                    percent_str = f"{percent:.0f}%"  # Remove decimal if still too long
+                    percent_width = p.stringWidth(percent_str, 'Helvetica', 9)
+                # Final safety check
+                if percent_width > col_widths[3] - 6 * mm:
+                    percent_str = percent_str[:4]  # Just keep number
+                p.drawRightString(percent_col_right, y, percent_str)
                 y -= 14
                 row_num += 1
 
@@ -2043,24 +2066,23 @@ class FeePaymentReceiptPDFView(APIView):
             except Exception:
                 pass
             
-            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
-            # This ensures consistent text alignment regardless of logo size
+            # OPTION: Remove logo completely for cleaner PDFs (or keep it small)
+            REMOVE_LOGO = True  # Set to True to remove logos completely
+            
             logo_drawn = False
-            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
-            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
-            logo_x = 25 * mm
+            FIXED_TEXT_START_X = 25 * mm  # Text starts at left margin (no logo space needed)
             logo_y_top = height - 25 * mm
             
-            if tenant.logo:
+            if not REMOVE_LOGO and tenant.logo:
                 try:
                     from PIL import Image
                     import os
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Reduced logo size: max 20mm height (was 35mm)
-                        max_height = 20 * mm
-                        max_width = 20 * mm
+                        # Very small logo: max 15mm to avoid text overlap
+                        max_height = 15 * mm
+                        max_width = 15 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
@@ -2070,14 +2092,17 @@ class FeePaymentReceiptPDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Draw logo at fixed position
+                        # Logo at top-left corner, very small
+                        logo_x = 25 * mm
                         logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
+                        # Adjust text start if logo is drawn
+                        FIXED_TEXT_START_X = logo_x + new_width + 5 * mm
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # Text always starts at FIXED position (regardless of logo size)
+            # Text always starts at FIXED position
             p.setFillColor(colors.black)
             text_x = FIXED_TEXT_START_X  # Fixed position for text
             p.setFont('Helvetica-Bold', 18)
@@ -4365,8 +4390,11 @@ class TransferCertificateListCreateView(APIView):
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
         
-        # Auto-populate student details if student_id provided
+        # Auto-populate student details if student_id or student provided
         student_id = data.get('student_id') or data.get('student')
+        # Also handle class_obj_id vs class_obj
+        if 'class_obj_id' in data and 'class_obj' not in data:
+            data['class_obj'] = data['class_obj_id']
         if student_id:
             try:
                 student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
@@ -4481,24 +4509,23 @@ class TransferCertificatePDFView(APIView):
             except Exception:
                 pass
             
-            # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
-            # This ensures consistent text alignment regardless of logo size
+            # OPTION: Remove logo completely for cleaner PDFs (or keep it small)
+            REMOVE_LOGO = True  # Set to True to remove logos completely
+            
             logo_drawn = False
-            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
-            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
-            logo_x = 25 * mm
+            FIXED_TEXT_START_X = 25 * mm  # Text starts at left margin (no logo space needed)
             logo_y_top = height - 25 * mm
             
-            if tenant.logo:
+            if not REMOVE_LOGO and tenant.logo:
                 try:
                     from PIL import Image
                     import os
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Reduced logo size: max 20mm height (was 35mm)
-                        max_height = 20 * mm
-                        max_width = 20 * mm
+                        # Very small logo: max 15mm to avoid text overlap
+                        max_height = 15 * mm
+                        max_width = 15 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
@@ -4508,14 +4535,17 @@ class TransferCertificatePDFView(APIView):
                             img = img.convert('RGB')
                         from reportlab.lib.utils import ImageReader
                         logo_reader = ImageReader(img)
-                        # Draw logo at fixed position
+                        # Logo at top-left corner, very small
+                        logo_x = 25 * mm
                         logo_y = logo_y_top - new_height
                         p.drawImage(logo_reader, logo_x, logo_y, width=new_width, height=new_height, preserveAspectRatio=True, mask='auto')
                         logo_drawn = True
+                        # Adjust text start if logo is drawn
+                        FIXED_TEXT_START_X = logo_x + new_width + 5 * mm
                 except Exception as e:
                     logger.warning(f"Could not load tenant logo: {e}")
             
-            # Text always starts at FIXED position (regardless of logo size)
+            # Text always starts at FIXED position
             p.setFillColor(colors.black)
             text_x = FIXED_TEXT_START_X  # Fixed position for text
             p.setFont('Helvetica-Bold', 18)
@@ -4595,7 +4625,7 @@ class TransferCertificatePDFView(APIView):
                 # Draw label
                 p.drawString(label_x, y, label)
                 p.setFont('Helvetica', 10)
-                # Truncate value if too long to fit in available width
+                # IMPROVED: Truncate value if too long - ensure it fits within boundaries
                 value_str = str(value)
                 value_width = p.stringWidth(value_str, 'Helvetica', 10)
                 if value_width > value_max_width:
@@ -4603,14 +4633,22 @@ class TransferCertificatePDFView(APIView):
                     low, high = 0, len(value_str)
                     while low < high:
                         mid = (low + high + 1) // 2
-                        test_str = value_str[:mid] + '...'
-                        if p.stringWidth(test_str, 'Helvetica', 10) <= value_max_width:
+                        test_str = value_str[:mid]
+                        # Account for ellipsis width
+                        if p.stringWidth(test_str, 'Helvetica', 10) + p.stringWidth('...', 'Helvetica', 10) <= value_max_width:
                             low = mid
                         else:
                             high = mid - 1
                     value_str = value_str[:low] + '...' if low < len(value_str) else value_str[:low]
+                    # Final safety check
+                    if p.stringWidth(value_str, 'Helvetica', 10) > value_max_width:
+                        value_str = value_str[:max(0, len(value_str) - 3)] + '...'
                 # Ensure value doesn't exceed right margin
-                final_value_x = min(value_x, width - 25 * mm - value_max_width)
+                final_value_x = value_x
+                # Validate it fits within page boundaries
+                if p.stringWidth(value_str, 'Helvetica', 10) + final_value_x > width - 25 * mm:
+                    # Adjust if needed
+                    final_value_x = max(value_x, width - 25 * mm - p.stringWidth(value_str, 'Helvetica', 10))
                 p.drawString(final_value_x, y, value_str)
                 y -= 15
                 p.setFont('Helvetica-Bold', 10)
@@ -4660,27 +4698,33 @@ class TransferCertificatePDFView(APIView):
                 p.drawString(25 * mm, y, 'TRANSFER DETAILS')
                 y -= 20
                 
-                # IMPROVED: Better text truncation and alignment
+                # IMPROVED: Better text truncation and alignment - ensure it fits within boundaries
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(25 * mm, y, 'Transferring To:')
                 p.setFont('Helvetica', 10)
                 school_name = str(tc.transferring_to_school)
-                # Calculate max width and truncate if needed
-                max_school_width = width - 95 * mm - 25 * mm
+                # Calculate max width and truncate if needed - ensure it doesn't exceed page margin
+                max_school_width = width - 95 * mm - 25 * mm  # Available width from value position to right margin
                 if p.stringWidth(school_name, 'Helvetica', 10) > max_school_width:
                     # Binary search for optimal truncation
                     low, high = 0, len(school_name)
                     while low < high:
                         mid = (low + high + 1) // 2
-                        test_str = school_name[:mid] + '...'
-                        if p.stringWidth(test_str, 'Helvetica', 10) <= max_school_width:
+                        test_str = school_name[:mid]
+                        # Account for ellipsis width
+                        if p.stringWidth(test_str, 'Helvetica', 10) + p.stringWidth('...', 'Helvetica', 10) <= max_school_width:
                             low = mid
                         else:
                             high = mid - 1
                     school_name_trunc = school_name[:low] + '...' if low < len(school_name) else school_name[:low]
+                    # Final safety check
+                    if p.stringWidth(school_name_trunc, 'Helvetica', 10) > max_school_width:
+                        school_name_trunc = school_name_trunc[:max(0, len(school_name_trunc) - 5)] + '...'
                 else:
                     school_name_trunc = school_name
-                p.drawString(95 * mm, y, school_name_trunc)
+                # Ensure it doesn't exceed right margin
+                final_x = min(95 * mm, width - 25 * mm - p.stringWidth(school_name_trunc, 'Helvetica', 10))
+                p.drawString(final_x, y, school_name_trunc)
                 y -= 15
                 
                 if tc.transferring_to_address:

@@ -395,6 +395,7 @@ class Subject(models.Model):
     name = models.CharField(max_length=100, help_text="e.g., Mathematics, Science, English")
     code = models.CharField(max_length=20, blank=True, help_text="Subject code (e.g., MATH101)")
     max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=100, help_text="Maximum marks for this subject")
+    weightage = models.DecimalField(max_digits=5, decimal_places=2, default=100, help_text="Weightage percentage for weighted calculation (e.g., 30 for 30%). Default is 100% (equal weight)")
     has_practical = models.BooleanField(default=False, help_text="Has practical component")
     practical_max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Maximum practical marks")
     order = models.IntegerField(default=0, help_text="Display order")
@@ -556,6 +557,11 @@ class ReportCard(models.Model):
             assessment__term=self.term
         )
         
+        # Filter out excluded subjects if configured
+        excluded_subject_ids = self.tenant.percentage_excluded_subjects or []
+        if excluded_subject_ids:
+            marks_entries = marks_entries.exclude(assessment__subject_id__in=excluded_subject_ids)
+        
         # Calculate totals
         self.total_marks = marks_entries.aggregate(
             total=Coalesce(Sum('marks_obtained'), 0)
@@ -565,11 +571,72 @@ class ReportCard(models.Model):
             total=Coalesce(Sum('max_marks'), 0)
         )['total'] or 0
         
-        # Calculate percentage
-        if self.max_total_marks > 0:
-            self.percentage = (self.total_marks / self.max_total_marks) * 100
-        else:
-            self.percentage = 0
+        # Calculate percentage based on tenant's method
+        method = self.tenant.percentage_calculation_method if hasattr(self.tenant, 'percentage_calculation_method') else 'SIMPLE'
+        
+        if method == 'SUBJECT_WISE':
+            # Calculate percentage for each subject, then average
+            # Excluded subjects are already filtered out in marks_entries above
+            subject_percentages = []
+            subjects_in_term = marks_entries.values_list('assessment__subject_id', flat=True).distinct()
+            
+            for subject_id in subjects_in_term:
+                subject_entries = marks_entries.filter(assessment__subject_id=subject_id)
+                subject_obtained = subject_entries.aggregate(total=Coalesce(Sum('marks_obtained'), 0))['total'] or 0
+                subject_max = subject_entries.aggregate(total=Coalesce(Sum('max_marks'), 0))['total'] or 0
+                if subject_max > 0:
+                    subject_pct = (subject_obtained / subject_max) * 100
+                    subject_percentages.append(subject_pct)
+            
+            if subject_percentages:
+                self.percentage = sum(subject_percentages) / len(subject_percentages)
+            else:
+                self.percentage = 0
+                
+        elif method == 'WEIGHTED':
+            # Weighted calculation based on subject weightage
+            # Calculate weighted average: Sum(subject_percentage * subject_weightage) / Sum(subject_weightage)
+            # Excluded subjects are already filtered out in marks_entries above
+            from education.models import Subject
+            subject_weighted_sum = 0
+            total_weightage = 0
+            
+            subjects_in_term = marks_entries.values_list('assessment__subject_id', flat=True).distinct()
+            
+            for subject_id in subjects_in_term:
+                try:
+                    subject = Subject._default_manager.get(id=subject_id, tenant=self.tenant)
+                    subject_entries = marks_entries.filter(assessment__subject_id=subject_id)
+                    subject_obtained = subject_entries.aggregate(total=Coalesce(Sum('marks_obtained'), 0))['total'] or 0
+                    subject_max = subject_entries.aggregate(total=Coalesce(Sum('max_marks'), 0))['total'] or 0
+                    
+                    if subject_max > 0:
+                        subject_pct = (subject_obtained / subject_max) * 100
+                        subject_weightage = float(subject.weightage) if hasattr(subject, 'weightage') and subject.weightage else 100.0
+                        subject_weighted_sum += subject_pct * subject_weightage
+                        total_weightage += subject_weightage
+                except Subject.DoesNotExist:
+                    # Subject not found, skip it
+                    continue
+            
+            if total_weightage > 0:
+                self.percentage = subject_weighted_sum / total_weightage
+            else:
+                # Fallback to simple if no valid subjects with weightage
+                if self.max_total_marks > 0:
+                    self.percentage = (self.total_marks / self.max_total_marks) * 100
+                else:
+                    self.percentage = 0
+        else:  # SIMPLE (default)
+            # Simple: (Total Marks / Max Marks) × 100
+            if self.max_total_marks > 0:
+                self.percentage = (self.total_marks / self.max_total_marks) * 100
+            else:
+                self.percentage = 0
+        
+        # Apply rounding based on tenant settings
+        rounding = self.tenant.percentage_rounding if hasattr(self.tenant, 'percentage_rounding') else 2
+        self.percentage = round(float(self.percentage), rounding)
         
         # Calculate grade
         pct = self.percentage
