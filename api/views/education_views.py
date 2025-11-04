@@ -802,8 +802,18 @@ class ReportCardPDFView(APIView):
             report_card = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)
         except ReportCard.DoesNotExist:
             return Response({'error': 'Report card not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error accessing report card: {str(e)}", exc_info=True)
+            return Response({'error': f'Error accessing report card: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         try:
+            # Validate report card has required data
+            if not report_card.student:
+                return Response({'error': 'Report card missing student information.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not report_card.term:
+                return Response({'error': 'Report card missing term information.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not report_card.academic_year:
+                return Response({'error': 'Report card missing academic year information.'}, status=status.HTTP_400_BAD_REQUEST)
             from reportlab.lib.pagesizes import A4
             from reportlab.pdfgen import canvas
             from reportlab.lib import colors
@@ -851,6 +861,7 @@ class ReportCardPDFView(APIView):
             
             logo_drawn = False
             FIXED_TEXT_START_X = 25 * mm  # Text starts at left margin (no logo space needed)
+            logo_y_top = height - 25 * mm  # Define logo_y_top regardless of REMOVE_LOGO
             
             if not REMOVE_LOGO and tenant.logo:
                 try:
@@ -984,7 +995,9 @@ class ReportCardPDFView(APIView):
             p.setFont('Helvetica', 10)
             p.drawString(value_x, y, report_card.term.name if report_card.term else 'N/A')
             
-            issued_str = report_card.issued_date.strftime('%d-%m-%Y') if report_card.issued_date else report_card.generated_at.strftime('%d-%m-%Y')
+            # Use generated_at safely
+            gen_date = report_card.generated_at if hasattr(report_card, 'generated_at') and report_card.generated_at else (report_card.created_at if hasattr(report_card, 'created_at') and report_card.created_at else timezone.now())
+            issued_str = report_card.issued_date.strftime('%d-%m-%Y') if report_card.issued_date else gen_date.strftime('%d-%m-%Y')
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Issued Date:')
             p.setFont('Helvetica', 10)
@@ -1003,7 +1016,7 @@ class ReportCardPDFView(APIView):
             y -= 5
             # Get marks entries first to calculate table height
             from education.models import MarksEntry
-            marks_entries = MarksEntry.objects.filter(
+            marks_entries = MarksEntry._default_manager.filter(
                 tenant=report_card.tenant,
                 student=report_card.student,
                 assessment__term=report_card.term
@@ -1409,7 +1422,9 @@ class ReportCardPDFView(APIView):
             # Footer with classic styling
             p.setFont('Helvetica', 8)
             p.setFillColor(colors.black)
-            footer_text = f"Generated on {report_card.generated_at.strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            # Use created_at or current time if generated_at doesn't exist
+            gen_date = report_card.generated_at if hasattr(report_card, 'generated_at') and report_card.generated_at else (report_card.created_at if hasattr(report_card, 'created_at') and report_card.created_at else timezone.now())
+            footer_text = f"Generated on {gen_date.strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
             p.drawCentredString(width / 2, 20 * mm, footer_text)
             p.setFont('Helvetica-Oblique', 7)
             p.drawCentredString(width / 2, 15 * mm, 'This is a computer-generated document and does not require a physical signature.')
@@ -2176,7 +2191,7 @@ class FeePaymentReceiptPDFView(APIView):
             y -= 18
             
             student_name = payment.student.name if payment.student else 'N/A'
-            roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or 'N/A'
+            roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or getattr(payment.student, 'upper_id', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
             # Properly aligned labels and values - Government marksheet standard alignment
@@ -2245,13 +2260,26 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(label_x, y, 'Amount Paid:')
             p.setFont('Helvetica-Bold', 11)  # Bold for emphasis, but black color
             p.setFillColor(colors.black)  # Black text on white
-            p.drawRightString(currency_x, y, f"₹{amount_paid:.2f}")  # Right align currency (consistent)
+            # IMPROVED: Ensure currency fits within bounds and doesn't collapse
+            amount_text = f"₹{amount_paid:,.2f}"
+            amount_width = p.stringWidth(amount_text, 'Helvetica-Bold', 11)
+            if amount_width > width - currency_x - 5 * mm:
+                # If too long, use smaller font
+                p.setFont('Helvetica-Bold', 10)
+                amount_text = f"₹{amount_paid:,.2f}"
+            p.drawRightString(currency_x, y, amount_text)  # Right align currency (consistent)
             
             if payment.fee_structure:
+                y -= 15
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(label_x2, y, 'Total Fee:')
+                p.drawString(label_x, y, 'Total Fee:')
                 p.setFont('Helvetica', 10)
-                p.drawRightString(currency_x, y, f"₹{total_fee:.2f}")  # Right align currency (consistent)
+                total_text = f"₹{total_fee:,.2f}"
+                total_width = p.stringWidth(total_text, 'Helvetica', 10)
+                if total_width > width - currency_x - 5 * mm:
+                    p.setFont('Helvetica', 9)
+                    total_text = f"₹{total_fee:,.2f}"
+                p.drawRightString(currency_x, y, total_text)  # Right align currency (consistent)
             y -= 15
             
             if payment.fee_structure and remaining > 0:
@@ -2259,20 +2287,43 @@ class FeePaymentReceiptPDFView(APIView):
                 p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
                 p.setFillColor(colors.black)  # Black text on white
-                p.drawRightString(currency_x, y, f"₹{remaining:.2f}")  # Right align currency (consistent)
+                # IMPROVED: Ensure currency fits within bounds
+                remaining_text = f"₹{remaining:,.2f}"
+                remaining_width = p.stringWidth(remaining_text, 'Helvetica', 10)
+                if remaining_width > width - currency_x - 5 * mm:
+                    p.setFont('Helvetica', 9)
+                    remaining_text = f"₹{remaining:,.2f}"
+                p.drawRightString(currency_x, y, remaining_text)  # Right align currency (consistent)
             y -= 25
 
-            # Notes section (if exists)
+            # Notes section (if exists) - IMPROVED: Better text wrapping to prevent word collapsing
             if payment.notes:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(25 * mm, y, 'Notes:')
                 y -= 12
                 p.setFont('Helvetica', 9)
-                # Wrap notes text
-                notes_lines = [payment.notes[i:i+95] for i in range(0, len(payment.notes), 95)]
-                for line in notes_lines[:3]:  # Max 3 lines
+                # IMPROVED: Smart word wrapping - break at word boundaries, not mid-word
+                notes_text = str(payment.notes)
+                max_width = width - 50 * mm  # Available width for notes
+                words = notes_text.split()
+                lines = []
+                current_line = ''
+                for word in words:
+                    test_line = current_line + (' ' if current_line else '') + word
+                    if p.stringWidth(test_line, 'Helvetica', 9) <= max_width:
+                        current_line = test_line
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+                # Display up to 4 lines with proper spacing
+                for line in lines[:4]:
+                    if y < 60:
+                        break
                     p.drawString(25 * mm, y, line)
-                    y -= 12
+                    y -= 11
                 y -= 8
             else:
                 y -= 15
@@ -2285,7 +2336,13 @@ class FeePaymentReceiptPDFView(APIView):
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
             p.setFont('Helvetica-Bold', 18)
-            p.drawRightString(width - 25 * mm, y - 10, f"₹{amount_paid:.2f}")
+            # IMPROVED: Ensure total amount fits within bounds
+            total_paid_text = f"₹{amount_paid:,.2f}"
+            total_paid_width = p.stringWidth(total_paid_text, 'Helvetica-Bold', 18)
+            if total_paid_width > width - 25 * mm - 5 * mm:
+                p.setFont('Helvetica-Bold', 16)
+                total_paid_text = f"₹{amount_paid:,.2f}"
+            p.drawRightString(width - 25 * mm, y - 10, total_paid_text)
             y -= 45
 
             # Thank you message (black text on white background)
@@ -4441,6 +4498,20 @@ class TransferCertificateDetailView(APIView):
     @role_required('admin', 'principal')
     def put(self, request, pk):
         """Update a TC"""
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+            serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except TransferCertificate.DoesNotExist:
+            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    @role_required('admin', 'principal')
+    def patch(self, request, pk):
+        """Update a TC (partial update)"""
         profile = UserProfile._default_manager.get(user=request.user)
         try:
             tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)

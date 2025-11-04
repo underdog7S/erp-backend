@@ -550,12 +550,23 @@ class ReportCard(models.Model):
         from django.db.models import Sum, Count
         from django.db.models.functions import Coalesce
         
-        # Get all marks entries for this student in this term
-        marks_entries = MarksEntry._default_manager.filter(
-            tenant=self.tenant,
-            student=self.student,
-            assessment__term=self.term
-        )
+        # Get marks entries based on calculation scope
+        scope = self.tenant.percentage_calculation_scope if hasattr(self.tenant, 'percentage_calculation_scope') else 'TERM_WISE'
+        
+        if scope == 'ALL_TERMS':
+            # Get all marks entries for this student across all terms in the academic year
+            marks_entries = MarksEntry._default_manager.filter(
+                tenant=self.tenant,
+                student=self.student,
+                assessment__term__academic_year=self.academic_year
+            )
+        else:  # TERM_WISE (default)
+            # Get all marks entries for this student in this term only
+            marks_entries = MarksEntry._default_manager.filter(
+                tenant=self.tenant,
+                student=self.student,
+                assessment__term=self.term
+            )
         
         # Filter out excluded subjects if configured
         excluded_subject_ids = self.tenant.percentage_excluded_subjects or []

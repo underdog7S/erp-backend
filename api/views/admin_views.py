@@ -359,6 +359,7 @@ class TenantPublicSettingsView(APIView):
 				'logo_url': serializer.data.get('logo_url'),
 				# Education module percentage calculation settings
 				'percentage_calculation_method': getattr(tenant, 'percentage_calculation_method', 'SIMPLE'),
+				'percentage_calculation_scope': getattr(tenant, 'percentage_calculation_scope', 'TERM_WISE'),
 				'percentage_excluded_subjects': getattr(tenant, 'percentage_excluded_subjects', []),
 				'percentage_rounding': getattr(tenant, 'percentage_rounding', 2),
 			}
@@ -461,6 +462,13 @@ class TenantPublicSettingsView(APIView):
 				else:
 					tenant.percentage_excluded_subjects = []
 			
+			if 'percentage_calculation_scope' in data:
+				scope = data.get('percentage_calculation_scope', 'TERM_WISE')
+				if scope in ['TERM_WISE', 'ALL_TERMS']:
+					tenant.percentage_calculation_scope = scope
+				else:
+					return Response({'error': 'Invalid calculation scope. Must be TERM_WISE or ALL_TERMS'}, status=400)
+			
 			if 'percentage_rounding' in data:
 				rounding = data.get('percentage_rounding')
 				if rounding in [0, 1, 2]:
@@ -473,6 +481,7 @@ class TenantPublicSettingsView(APIView):
 				'message': 'Settings updated', 
 				'slug': tenant.slug,
 				'percentage_calculation_method': tenant.percentage_calculation_method,
+				'percentage_calculation_scope': tenant.percentage_calculation_scope,
 				'percentage_excluded_subjects': tenant.percentage_excluded_subjects,
 				'percentage_rounding': tenant.percentage_rounding, 
 				'has_api_key': bool(tenant.public_api_key), 

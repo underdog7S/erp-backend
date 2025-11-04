@@ -673,7 +673,7 @@ class TenantAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Education Module: Percentage Calculation Settings', {
-            'fields': ('percentage_calculation_method', 'percentage_rounding', 'percentage_excluded_subjects'),
+            'fields': ('percentage_calculation_method', 'percentage_calculation_scope', 'percentage_rounding', 'percentage_excluded_subjects'),
             'description': '''
                 <div style="background: #e3f2fd; color: #000; padding: 15px; border-radius: 5px; margin-bottom: 10px;">
                     <strong style="color: #1976d2;">📊 Percentage Calculation Configuration:</strong>
@@ -692,6 +692,14 @@ class TenantAdmin(admin.ModelAdmin):
                     <h4 style="color: #1976d2; margin-top: 15px;">Excluded Subjects:</h4>
                     <p style="margin: 5px 0; color: #212121;">Enter subject IDs (comma-separated) that should be excluded from percentage calculation. For example: <code>[1, 5, 8]</code></p>
                     <p style="margin: 5px 0; color: #666; font-size: 0.9em;">💡 Tip: Some schools exclude Physical Education, Art, or other non-academic subjects from overall percentage.</p>
+                    
+                    <h4 style="color: #1976d2; margin-top: 15px;">Calculation Scope:</h4>
+                    <ul style="margin: 5px 0 0 20px; color: #212121;">
+                        <li style="color: #212121;"><strong>Term-wise:</strong> Calculate percentage for each term separately<br>
+                            <small style="color: #666;">Example: Term 1 = 85%, Term 2 = 90% (shown separately)</small></li>
+                        <li style="color: #212121;"><strong>All Terms:</strong> Calculate percentage across all terms combined<br>
+                            <small style="color: #666;">Example: All marks from Term 1 + Term 2 + Term 3 combined = 88%</small></li>
+                    </ul>
                     
                     <h4 style="color: #1976d2; margin-top: 15px;">Rounding:</h4>
                     <p style="margin: 5px 0; color: #212121;">Choose how many decimal places to show in percentage (0, 1, or 2).</p>

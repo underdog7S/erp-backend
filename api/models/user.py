@@ -77,6 +77,15 @@ class Tenant(models.Model):
         choices=[(0, '0 decimal places'), (1, '1 decimal place'), (2, '2 decimal places')],
         help_text="Number of decimal places for percentage display"
     )
+    percentage_calculation_scope = models.CharField(
+        max_length=20,
+        choices=[
+            ('TERM_WISE', 'Term-wise: Calculate percentage for each term separately'),
+            ('ALL_TERMS', 'All Terms: Calculate percentage across all terms combined'),
+        ],
+        default='TERM_WISE',
+        help_text="Whether to calculate percentage per term or across all terms"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     def is_subscription_active(self):
