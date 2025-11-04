@@ -1,7 +1,12 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.db.models import Q
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import Q, Count, Sum, Avg
+from django.utils import timezone
+from datetime import datetime, timedelta
 from api.models.user import Tenant
 from salon.models import ServiceCategory, Service, Stylist, Appointment
 from api.serializers import ServiceCategorySerializer, ServiceSerializer, StylistSerializer, AppointmentSerializer
@@ -120,19 +125,46 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 	
 	def get_queryset(self):
 		queryset = Appointment.objects.filter(tenant=self.request.user.userprofile.tenant)
-		status = self.request.query_params.get('status')
+		status_param = self.request.query_params.get('status')
 		stylist = self.request.query_params.get('stylist')
+		service = self.request.query_params.get('service')
+		search = self.request.query_params.get('search')
 		date = self.request.query_params.get('date')  # YYYY-MM-DD
-		if status:
-			queryset = queryset.filter(status=status)
+		date_from = self.request.query_params.get('date_from')
+		date_to = self.request.query_params.get('date_to')
+		
+		if status_param:
+			queryset = queryset.filter(status=status_param)
 		if stylist:
 			queryset = queryset.filter(stylist_id=stylist)
+		if service:
+			queryset = queryset.filter(service_id=service)
+		if search:
+			queryset = queryset.filter(
+				Q(customer_name__icontains=search) |
+				Q(customer_phone__icontains=search) |
+				Q(service__name__icontains=search) |
+				Q(stylist__first_name__icontains=search) |
+				Q(stylist__last_name__icontains=search)
+			)
 		if date:
 			try:
 				from datetime import datetime
 				date_obj = datetime.strptime(date, '%Y-%m-%d').date()
 				queryset = queryset.filter(start_time__date=date_obj)
 			except Exception:
+				pass
+		if date_from:
+			try:
+				date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+				queryset = queryset.filter(start_time__date__gte=date_from_obj)
+			except:
+				pass
+		if date_to:
+			try:
+				date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+				queryset = queryset.filter(start_time__date__lte=date_to_obj)
+			except:
 				pass
 		return queryset
 	
@@ -192,3 +224,122 @@ class AppointmentCancelView(APIView):
 			return Response({'message': 'Appointment cancelled', 'status': appt.status})
 		except Appointment.DoesNotExist:
 			return Response({'error': 'Appointment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SalonAnalyticsView(APIView):
+	permission_classes = [IsAuthenticated]
+
+	def get(self, request):
+		tenant = request.user.userprofile.tenant
+		today = timezone.now().date()
+		thirty_days_ago = today - timedelta(days=30)
+		
+		# Service statistics
+		total_services = Service.objects.filter(tenant=tenant).count()
+		active_services = Service.objects.filter(tenant=tenant, is_active=True).count()
+		total_categories = ServiceCategory.objects.filter(tenant=tenant).count()
+		
+		# Stylist statistics
+		total_stylists = Stylist.objects.filter(tenant=tenant).count()
+		active_stylists = Stylist.objects.filter(tenant=tenant, is_active=True).count()
+		
+		# Appointment statistics
+		total_appointments = Appointment.objects.filter(tenant=tenant).count()
+		scheduled_appointments = Appointment.objects.filter(tenant=tenant, status='scheduled').count()
+		in_progress_appointments = Appointment.objects.filter(tenant=tenant, status='in_progress').count()
+		completed_appointments = Appointment.objects.filter(tenant=tenant, status='completed').count()
+		recent_appointments = Appointment.objects.filter(tenant=tenant, created_at__date__gte=thirty_days_ago).count()
+		
+		# Revenue statistics
+		revenue_stats = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago,
+			status='completed'
+		).aggregate(
+			total_revenue=Sum('price'),
+			avg_appointment_value=Avg('price'),
+			appointment_count=Count('id')
+		)
+		
+		# Popular services (top 5)
+		popular_services = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago,
+			status='completed'
+		).values(
+			'service__name'
+		).annotate(
+			count=Count('id'),
+			total_revenue=Sum('price')
+		).order_by('-count')[:5]
+		
+		# Stylist performance (top 5)
+		stylist_performance = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago,
+			status='completed'
+		).values(
+			'stylist__first_name',
+			'stylist__last_name'
+		).annotate(
+			appointment_count=Count('id'),
+			total_revenue=Sum('price')
+		).order_by('-total_revenue')[:5]
+		
+		return Response({
+			'services': {
+				'total': total_services,
+				'active': active_services,
+				'total_categories': total_categories
+			},
+			'stylists': {
+				'total': total_stylists,
+				'active': active_stylists
+			},
+			'appointments': {
+				'total': total_appointments,
+				'scheduled': scheduled_appointments,
+				'in_progress': in_progress_appointments,
+				'completed': completed_appointments,
+				'recent_30_days': recent_appointments
+			},
+			'revenue': {
+				'total_30_days': float(revenue_stats['total_revenue'] or 0),
+				'average_appointment_value': float(revenue_stats['avg_appointment_value'] or 0),
+				'appointment_count': revenue_stats['appointment_count'] or 0
+			},
+			'popular_services': list(popular_services),
+			'stylist_performance': list(stylist_performance)
+		})
+
+
+class AppointmentBulkDeleteView(APIView):
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request):
+		appointment_ids = request.data.get('ids', [])
+		if not appointment_ids:
+			return Response({'error': 'No appointment IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+		
+		tenant = request.user.userprofile.tenant
+		deleted_count = Appointment.objects.filter(id__in=appointment_ids, tenant=tenant).delete()[0]
+		return Response({'message': f'{deleted_count} appointment(s) deleted successfully'})
+
+
+class AppointmentBulkStatusUpdateView(APIView):
+	permission_classes = [IsAuthenticated]
+
+	def post(self, request):
+		appointment_ids = request.data.get('ids', [])
+		new_status = request.data.get('status')
+		
+		if not appointment_ids:
+			return Response({'error': 'No appointment IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+		if not new_status:
+			return Response({'error': 'Status is required'}, status=status.HTTP_400_BAD_REQUEST)
+		if new_status not in ['scheduled', 'in_progress', 'completed', 'cancelled']:
+			return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+		
+		tenant = request.user.userprofile.tenant
+		updated_count = Appointment.objects.filter(id__in=appointment_ids, tenant=tenant).update(status=new_status)
+		return Response({'message': f'{updated_count} appointment(s) updated successfully'})

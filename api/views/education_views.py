@@ -848,8 +848,8 @@ class ReportCardPDFView(APIView):
             # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
             # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
-            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
+            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
             logo_x = 25 * mm
             logo_y_top = height - 25 * mm
             
@@ -860,9 +860,9 @@ class ReportCardPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Fixed logo size: max 35mm height
-                        max_height = 35 * mm
-                        max_width = 35 * mm
+                        # Reduced logo size: max 20mm height (was 35mm)
+                        max_height = 20 * mm
+                        max_width = 20 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
@@ -1162,13 +1162,24 @@ class ReportCardPDFView(APIView):
                 p.drawString(col_x[0], y, display_subject)
                 
                 # Right align numbers within their respective column boundaries
+                # Ensure values don't exceed column boundaries
                 marks_str = str(int(float(entry.marks_obtained)))
+                marks_width = p.stringWidth(marks_str, 'Helvetica', 9)
+                marks_x = min(col_x[1] + col_widths[1] - 2 * mm, col_x[1] + col_widths[1] - marks_width)
                 p.drawRightString(col_x[1] + col_widths[1] - 2 * mm, y, marks_str)
                 
                 max_marks_str = str(int(float(entry.max_marks)))
+                max_marks_width = p.stringWidth(max_marks_str, 'Helvetica', 9)
+                max_marks_x = min(col_x[2] + col_widths[2] - 2 * mm, col_x[2] + col_widths[2] - max_marks_width)
                 p.drawRightString(col_x[2] + col_widths[2] - 2 * mm, y, max_marks_str)
                 
                 percent_str = f"{percent:.1f}%"
+                percent_width = p.stringWidth(percent_str, 'Helvetica', 9)
+                percent_x = min(col_x[3] + col_widths[3] - 2 * mm, col_x[3] + col_widths[3] - percent_width)
+                # Validate that rightmost column doesn't exceed table boundary
+                if col_x[3] + col_widths[3] > table_right - 3 * mm:
+                    # Further adjust if needed
+                    percent_str = percent_str[:6] if len(percent_str) > 6 else percent_str
                 p.drawRightString(col_x[3] + col_widths[3] - 2 * mm, y, percent_str)
                 y -= 14
                 row_num += 1
@@ -2035,8 +2046,8 @@ class FeePaymentReceiptPDFView(APIView):
             # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
             # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
-            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
+            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
             logo_x = 25 * mm
             logo_y_top = height - 25 * mm
             
@@ -2047,9 +2058,9 @@ class FeePaymentReceiptPDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Fixed logo size: max 35mm height
-                        max_height = 35 * mm
-                        max_width = 35 * mm
+                        # Reduced logo size: max 20mm height (was 35mm)
+                        max_height = 20 * mm
+                        max_width = 20 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)
@@ -4473,8 +4484,8 @@ class TransferCertificatePDFView(APIView):
             # FIXED LOGO POSITIONING: Logo always at fixed position (25mm from left, 25mm from top)
             # This ensures consistent text alignment regardless of logo size
             logo_drawn = False
-            FIXED_LOGO_WIDTH = 35 * mm  # Fixed reserved width for logo area
-            FIXED_TEXT_START_X = 65 * mm  # Fixed text start position (after logo + spacing)
+            FIXED_LOGO_WIDTH = 20 * mm  # Reduced logo size: 20mm width area (was 35mm)
+            FIXED_TEXT_START_X = 50 * mm  # Fixed text start position (after smaller logo + spacing)
             logo_x = 25 * mm
             logo_y_top = height - 25 * mm
             
@@ -4485,9 +4496,9 @@ class TransferCertificatePDFView(APIView):
                     logo_path = tenant.logo.path
                     if os.path.exists(logo_path):
                         img = Image.open(logo_path)
-                        # Fixed logo size: max 35mm height
-                        max_height = 35 * mm
-                        max_width = 35 * mm
+                        # Reduced logo size: max 20mm height (was 35mm)
+                        max_height = 20 * mm
+                        max_width = 20 * mm
                         img_width, img_height = img.size
                         scale = min(max_height / img_height, max_width / img_width, 1.0)
                         new_width = int(img_width * scale)

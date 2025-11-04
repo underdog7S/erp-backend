@@ -21,14 +21,17 @@ from api.models.user import Tenant, UserProfile
 from pharmacy.models import (
     MedicineCategory, Supplier, Medicine, MedicineBatch, Customer,
     Prescription, PrescriptionItem, Sale, SaleItem, PurchaseOrder,
-    PurchaseOrderItem, StockAdjustment, StaffAttendance
+    PurchaseOrderItem, StockAdjustment, StaffAttendance, SaleReturn, SaleReturnItem,
+    LoyaltyReward, LoyaltyTransaction
 )
 from ..serializers import (
     MedicineCategorySerializer, PharmacySupplierSerializer as SupplierSerializer, MedicineSerializer,
     MedicineBatchSerializer, PharmacyCustomerSerializer as CustomerSerializer, PrescriptionSerializer,
     PrescriptionItemSerializer, PharmacySaleSerializer as SaleSerializer, PharmacySaleItemSerializer as SaleItemSerializer,
     PharmacyPurchaseOrderSerializer as PurchaseOrderSerializer, PharmacyPurchaseOrderItemSerializer as PurchaseOrderItemSerializer, PharmacyStockAdjustmentSerializer as StockAdjustmentSerializer,
-    PharmacyStaffAttendanceSerializer as StaffAttendanceSerializer
+    PharmacyStaffAttendanceSerializer as StaffAttendanceSerializer,
+    PharmacySaleReturnSerializer as SaleReturnSerializer, PharmacySaleReturnItemSerializer as SaleReturnItemSerializer,
+    PharmacyLoyaltyRewardSerializer as LoyaltyRewardSerializer, PharmacyLoyaltyTransactionSerializer as LoyaltyTransactionSerializer
 )
 
 # Medicine Category Views
@@ -246,9 +249,30 @@ class SaleListCreateView(generics.ListCreateAPIView):
                 'sold_by__user'
             )
             customer = self.request.query_params.get('customer', None)
+            search = self.request.query_params.get('search', None)
+            payment_method = self.request.query_params.get('payment_method', None)
+            payment_status = self.request.query_params.get('payment_status', None)
+            date_from = self.request.query_params.get('date_from', None)
+            date_to = self.request.query_params.get('date_to', None)
+            
             if customer:
                 queryset = queryset.filter(customer_id=customer)
-            return queryset
+            if search:
+                queryset = queryset.filter(
+                    Q(invoice_number__icontains=search) |
+                    Q(customer__name__icontains=search) |
+                    Q(customer__phone__icontains=search)
+                )
+            if payment_method:
+                queryset = queryset.filter(payment_method=payment_method)
+            if payment_status:
+                queryset = queryset.filter(payment_status=payment_status)
+            if date_from:
+                queryset = queryset.filter(sale_date__date__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(sale_date__date__lte=date_to)
+            
+            return queryset.order_by('-sale_date')
         except Exception as e:
             # If there's an error with tenant filtering, return empty queryset
             print(f"Error in SaleListCreateView.get_queryset: {e}")
@@ -262,10 +286,21 @@ class SaleListCreateView(generics.ListCreateAPIView):
             'items': items_data,
             'request': self.request
         })
-        serializer.save(
+        sale = serializer.save(
             tenant=self.request.user.userprofile.tenant, 
             sold_by=self.request.user.userprofile
         )
+        
+        # Award loyalty points if customer is enrolled and sale is paid
+        if sale.customer and sale.customer.loyalty_enrolled and sale.payment_status == 'PAID':
+            points_per_rupee = 1  # Default: 1 point per rupee, can be made configurable
+            points = sale.customer.calculate_loyalty_points(sale.total_amount, points_per_rupee)
+            if points > 0:
+                sale.customer.add_loyalty_points(
+                    points, 
+                    sale=sale, 
+                    description=f"Points earned from sale {sale.invoice_number}"
+                )
 
 class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
@@ -287,9 +322,26 @@ class PurchaseOrderListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = PurchaseOrder.objects.filter(tenant=self.request.user.userprofile.tenant)
         supplier = self.request.query_params.get('supplier', None)
+        status = self.request.query_params.get('status', None)
+        search = self.request.query_params.get('search', None)
+        date_from = self.request.query_params.get('date_from', None)
+        date_to = self.request.query_params.get('date_to', None)
+        
         if supplier:
             queryset = queryset.filter(supplier_id=supplier)
-        return queryset
+        if status:
+            queryset = queryset.filter(status=status)
+        if search:
+            queryset = queryset.filter(
+                Q(po_number__icontains=search) |
+                Q(supplier__name__icontains=search)
+            )
+        if date_from:
+            queryset = queryset.filter(order_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(order_date__lte=date_to)
+        
+        return queryset.order_by('-order_date')
     
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
@@ -347,6 +399,7 @@ class PharmacyAnalyticsView(APIView):
         # Sales analytics
         today = timezone.now().date()
         month_start = today.replace(day=1)
+        thirty_days_ago = today - timedelta(days=30)
         
         daily_sales = Sale.objects.filter(
             tenant=tenant,
@@ -364,36 +417,115 @@ class PharmacyAnalyticsView(APIView):
             total_transactions=Count('id')
         )
         
+        # Profit margin calculation (selling_price - cost_price)
+        from django.db.models import F
+        recent_sales_items = SaleItem.objects.filter(
+            tenant=tenant,
+            sale__sale_date__date__gte=thirty_days_ago
+        ).aggregate(
+            total_revenue=Sum('total_price'),
+            total_cost=Sum(F('medicine_batch__cost_price') * F('quantity')),
+            item_count=Count('id')
+        )
+        
+        total_revenue = float(recent_sales_items['total_revenue'] or 0)
+        total_cost = float(recent_sales_items['total_cost'] or 0)
+        profit_margin = total_revenue - total_cost
+        profit_percentage = (profit_margin / total_revenue * 100) if total_revenue > 0 else 0
+        
         # Inventory analytics
         low_stock_medicines = MedicineBatch.objects.filter(
             tenant=tenant,
             quantity_available__lte=10
         ).count()
         
-        expiring_medicines = MedicineBatch.objects.filter(
+        expired_medicines = MedicineBatch.objects.filter(
             tenant=tenant,
-            expiry_date__lte=today + timedelta(days=30)
+            expiry_date__lt=today,
+            quantity_available__gt=0
         ).count()
+        
+        expiring_soon_medicines = MedicineBatch.objects.filter(
+            tenant=tenant,
+            expiry_date__gte=today,
+            expiry_date__lte=today + timedelta(days=30),
+            quantity_available__gt=0
+        ).count()
+        
+        # Top selling medicines (last 30 days)
+        top_medicines = SaleItem.objects.filter(
+            tenant=tenant,
+            sale__sale_date__date__gte=thirty_days_ago
+        ).values(
+            'medicine_batch__medicine__name'
+        ).annotate(
+            total_quantity=Sum('quantity'),
+            total_revenue=Sum('total_price')
+        ).order_by('-total_revenue')[:10]
         
         # Customer analytics
         total_customers = Customer.objects.filter(tenant=tenant).count()
+        recent_customers = Customer.objects.filter(
+            tenant=tenant,
+            created_at__date__gte=thirty_days_ago
+        ).count()
+        
+        # Prescription analytics
+        total_prescriptions = Prescription.objects.filter(tenant=tenant).count()
+        recent_prescriptions = Prescription.objects.filter(
+            tenant=tenant,
+            prescription_date__gte=thirty_days_ago
+        ).count()
+        
+        # Supplier analytics
+        total_suppliers = Supplier.objects.filter(tenant=tenant).count()
         
         # Medicine analytics
         total_medicines = Medicine.objects.filter(tenant=tenant).count()
-        total_sales = Sale.objects.filter(tenant=tenant).count()
-        total_sales_amount = Sale.objects.filter(tenant=tenant).aggregate(
+        
+        # Stock value calculation
+        total_stock_value = MedicineBatch.objects.filter(
+            tenant=tenant,
+            quantity_available__gt=0
+        ).aggregate(
+            total_value=Sum(F('cost_price') * F('quantity_available'))
+        )['total_value'] or 0
+        
+        # Payment method breakdown
+        payment_methods = Sale.objects.filter(
+            tenant=tenant,
+            sale_date__date__gte=thirty_days_ago
+        ).values('payment_method').annotate(
+            count=Count('id'),
             total=Sum('total_amount')
-        )['total'] or 0
+        )
         
         return Response({
-            'daily_sales': daily_sales,
-            'monthly_sales': monthly_sales,
-            'low_stock_medicines': low_stock_medicines,
-            'expiring_medicines': expiring_medicines,
-            'total_customers': total_customers,
-            'total_medicines': total_medicines,
-            'total_sales': total_sales,
-            'total_sales_amount': total_sales_amount,
+            'overview': {
+                'daily_sales': daily_sales,
+                'monthly_sales': monthly_sales,
+                'total_customers': total_customers,
+                'recent_customers': recent_customers,
+                'total_medicines': total_medicines,
+                'total_suppliers': total_suppliers,
+                'total_prescriptions': total_prescriptions,
+                'recent_prescriptions': recent_prescriptions,
+            },
+            'inventory': {
+                'low_stock_medicines': low_stock_medicines,
+                'expired_medicines': expired_medicines,
+                'expiring_soon_medicines': expiring_soon_medicines,
+                'total_stock_value': float(total_stock_value),
+            },
+            'profitability': {
+                'total_revenue_30_days': total_revenue,
+                'total_cost_30_days': total_cost,
+                'profit_margin_30_days': profit_margin,
+                'profit_percentage': round(profit_percentage, 2),
+                'total_items_sold': recent_sales_items['item_count'] or 0,
+            },
+            'top_medicines': list(top_medicines),
+            'payment_methods': list(payment_methods),
         })
 
 # Check-in/Check-out Views
@@ -791,4 +923,302 @@ class PharmacyInventoryExportView(APIView):
                     batch.current_stock,
                     batch.initial_stock
                 ])
-            return response 
+            return response
+
+# Bulk Operations for Pharmacy
+class PharmacySaleBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        sale_ids = request.data.get('ids', [])
+        if not sale_ids:
+            return Response({'error': 'No sale IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        tenant = request.user.userprofile.tenant
+        deleted_count = Sale.objects.filter(id__in=sale_ids, tenant=tenant).delete()[0]
+        return Response({'message': f'{deleted_count} sale(s) deleted successfully'})
+
+
+class PharmacySaleBulkStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        sale_ids = request.data.get('ids', [])
+        new_status = request.data.get('payment_status')
+        
+        if not sale_ids:
+            return Response({'error': 'No sale IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_status:
+            return Response({'error': 'Payment status is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_status not in ['PENDING', 'PAID', 'PARTIAL']:
+            return Response({'error': 'Invalid payment status'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        tenant = request.user.userprofile.tenant
+        updated_count = Sale.objects.filter(id__in=sale_ids, tenant=tenant).update(payment_status=new_status)
+        return Response({'message': f'{updated_count} sale(s) updated successfully'})
+
+
+class PharmacyPurchaseOrderBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        po_ids = request.data.get('ids', [])
+        if not po_ids:
+            return Response({'error': 'No purchase order IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        tenant = request.user.userprofile.tenant
+        deleted_count = PurchaseOrder.objects.filter(id__in=po_ids, tenant=tenant).delete()[0]
+        return Response({'message': f'{deleted_count} purchase order(s) deleted successfully'})
+
+
+class PharmacyPurchaseOrderBulkStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        po_ids = request.data.get('ids', [])
+        new_status = request.data.get('status')
+        
+        if not po_ids:
+            return Response({'error': 'No purchase order IDs provided'}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_status:
+            return Response({'error': 'Status is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_status not in ['DRAFT', 'ORDERED', 'RECEIVED', 'CANCELLED']:
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        tenant = request.user.userprofile.tenant
+        updated_count = PurchaseOrder.objects.filter(id__in=po_ids, tenant=tenant).update(status=new_status)
+        return Response({'message': f'{updated_count} purchase order(s) updated successfully'})
+
+
+# Sale Return Views
+class SaleReturnListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SaleReturnSerializer
+    
+    def get_queryset(self):
+        try:
+            queryset = SaleReturn.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+                'sale', 'customer', 'processed_by__user'
+            ).prefetch_related('items__medicine_batch__medicine')
+            
+            # Filtering options
+            sale_id = self.request.query_params.get('sale', None)
+            customer_id = self.request.query_params.get('customer', None)
+            status = self.request.query_params.get('status', None)
+            return_type = self.request.query_params.get('return_type', None)
+            search = self.request.query_params.get('search', None)
+            date_from = self.request.query_params.get('date_from', None)
+            date_to = self.request.query_params.get('date_to', None)
+            
+            if sale_id:
+                queryset = queryset.filter(sale_id=sale_id)
+            if customer_id:
+                queryset = queryset.filter(customer_id=customer_id)
+            if status:
+                queryset = queryset.filter(status=status)
+            if return_type:
+                queryset = queryset.filter(return_type=return_type)
+            if search:
+                queryset = queryset.filter(
+                    Q(return_number__icontains=search) |
+                    Q(sale__invoice_number__icontains=search) |
+                    Q(customer__name__icontains=search)
+                )
+            if date_from:
+                queryset = queryset.filter(return_date__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(return_date__lte=date_to)
+            
+            return queryset.order_by('-return_date')
+        except Exception as e:
+            return SaleReturn.objects.none()
+    
+    def perform_create(self, serializer):
+        tenant = self.request.user.userprofile.tenant
+        items_data = self.request.data.get('items', [])
+        
+        # Generate return number
+        from datetime import datetime
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        return_number = f"RET{timestamp}"
+        
+        # Calculate totals
+        subtotal = 0
+        for item_data in items_data:
+            quantity = item_data.get('quantity', 0)
+            unit_price = item_data.get('unit_price', 0)
+            subtotal += quantity * unit_price
+        
+        # Create the return
+        sale_return = serializer.save(
+            tenant=tenant,
+            return_number=return_number,
+            subtotal=subtotal,
+            refund_amount=subtotal  # Default refund amount equals subtotal
+        )
+        
+        # Create return items
+        for item_data in items_data:
+            sale_item_id = item_data.get('sale_item')
+            medicine_batch_id = item_data.get('medicine_batch')
+            quantity = item_data.get('quantity', 0)
+            unit_price = item_data.get('unit_price', 0)
+            reason = item_data.get('reason', '')
+            
+            if sale_item_id and medicine_batch_id:
+                try:
+                    from pharmacy.models import SaleItem, MedicineBatch
+                    sale_item = SaleItem.objects.get(id=sale_item_id, tenant=tenant)
+                    medicine_batch = MedicineBatch.objects.get(id=medicine_batch_id, tenant=tenant)
+                    
+                    SaleReturnItem.objects.create(
+                        sale_return=sale_return,
+                        sale_item=sale_item,
+                        medicine_batch=medicine_batch,
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        total_price=quantity * unit_price,
+                        reason=reason,
+                        tenant=tenant
+                    )
+                except (SaleItem.DoesNotExist, MedicineBatch.DoesNotExist):
+                    pass  # Skip invalid items
+        
+        # Note: Stock is NOT restored here - only when return is processed
+
+class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SaleReturnSerializer
+    
+    def get_queryset(self):
+        try:
+            return SaleReturn.objects.filter(tenant=self.request.user.userprofile.tenant)
+        except Exception:
+            return SaleReturn.objects.none()
+
+class SaleReturnProcessView(APIView):
+    """Process a return (approve and complete refund)"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        try:
+            tenant = request.user.userprofile.tenant
+            sale_return = SaleReturn.objects.get(id=pk, tenant=tenant)
+            
+            if sale_return.status == 'PROCESSED':
+                return Response({'error': 'Return already processed'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update status
+            sale_return.status = 'PROCESSED'
+            sale_return.processed_by = request.user.userprofile
+            sale_return.processed_at = timezone.now()
+            sale_return.save()
+            
+            # Restore stock for all returned items
+            for item in sale_return.items.all():
+                batch = item.medicine_batch
+                if batch:
+                    batch.quantity_available += item.quantity
+                    batch.save()
+            
+            return Response({'message': 'Return processed successfully', 'return': SaleReturnSerializer(sale_return).data})
+        except SaleReturn.DoesNotExist:
+            return Response({'error': 'Return not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# Loyalty Program Views
+class LoyaltyRewardListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = LoyaltyRewardSerializer
+    
+    def get_queryset(self):
+        queryset = LoyaltyReward.objects.filter(tenant=self.request.user.userprofile.tenant)
+        is_active = self.request.query_params.get('is_active', None)
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        return queryset
+    
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.user.userprofile.tenant)
+
+class LoyaltyRewardDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = LoyaltyRewardSerializer
+    
+    def get_queryset(self):
+        return LoyaltyReward.objects.filter(tenant=self.request.user.userprofile.tenant)
+
+class LoyaltyTransactionListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = LoyaltyTransactionSerializer
+    
+    def get_queryset(self):
+        queryset = LoyaltyTransaction.objects.filter(tenant=self.request.user.userprofile.tenant)
+        customer = self.request.query_params.get('customer', None)
+        transaction_type = self.request.query_params.get('transaction_type', None)
+        if customer:
+            queryset = queryset.filter(customer_id=customer)
+        if transaction_type:
+            queryset = queryset.filter(transaction_type=transaction_type)
+        return queryset.order_by('-transaction_date')
+    
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
+
+class LoyaltyTransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = LoyaltyTransactionSerializer
+    
+    def get_queryset(self):
+        return LoyaltyTransaction.objects.filter(tenant=self.request.user.userprofile.tenant)
+
+class LoyaltyRedeemView(APIView):
+    """Redeem loyalty points for a reward"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            tenant = request.user.userprofile.tenant
+            customer_id = request.data.get('customer_id')
+            reward_id = request.data.get('reward_id')
+            
+            if not customer_id or not reward_id:
+                return Response({'error': 'customer_id and reward_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            customer = Customer.objects.get(id=customer_id, tenant=tenant)
+            reward = LoyaltyReward.objects.get(id=reward_id, tenant=tenant, is_active=True)
+            
+            if not customer.loyalty_enrolled:
+                return Response({'error': 'Customer is not enrolled in loyalty program'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if customer.loyalty_points < reward.points_required:
+                return Response({'error': 'Insufficient loyalty points'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if reward is valid (date range)
+            today = timezone.now().date()
+            if reward.valid_from and reward.valid_from > today:
+                return Response({'error': 'Reward is not yet valid'}, status=status.HTTP_400_BAD_REQUEST)
+            if reward.valid_until and reward.valid_until < today:
+                return Response({'error': 'Reward has expired'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Redeem points
+            customer.redeem_loyalty_points(
+                reward.points_required,
+                reward=reward,
+                description=f"Redeemed reward: {reward.name}"
+            )
+            
+            return Response({
+                'message': 'Points redeemed successfully',
+                'customer': CustomerSerializer(customer).data,
+                'reward': LoyaltyRewardSerializer(reward).data
+            })
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
+        except LoyaltyReward.DoesNotExist:
+            return Response({'error': 'Reward not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST) 

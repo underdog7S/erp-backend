@@ -79,7 +79,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             else:
                 kwargs['queryset'] = Class.objects.all()
         return super().formfield_for_manytomany(db_field, request, **kwargs)
-    
+
     def delete_model(self, request, obj):
         """Override delete to handle user deletion properly"""
         import logging
@@ -291,7 +291,7 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
     readonly_fields = ('order_id', 'payment_id', 'signature', 'created_at', 'verified_at', 'receipt_link')
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
-    
+
     fieldsets = (
         ('Transaction Details', {
             'fields': ('user', 'tenant', 'plan', 'amount', 'currency', 'status')

@@ -209,25 +209,41 @@ class RegisterView(APIView):
                 email=data["email"]
             )
             
-            # Send verification email asynchronously (don't block registration)
-            # This prevents timeout issues on slow email servers like SendGrid
-            logger.info(f"🔄 Starting email thread for {data['email']}")
-            try:
-                email_thread = threading.Thread(
-                    target=self.send_verification_email_async,
-                    args=(email_verification,),
-                    daemon=True
-                )
-                email_thread.start()
-                logger.info(f"✅ Email thread started for {data['email']}")
-            except Exception as e:
-                logger.error(f"❌ Failed to start email thread for {data['email']}: {e}")
+            # Send verification email immediately (synchronously) for faster delivery
+            # Use SendGrid API if available (much faster than SMTP)
+            # If SMTP is used, it has a 10-second timeout to prevent blocking
+            email_sent = False
+            email_error = None
             
-            # Return success immediately - email will be sent in background
+            logger.info(f"📧 Sending verification email immediately to {data['email']}")
+            try:
+                self.send_verification_email(email_verification)
+                email_sent = True
+                logger.info(f"✅ Verification email sent successfully to {data['email']}")
+            except Exception as e:
+                email_error = str(e)
+                logger.error(f"❌ Failed to send verification email to {data['email']}: {type(e).__name__}: {e}")
+                # If email fails, try to send in background thread as fallback
+                try:
+                    email_thread = threading.Thread(
+                        target=self.send_verification_email_async,
+                        args=(email_verification,),
+                        daemon=True
+                    )
+                    email_thread.start()
+                    logger.info(f"🔄 Email thread started as fallback for {data['email']}")
+                except Exception as thread_error:
+                    logger.error(f"❌ Failed to start email thread for {data['email']}: {thread_error}")
+            
+            # Return success response
             response_data = {
                 "message": "Registration successful! Please check your email for verification link.",
                 "email": data["email"]
             }
+            
+            # Add warning if email failed (but don't block registration)
+            if not email_sent and email_error:
+                response_data["warning"] = f"Account created successfully, but verification email failed: {email_error}. Please use 'Resend Verification' if needed."
             
             return Response(response_data, status=status.HTTP_201_CREATED)
             
@@ -316,8 +332,9 @@ Zenith ERP Team
         )
         email.attach_alternative(html_message, "text/html")
         
-        # Send email with timeout to prevent hanging
-        socket.setdefaulttimeout(30)  # 30 second timeout (increased for SendGrid)
+        # Send email with shorter timeout for faster delivery (10 seconds for SMTP)
+        # SendGrid API has its own 30-second timeout which is faster
+        socket.setdefaulttimeout(10)  # 10 second timeout for SMTP (faster response)
         try:
             email.send(fail_silently=False)
             logger.info(f"✅ Verification email sent successfully to {email_verification.email}")
@@ -383,9 +400,13 @@ Zenith ERP Team
         }
         
         try:
-            response = requests.post(url, json=data, headers=headers, timeout=30)
+            # SendGrid API with 10-second timeout for faster delivery
+            response = requests.post(url, json=data, headers=headers, timeout=10)
             response.raise_for_status()
             logger.info(f"✅ Verification email sent successfully via SendGrid API to {email_verification.email}")
+        except requests.exceptions.Timeout:
+            logger.error(f"⚠️ SendGrid API request timed out for {email_verification.email}")
+            raise Exception("Email sending timed out. Please check your email configuration or try again later.")
         except requests.exceptions.RequestException as e:
             error_msg = f"SendGrid API error: {str(e)}"
             if hasattr(e, 'response') and e.response is not None:

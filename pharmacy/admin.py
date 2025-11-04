@@ -2,7 +2,8 @@ from django.contrib import admin
 from .models import (
     MedicineCategory, Supplier, Medicine, MedicineBatch, Customer, 
     Prescription, PrescriptionItem, Sale, SaleItem, PurchaseOrder, 
-    PurchaseOrderItem, StockAdjustment, StaffAttendance
+    PurchaseOrderItem, StockAdjustment, StaffAttendance, SaleReturn, SaleReturnItem,
+    LoyaltyReward, LoyaltyTransaction
 )
 from api.admin_site import secure_admin_site
 
@@ -27,9 +28,10 @@ class MedicineBatchAdmin(admin.ModelAdmin):
     search_fields = ('medicine__name', 'batch_number')
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'phone', 'email', 'date_of_birth', 'tenant')
-    list_filter = ('tenant',)
+    list_display = ('name', 'phone', 'email', 'loyalty_points', 'total_points_earned', 'loyalty_enrolled', 'tenant')
+    list_filter = ('loyalty_enrolled', 'tenant')
     search_fields = ('name', 'phone', 'email')
+    readonly_fields = ('loyalty_points', 'total_points_earned', 'total_points_redeemed')
 
 class PrescriptionAdmin(admin.ModelAdmin):
     list_display = ('customer', 'doctor_name', 'prescription_date', 'tenant')
@@ -71,6 +73,29 @@ class StaffAttendanceAdmin(admin.ModelAdmin):
     list_filter = ('date', 'tenant')
     search_fields = ('staff__user__username', 'staff__user__first_name')
 
+class SaleReturnAdmin(admin.ModelAdmin):
+    list_display = ('return_number', 'sale', 'customer', 'return_date', 'return_type', 'refund_amount', 'status', 'tenant')
+    list_filter = ('return_type', 'status', 'return_date', 'tenant')
+    search_fields = ('return_number', 'sale__invoice_number', 'customer__name')
+    readonly_fields = ('return_number', 'return_date', 'processed_at')
+
+class SaleReturnItemAdmin(admin.ModelAdmin):
+    list_display = ('sale_return', 'medicine_batch', 'quantity', 'unit_price', 'total_price', 'tenant')
+    list_filter = ('tenant',)
+    search_fields = ('medicine_batch__medicine__name', 'sale_return__return_number')
+
+class LoyaltyRewardAdmin(admin.ModelAdmin):
+    list_display = ('name', 'reward_type', 'points_required', 'discount_percentage', 'discount_amount', 'is_active', 'tenant')
+    list_filter = ('reward_type', 'is_active', 'tenant')
+    search_fields = ('name', 'description')
+    readonly_fields = ('created_at',)
+
+class LoyaltyTransactionAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'transaction_type', 'points', 'sale', 'reward', 'transaction_date', 'tenant')
+    list_filter = ('transaction_type', 'transaction_date', 'tenant')
+    search_fields = ('customer__name', 'sale__invoice_number', 'description')
+    readonly_fields = ('transaction_date',)
+
 # Register with secure_admin_site
 secure_admin_site.register(MedicineCategory, MedicineCategoryAdmin)
 secure_admin_site.register(Supplier, SupplierAdmin)
@@ -84,4 +109,8 @@ secure_admin_site.register(SaleItem, SaleItemAdmin)
 secure_admin_site.register(PurchaseOrder, PurchaseOrderAdmin)
 secure_admin_site.register(PurchaseOrderItem, PurchaseOrderItemAdmin)
 secure_admin_site.register(StockAdjustment, StockAdjustmentAdmin)
-secure_admin_site.register(StaffAttendance, StaffAttendanceAdmin) 
+secure_admin_site.register(StaffAttendance, StaffAttendanceAdmin)
+secure_admin_site.register(SaleReturn, SaleReturnAdmin)
+secure_admin_site.register(SaleReturnItem, SaleReturnItemAdmin)
+secure_admin_site.register(LoyaltyReward, LoyaltyRewardAdmin)
+secure_admin_site.register(LoyaltyTransaction, LoyaltyTransactionAdmin) 

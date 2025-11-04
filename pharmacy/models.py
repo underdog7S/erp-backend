@@ -95,10 +95,58 @@ class Customer(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
     allergies = models.TextField(blank=True)
     medical_history = models.TextField(blank=True)
+    loyalty_points = models.IntegerField(default=0, help_text="Current available loyalty points")
+    total_points_earned = models.IntegerField(default=0, help_text="Lifetime points earned")
+    total_points_redeemed = models.IntegerField(default=0, help_text="Lifetime points redeemed")
+    loyalty_enrolled = models.BooleanField(default=True, help_text="Whether customer is enrolled in loyalty program")
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return self.name
+    
+    def calculate_loyalty_points(self, sale_amount, points_per_rupee=1):
+        """Calculate loyalty points for a sale amount"""
+        return int(sale_amount * points_per_rupee)
+    
+    def add_loyalty_points(self, points, sale=None, description=""):
+        """Add loyalty points to customer"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        self.loyalty_points += points
+        self.total_points_earned += points
+        self.save()
+        
+        # Create transaction record
+        expiry_date = timezone.now().date() + timedelta(days=365) if points > 0 else None  # Points expire in 1 year
+        LoyaltyTransaction.objects.create(
+            tenant=self.tenant,
+            customer=self,
+            transaction_type='EARNED',
+            points=points,
+            sale=sale,
+            description=description or f"Points earned from sale",
+            expiry_date=expiry_date
+        )
+    
+    def redeem_loyalty_points(self, points, reward=None, description=""):
+        """Redeem loyalty points from customer"""
+        if points > self.loyalty_points:
+            raise ValueError("Insufficient loyalty points")
+        
+        self.loyalty_points -= points
+        self.total_points_redeemed += points
+        self.save()
+        
+        # Create transaction record
+        LoyaltyTransaction.objects.create(
+            tenant=self.tenant,
+            customer=self,
+            transaction_type='REDEEMED',
+            points=-points,
+            reward=reward,
+            description=description or f"Points redeemed",
+        )
 
 class Prescription(models.Model):
     """Customer prescriptions"""
@@ -231,4 +279,113 @@ class StaffAttendance(models.Model):
         unique_together = ('staff', 'date', 'tenant')
 
     def __str__(self):
-        return f"{self.staff} - {self.date}" 
+        return f"{self.staff} - {self.date}"
+
+class SaleReturn(models.Model):
+    """Return/exchange/refund for pharmacy sales"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pharmacy_sale_returns')
+    return_number = models.CharField(max_length=50, unique=True)
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='returns')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='returns')
+    return_date = models.DateTimeField(auto_now_add=True)
+    return_type = models.CharField(max_length=20, choices=[
+        ('RETURN', 'Return'),
+        ('EXCHANGE', 'Exchange'),
+        ('REFUND', 'Refund'),
+    ], default='RETURN')
+    return_reason = models.CharField(max_length=100, choices=[
+        ('DAMAGED', 'Damaged Product'),
+        ('EXPIRED', 'Expired Product'),
+        ('WRONG_ITEM', 'Wrong Item'),
+        ('DEFECTIVE', 'Defective'),
+        ('CUSTOMER_REQUEST', 'Customer Request'),
+        ('OTHER', 'Other'),
+    ], default='CUSTOMER_REQUEST')
+    reason_details = models.TextField(blank=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    refund_method = models.CharField(max_length=50, choices=[
+        ('CASH', 'Cash'),
+        ('CARD', 'Card'),
+        ('UPI', 'UPI'),
+        ('CREDIT_NOTE', 'Credit Note'),
+        ('EXCHANGE', 'Exchange'),
+    ], default='CASH')
+    status = models.CharField(max_length=20, choices=[
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('PROCESSED', 'Processed'),
+        ('CANCELLED', 'Cancelled'),
+    ], default='PENDING')
+    processed_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, related_name='pharmacy_returns_processed')
+    processed_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-return_date']
+    
+    def __str__(self):
+        return f"Return {self.return_number} - {self.sale.invoice_number}"
+
+class SaleReturnItem(models.Model):
+    """Individual items in a return"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pharmacy_return_items')
+    sale_return = models.ForeignKey(SaleReturn, on_delete=models.CASCADE, related_name='items')
+    sale_item = models.ForeignKey(SaleItem, on_delete=models.CASCADE)
+    medicine_batch = models.ForeignKey(MedicineBatch, on_delete=models.CASCADE)
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"{self.medicine_batch.medicine.name} - {self.quantity}"
+
+class LoyaltyReward(models.Model):
+    """Rewards that customers can redeem with loyalty points"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pharmacy_loyalty_rewards')
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    points_required = models.IntegerField(help_text="Points needed to redeem this reward")
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Discount percentage if applicable")
+    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Fixed discount amount if applicable")
+    reward_type = models.CharField(max_length=50, choices=[
+        ('DISCOUNT', 'Discount'),
+        ('FREE_ITEM', 'Free Item'),
+        ('CASHBACK', 'Cashback'),
+        ('OTHER', 'Other'),
+    ], default='DISCOUNT')
+    is_active = models.BooleanField(default=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['points_required']
+    
+    def __str__(self):
+        return f"{self.name} - {self.points_required} points"
+
+class LoyaltyTransaction(models.Model):
+    """Individual loyalty point transactions (earned/spent)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pharmacy_loyalty_transactions')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='loyalty_transactions')
+    transaction_type = models.CharField(max_length=20, choices=[
+        ('EARNED', 'Points Earned'),
+        ('REDEEMED', 'Points Redeemed'),
+        ('EXPIRED', 'Points Expired'),
+        ('ADJUSTED', 'Points Adjusted'),
+    ])
+    points = models.IntegerField(help_text="Positive for earned, negative for redeemed")
+    sale = models.ForeignKey(Sale, on_delete=models.SET_NULL, null=True, blank=True, related_name='loyalty_transactions')
+    reward = models.ForeignKey(LoyaltyReward, on_delete=models.SET_NULL, null=True, blank=True, related_name='redemptions')
+    description = models.TextField(blank=True)
+    expiry_date = models.DateField(null=True, blank=True, help_text="Date when earned points expire (if applicable)")
+    transaction_date = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-transaction_date']
+    
+    def __str__(self):
+        return f"{self.customer.name} - {self.transaction_type} - {self.points} points" 

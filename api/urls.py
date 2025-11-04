@@ -292,6 +292,11 @@ urlpatterns += [
     path('hotel/guests/<int:pk>/', hotel_views.GuestDetailView.as_view(), name='hotel-guest-detail'),
     path('hotel/bookings/', hotel_views.BookingListCreateView.as_view(), name='hotel-bookings'),
     path('hotel/bookings/<int:pk>/', hotel_views.BookingDetailView.as_view(), name='hotel-booking-detail'),
+    path('hotel/bookings/<int:pk>/check-in/', hotel_views.BookingCheckInView.as_view(), name='hotel-booking-check-in'),
+    path('hotel/bookings/<int:pk>/check-out/', hotel_views.BookingCheckOutView.as_view(), name='hotel-booking-check-out'),
+    path('hotel/bookings/bulk-delete/', hotel_views.BookingBulkDeleteView.as_view(), name='hotel-bookings-bulk-delete'),
+    path('hotel/bookings/bulk-status-update/', hotel_views.BookingBulkStatusUpdateView.as_view(), name='hotel-bookings-bulk-status'),
+    path('hotel/analytics/', hotel_views.HotelAnalyticsView.as_view(), name='hotel-analytics'),
     
     # Restaurant API endpoints
     path('restaurant/menu-categories/', restaurant_views.MenuCategoryListCreateView.as_view(), name='restaurant-menu-categories'),
@@ -302,8 +307,13 @@ urlpatterns += [
     path('restaurant/tables/<int:pk>/', restaurant_views.TableDetailView.as_view(), name='restaurant-table-detail'),
     path('restaurant/orders/', restaurant_views.OrderListCreateView.as_view(), name='restaurant-orders'),
     path('restaurant/orders/<int:pk>/', restaurant_views.OrderDetailView.as_view(), name='restaurant-order-detail'),
+    path('restaurant/orders/<int:pk>/serve/', restaurant_views.OrderServeView.as_view(), name='restaurant-order-serve'),
+    path('restaurant/orders/<int:pk>/mark-paid/', restaurant_views.OrderMarkPaidView.as_view(), name='restaurant-order-mark-paid'),
+    path('restaurant/orders/bulk-delete/', restaurant_views.OrderBulkDeleteView.as_view(), name='restaurant-orders-bulk-delete'),
+    path('restaurant/orders/bulk-status-update/', restaurant_views.OrderBulkStatusUpdateView.as_view(), name='restaurant-orders-bulk-status'),
     path('restaurant/order-items/', restaurant_views.OrderItemListCreateView.as_view(), name='restaurant-order-items'),
     path('restaurant/order-items/<int:pk>/', restaurant_views.OrderItemDetailView.as_view(), name='restaurant-order-item-detail'),
+    path('restaurant/analytics/', restaurant_views.RestaurantAnalyticsView.as_view(), name='restaurant-analytics'),
     
     # Salon API endpoints
     path('salon/service-categories/', salon_views.ServiceCategoryListCreateView.as_view(), name='salon-service-categories'),
@@ -317,6 +327,9 @@ urlpatterns += [
     path('salon/appointments/<int:pk>/check-in/', salon_views.AppointmentCheckInView.as_view(), name='salon-appointment-check-in'),
     path('salon/appointments/<int:pk>/complete/', salon_views.AppointmentCompleteView.as_view(), name='salon-appointment-complete'),
     path('salon/appointments/<int:pk>/cancel/', salon_views.AppointmentCancelView.as_view(), name='salon-appointment-cancel'),
+    path('salon/appointments/bulk-delete/', salon_views.AppointmentBulkDeleteView.as_view(), name='salon-appointments-bulk-delete'),
+    path('salon/appointments/bulk-status-update/', salon_views.AppointmentBulkStatusUpdateView.as_view(), name='salon-appointments-bulk-status'),
+    path('salon/analytics/', salon_views.SalonAnalyticsView.as_view(), name='salon-analytics'),
 
     # Public (multi-tenant) endpoints
     path('public/salon/<slug:slug>/services/', public_views.PublicSalonServicesView.as_view(), name='public-salon-services'),
@@ -352,6 +365,18 @@ urlpatterns += [
     path('pharmacy/analytics/', pharmacy_views.PharmacyAnalyticsView.as_view(), name='pharmacy-analytics'),
     path('pharmacy/staff-attendance/check-in/', pharmacy_views.StaffAttendanceCheckInView.as_view(), name='pharmacy-staff-attendance-check-in'),
     path('pharmacy/staff-attendance/check-out/', pharmacy_views.StaffAttendanceCheckOutView.as_view(), name='pharmacy-staff-attendance-check-out'),
+    path('pharmacy/sales/bulk-delete/', pharmacy_views.PharmacySaleBulkDeleteView.as_view(), name='pharmacy-sales-bulk-delete'),
+    path('pharmacy/sales/bulk-status-update/', pharmacy_views.PharmacySaleBulkStatusUpdateView.as_view(), name='pharmacy-sales-bulk-status'),
+    path('pharmacy/purchase-orders/bulk-delete/', pharmacy_views.PharmacyPurchaseOrderBulkDeleteView.as_view(), name='pharmacy-purchase-orders-bulk-delete'),
+    path('pharmacy/purchase-orders/bulk-status-update/', pharmacy_views.PharmacyPurchaseOrderBulkStatusUpdateView.as_view(), name='pharmacy-purchase-orders-bulk-status'),
+    path('pharmacy/returns/', pharmacy_views.SaleReturnListCreateView.as_view(), name='pharmacy-returns'),
+    path('pharmacy/returns/<int:pk>/', pharmacy_views.SaleReturnDetailView.as_view(), name='pharmacy-return-detail'),
+    path('pharmacy/returns/<int:pk>/process/', pharmacy_views.SaleReturnProcessView.as_view(), name='pharmacy-return-process'),
+    path('pharmacy/loyalty/rewards/', pharmacy_views.LoyaltyRewardListCreateView.as_view(), name='pharmacy-loyalty-rewards'),
+    path('pharmacy/loyalty/rewards/<int:pk>/', pharmacy_views.LoyaltyRewardDetailView.as_view(), name='pharmacy-loyalty-reward-detail'),
+    path('pharmacy/loyalty/transactions/', pharmacy_views.LoyaltyTransactionListCreateView.as_view(), name='pharmacy-loyalty-transactions'),
+    path('pharmacy/loyalty/transactions/<int:pk>/', pharmacy_views.LoyaltyTransactionDetailView.as_view(), name='pharmacy-loyalty-transaction-detail'),
+    path('pharmacy/loyalty/redeem/', pharmacy_views.LoyaltyRedeemView.as_view(), name='pharmacy-loyalty-redeem'),
     
     # Retail API endpoints
     path('retail/categories/', retail_views.ProductCategoryListCreateView.as_view(), name='retail-categories'),
@@ -366,6 +391,14 @@ urlpatterns += [
     path('retail/inventory/<int:pk>/', retail_views.InventoryDetailView.as_view(), name='retail-inventory-detail'),
     path('retail/customers/', retail_views.CustomerListCreateView.as_view(), name='retail-customers'),
     path('retail/customers/<int:pk>/', retail_views.CustomerDetailView.as_view(), name='retail-customer-detail'),
+    path('retail/price-lists/', retail_views.PriceListListCreateView.as_view(), name='retail-price-lists'),
+    path('retail/price-lists/<int:pk>/', retail_views.PriceListDetailView.as_view(), name='retail-price-list-detail'),
+    path('retail/price-list-items/', retail_views.PriceListItemListCreateView.as_view(), name='retail-price-list-items'),
+    path('retail/price-list-items/<int:pk>/', retail_views.PriceListItemDetailView.as_view(), name='retail-price-list-item-detail'),
+    path('retail/get-product-price/', retail_views.GetProductPriceView.as_view(), name='retail-get-product-price'),
+    path('retail/quotations/', retail_views.QuotationListCreateView.as_view(), name='retail-quotations'),
+    path('retail/quotations/<int:pk>/', retail_views.QuotationDetailView.as_view(), name='retail-quotation-detail'),
+    path('retail/quotations/<int:quotation_id>/convert-to-sale/', retail_views.ConvertQuotationToSaleView.as_view(), name='retail-quotation-convert'),
     path('retail/purchase-orders/', retail_views.PurchaseOrderListCreateView.as_view(), name='retail-purchase-orders'),
     path('retail/purchase-orders/<int:pk>/', retail_views.PurchaseOrderDetailView.as_view(), name='retail-purchase-order-detail'),
     path('retail/goods-receipts/', retail_views.GoodsReceiptListCreateView.as_view(), name='retail-goods-receipts'),
@@ -381,6 +414,13 @@ urlpatterns += [
     path('retail/analytics/', retail_views.RetailAnalyticsView.as_view(), name='retail-analytics'),
     path('retail/staff-attendance/check-in/', retail_views.StaffAttendanceCheckInView.as_view(), name='retail-staff-attendance-check-in'),
     path('retail/staff-attendance/check-out/', retail_views.StaffAttendanceCheckOutView.as_view(), name='retail-staff-attendance-check-out'),
+    path('retail/sales/bulk-delete/', retail_views.RetailSaleBulkDeleteView.as_view(), name='retail-sales-bulk-delete'),
+    path('retail/sales/bulk-status-update/', retail_views.RetailSaleBulkStatusUpdateView.as_view(), name='retail-sales-bulk-status'),
+    path('retail/purchase-orders/bulk-delete/', retail_views.RetailPurchaseOrderBulkDeleteView.as_view(), name='retail-purchase-orders-bulk-delete'),
+    path('retail/purchase-orders/bulk-status-update/', retail_views.RetailPurchaseOrderBulkStatusUpdateView.as_view(), name='retail-purchase-orders-bulk-status'),
+    path('retail/returns/', retail_views.SaleReturnListCreateView.as_view(), name='retail-returns'),
+    path('retail/returns/<int:pk>/', retail_views.SaleReturnDetailView.as_view(), name='retail-return-detail'),
+    path('retail/returns/<int:pk>/process/', retail_views.SaleReturnProcessView.as_view(), name='retail-return-process'),
     
     # Admin Import/Export endpoints
     path('admin/export-data/', admin_views.AdminExportDataView.as_view(), name='admin-export-data'),

@@ -86,6 +86,50 @@ class Inventory(models.Model):
         self.quantity_available = self.quantity_on_hand - self.quantity_reserved
         super().save(*args, **kwargs)
 
+class PriceList(models.Model):
+    """Price lists for different customer types"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='retail_price_lists')
+    name = models.CharField(max_length=100, help_text="Name of the price list (e.g., 'Wholesale Price List', 'Distributor Pricing')")
+    customer_type = models.CharField(max_length=20, choices=[
+        ('RETAIL', 'Retail'),
+        ('WHOLESALE', 'Wholesale'),
+        ('DISTRIBUTOR', 'Distributor'),
+        ('ALL', 'All Types'),
+    ], default='ALL', help_text="Customer type this price list applies to")
+    is_default = models.BooleanField(default=False, help_text="Default price list for this customer type")
+    is_active = models.BooleanField(default=True)
+    valid_from = models.DateField(null=True, blank=True, help_text="Price list valid from date")
+    valid_to = models.DateField(null=True, blank=True, help_text="Price list valid until date")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['tenant', 'name']
+        ordering = ['-is_default', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_customer_type_display()})"
+
+class PriceListItem(models.Model):
+    """Individual product prices in a price list"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    price_list = models.ForeignKey(PriceList, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price for this product in this price list")
+    min_quantity = models.IntegerField(default=1, help_text="Minimum quantity for this price to apply")
+    max_quantity = models.IntegerField(null=True, blank=True, help_text="Maximum quantity for this price (null for unlimited)")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['price_list', 'product', 'min_quantity']
+        ordering = ['product__name', 'min_quantity']
+    
+    def __str__(self):
+        return f"{self.product.name} - ₹{self.price} (Qty: {self.min_quantity}+)"
+
 class Customer(models.Model):
     """Retail customers"""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='retail_customers')
@@ -98,6 +142,7 @@ class Customer(models.Model):
         ('WHOLESALE', 'Wholesale'),
         ('DISTRIBUTOR', 'Distributor'),
     ], default='RETAIL')
+    price_list = models.ForeignKey(PriceList, on_delete=models.SET_NULL, null=True, blank=True, related_name='customers', help_text="Custom price list for this customer (overrides default)")
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     payment_terms = models.CharField(max_length=100, default='Cash')
     gst_number = models.CharField(max_length=20, blank=True)
@@ -105,6 +150,59 @@ class Customer(models.Model):
     
     def __str__(self):
         return f"{self.name} - {self.customer_type}"
+    
+    def get_price_list(self):
+        """Get the effective price list for this customer"""
+        if self.price_list and self.price_list.is_active:
+            return self.price_list
+        # Try to find default price list for customer type
+        default_list = PriceList.objects.filter(
+            tenant=self.tenant,
+            customer_type=self.customer_type,
+            is_default=True,
+            is_active=True
+        ).first()
+        if default_list:
+            return default_list
+        # Try to find any active price list for customer type
+        return PriceList.objects.filter(
+            tenant=self.tenant,
+            customer_type__in=[self.customer_type, 'ALL'],
+            is_active=True
+        ).first()
+    
+    def get_product_price(self, product, quantity=1):
+        """Get the price for a product based on customer's price list"""
+        price_list = self.get_price_list()
+        if not price_list:
+            # Fallback to product's default selling price
+            return product.selling_price
+        
+        # Find matching price list item
+        price_item = PriceListItem.objects.filter(
+            price_list=price_list,
+            product=product,
+            is_active=True,
+            min_quantity__lte=quantity
+        ).order_by('-min_quantity').first()
+        
+        if price_item:
+            # Check max quantity if specified
+            if price_item.max_quantity and quantity > price_item.max_quantity:
+                # Try to find next tier
+                price_item = PriceListItem.objects.filter(
+                    price_list=price_list,
+                    product=product,
+                    is_active=True,
+                    min_quantity__lte=quantity,
+                    max_quantity__gte=quantity
+                ).order_by('-min_quantity').first()
+            
+            if price_item:
+                return price_item.price
+        
+        # Fallback to product's default selling price
+        return product.selling_price
 
 class PurchaseOrder(models.Model):
     """Purchase orders for inventory"""
@@ -281,4 +379,121 @@ class StaffAttendance(models.Model):
         unique_together = ('staff', 'date', 'tenant')
 
     def __str__(self):
-        return f"{self.staff} - {self.date}" 
+        return f"{self.staff} - {self.date}"
+
+class SaleReturn(models.Model):
+    """Sales returns for retail products"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='retail_sale_returns')
+    return_number = models.CharField(max_length=50, unique=True)
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='returns')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
+    return_date = models.DateTimeField(auto_now_add=True)
+    return_type = models.CharField(max_length=20, choices=[
+        ('RETURN', 'Return'),
+        ('EXCHANGE', 'Exchange'),
+        ('REFUND', 'Refund'),
+    ], default='RETURN')
+    return_reason = models.CharField(max_length=50, choices=[
+        ('CUSTOMER_REQUEST', 'Customer Request'),
+        ('DAMAGED', 'Damaged'),
+        ('DEFECTIVE', 'Defective'),
+        ('WRONG_ITEM', 'Wrong Item'),
+        ('OTHER', 'Other'),
+    ], default='CUSTOMER_REQUEST')
+    reason_details = models.TextField(blank=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    refund_method = models.CharField(max_length=20, choices=[
+        ('CASH', 'Cash'),
+        ('CARD', 'Card'),
+        ('UPI', 'UPI'),
+        ('CREDIT_NOTE', 'Credit Note'),
+    ], default='CASH')
+    status = models.CharField(max_length=20, choices=[
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('PROCESSED', 'Processed'),
+        ('CANCELLED', 'Cancelled'),
+    ], default='PENDING')
+    processed_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_retail_returns')
+    processed_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-return_date']
+
+    def __str__(self):
+        return f"Return {self.return_number} - {self.sale.invoice_number}"
+
+class SaleReturnItem(models.Model):
+    """Individual items in a sale return"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    sale_return = models.ForeignKey(SaleReturn, on_delete=models.CASCADE, related_name='items')
+    sale_item = models.ForeignKey(SaleItem, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    inventory = models.ForeignKey('Inventory', on_delete=models.SET_NULL, null=True, blank=True)
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.product.name} - {self.quantity} units"
+
+class Quotation(models.Model):
+    """Quotations for wholesale customers"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='retail_quotations')
+    quotation_number = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='quotations')
+    quotation_date = models.DateField(auto_now_add=True)
+    valid_until = models.DateField(help_text="Quotation validity date")
+    status = models.CharField(max_length=20, choices=[
+        ('DRAFT', 'Draft'),
+        ('SENT', 'Sent'),
+        ('ACCEPTED', 'Accepted'),
+        ('REJECTED', 'Rejected'),
+        ('EXPIRED', 'Expired'),
+        ('CONVERTED', 'Converted to Sale'),
+    ], default='DRAFT')
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Discount percentage if applicable")
+    notes = models.TextField(blank=True, help_text="Terms and conditions, delivery terms, etc.")
+    created_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, related_name='retail_quotations')
+    converted_to_sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='quotation_source')
+    conversion_date = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-quotation_date']
+    
+    def __str__(self):
+        return f"Quotation {self.quotation_number} - {self.customer.name}"
+    
+    def is_expired(self):
+        """Check if quotation has expired"""
+        from django.utils import timezone
+        return self.valid_until < timezone.now().date() and self.status not in ['ACCEPTED', 'CONVERTED', 'REJECTED']
+    
+    def can_convert_to_sale(self):
+        """Check if quotation can be converted to sale"""
+        return self.status == 'ACCEPTED'
+
+class QuotationItem(models.Model):
+    """Individual items in a quotation"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.IntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    notes = models.TextField(blank=True, help_text="Product-specific notes or specifications")
+    
+    def __str__(self):
+        return f"{self.product.name} - {self.quantity} units @ ₹{self.unit_price}"
+    
+    def save(self, *args, **kwargs):
+        """Auto-calculate total_price"""
+        self.total_price = self.quantity * self.unit_price
+        super().save(*args, **kwargs) 
