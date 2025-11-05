@@ -846,4 +846,169 @@ class TransferCertificate(models.Model):
         return f"TC-{year}-{month_day}-{unique_part}"
     
     def __str__(self):
-        return f"TC-{self.tc_number} - {self.student_name} ({self.class_obj})" 
+        return f"TC-{self.tc_number} - {self.student_name} ({self.class_obj})"
+
+
+# ============================================
+# TIMETABLE MANAGEMENT SYSTEM
+# ============================================
+
+class Period(models.Model):
+    """Time periods/slots for timetable (e.g., Period 1: 9:00 AM - 10:00 AM)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    name = models.CharField(max_length=50, help_text="e.g., Period 1, Period 2, Morning Assembly")
+    order = models.IntegerField(help_text="Period order/sequence (1, 2, 3...)")
+    start_time = models.TimeField(help_text="Period start time (e.g., 09:00)")
+    end_time = models.TimeField(help_text="Period end time (e.g., 10:00)")
+    is_break = models.BooleanField(default=False, help_text="Is this a break/recess period?")
+    break_type = models.CharField(max_length=20, blank=True, choices=[
+        ('recess', 'Recess'),
+        ('lunch', 'Lunch Break'),
+        ('assembly', 'Assembly'),
+        ('other', 'Other'),
+    ], help_text="Break type (only if is_break=True)")
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'order', 'start_time')
+        ordering = ['order', 'start_time']
+    
+    def __str__(self):
+        if self.is_break:
+            return f"{self.name} ({self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')})"
+        return f"{self.name}: {self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
+
+
+class Room(models.Model):
+    """Classrooms, Labs, Halls, etc."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='education_rooms')
+    name = models.CharField(max_length=100, help_text="e.g., Room 101, Lab A, Assembly Hall")
+    room_number = models.CharField(max_length=50, blank=True, help_text="Room number")
+    room_type = models.CharField(max_length=50, choices=[
+        ('classroom', 'Classroom'),
+        ('lab', 'Laboratory'),
+        ('library', 'Library'),
+        ('hall', 'Hall'),
+        ('computer_lab', 'Computer Lab'),
+        ('physics_lab', 'Physics Lab'),
+        ('chemistry_lab', 'Chemistry Lab'),
+        ('biology_lab', 'Biology Lab'),
+        ('other', 'Other'),
+    ], default='classroom')
+    capacity = models.IntegerField(null=True, blank=True, help_text="Maximum capacity")
+    facilities = models.TextField(blank=True, help_text="Available facilities (e.g., Projector, AC, etc.)")
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'name')
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_room_type_display()})"
+
+
+class Timetable(models.Model):
+    """Main timetable - Subject-wise, Day-wise, Teacher-wise, Time-wise scheduling"""
+    DAY_CHOICES = [
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='timetables')
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='timetables')
+    day = models.CharField(max_length=10, choices=DAY_CHOICES, help_text="Day of the week")
+    period = models.ForeignKey(Period, on_delete=models.CASCADE, related_name='timetable_entries')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='timetable_entries')
+    teacher = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, 
+                                related_name='timetable_entries', help_text="Assigned teacher")
+    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True, 
+                            related_name='timetable_entries', help_text="Assigned room/classroom")
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, help_text="Additional notes")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'academic_year', 'class_obj', 'day', 'period')
+        ordering = ['academic_year', 'class_obj', 'day', 'period__order']
+        indexes = [
+            models.Index(fields=['tenant', 'academic_year', 'class_obj', 'day']),
+            models.Index(fields=['teacher', 'day', 'period']),
+            models.Index(fields=['room', 'day', 'period']),
+        ]
+    
+    def __str__(self):
+        teacher_name = self.teacher.user.get_full_name() if self.teacher and self.teacher.user else "No Teacher"
+        room_name = self.room.name if self.room else "No Room"
+        return f"{self.class_obj.name} - {self.get_day_display()} - {self.period.name}: {self.subject.name} ({teacher_name}, {room_name})"
+    
+    def clean(self):
+        """Validate timetable entry"""
+        from django.core.exceptions import ValidationError
+        
+        # Check if subject belongs to the class
+        if self.subject.class_obj != self.class_obj:
+            raise ValidationError("Subject must belong to the selected class.")
+        
+        # Check teacher-class assignment (if teacher is assigned)
+        if self.teacher:
+            if self.teacher.tenant != self.tenant:
+                raise ValidationError("Teacher must belong to the same tenant.")
+            # Check if teacher is assigned to this class (optional check)
+            if hasattr(self.teacher, 'assigned_classes'):
+                if self.class_obj not in self.teacher.assigned_classes.all():
+                    # This is a warning, not an error - teacher might teach multiple classes
+                    pass
+
+
+class Holiday(models.Model):
+    """Holidays that affect timetable"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='holidays')
+    name = models.CharField(max_length=200, help_text="Holiday name (e.g., Diwali, Christmas)")
+    date = models.DateField(help_text="Holiday date")
+    holiday_type = models.CharField(max_length=50, choices=[
+        ('national', 'National Holiday'),
+        ('regional', 'Regional Holiday'),
+        ('religious', 'Religious Holiday'),
+        ('school', 'School Holiday'),
+        ('exam', 'Examination Holiday'),
+        ('other', 'Other'),
+    ], default='school')
+    is_recurring = models.BooleanField(default=False, help_text="Recurring holiday (e.g., every year)")
+    description = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ('tenant', 'academic_year', 'date', 'name')
+        ordering = ['date']
+    
+    def __str__(self):
+        return f"{self.name} - {self.date.strftime('%d %b %Y')}"
+
+
+class SubstituteTeacher(models.Model):
+    """Substitute teacher assignments for temporary replacements"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name='substitutes')
+    original_teacher = models.ForeignKey(UserProfile, on_delete=models.CASCADE, 
+                                        related_name='original_substitutes', help_text="Original teacher")
+    substitute_teacher = models.ForeignKey(UserProfile, on_delete=models.CASCADE,
+                                          related_name='substitute_assignments', help_text="Substitute teacher")
+    date = models.DateField(help_text="Date when substitute is needed")
+    reason = models.CharField(max_length=200, blank=True, help_text="Reason for substitution")
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('timetable', 'date')
+        ordering = ['-date', 'timetable']
+    
+    def __str__(self):
+        return f"{self.date} - {self.timetable.class_obj.name} {self.timetable.period.name}: {self.substitute_teacher.user.get_full_name()} (sub for {self.original_teacher.user.get_full_name()})"

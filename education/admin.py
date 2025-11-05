@@ -3,7 +3,8 @@ from .models import (
     Department, Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, 
     StaffAttendance, StudentPromotion, TransferCertificate, AcademicYear, Term, Subject, Unit,
     AssessmentType, Assessment, MarksEntry, FeeInstallment, FeeInstallmentPlan, 
-    AdmissionApplication, BalanceAdjustment, OldBalance
+    AdmissionApplication, BalanceAdjustment, OldBalance,
+    Period, Room, Timetable, Holiday, SubstituteTeacher
 )
 from api.admin_site import secure_admin_site
 
@@ -200,5 +201,85 @@ secure_admin_site.register(FeeInstallment, FeeInstallmentAdmin)
 secure_admin_site.register(AdmissionApplication, AdmissionApplicationAdmin)
 secure_admin_site.register(BalanceAdjustment, BalanceAdjustmentAdmin)
 secure_admin_site.register(OldBalance, OldBalanceAdmin)
+
+# ============================================
+# TIMETABLE MANAGEMENT ADMIN
+# ============================================
+
+class PeriodAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'start_time', 'end_time', 'is_break', 'break_type', 'is_active', 'tenant')
+    list_filter = ('is_break', 'break_type', 'is_active', 'tenant')
+    search_fields = ('name',)
+    ordering = ('order', 'start_time')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'name', 'order', 'is_active')
+        }),
+        ('Time Schedule', {
+            'fields': ('start_time', 'end_time')
+        }),
+        ('Break Settings', {
+            'fields': ('is_break', 'break_type'),
+            'description': 'Mark as break if this is a recess/lunch/assembly period'
+        }),
+    )
+
+class RoomAdmin(admin.ModelAdmin):
+    list_display = ('name', 'room_number', 'room_type', 'capacity', 'is_active', 'tenant')
+    list_filter = ('room_type', 'is_active', 'tenant')
+    search_fields = ('name', 'room_number', 'facilities')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'name', 'room_number', 'room_type', 'is_active')
+        }),
+        ('Details', {
+            'fields': ('capacity', 'facilities')
+        }),
+    )
+
+class TimetableAdmin(admin.ModelAdmin):
+    list_display = ('class_obj', 'day', 'period', 'subject', 'teacher', 'room', 'is_active', 'academic_year', 'tenant')
+    list_filter = ('academic_year', 'class_obj', 'day', 'is_active', 'tenant')
+    search_fields = ('class_obj__name', 'subject__name', 'period__name', 'teacher__user__username', 'room__name')
+    ordering = ('academic_year', 'class_obj', 'day', 'period__order')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'academic_year', 'class_obj', 'day', 'period', 'is_active')
+        }),
+        ('Scheduling', {
+            'fields': ('subject', 'teacher', 'room', 'notes')
+        }),
+    )
+    raw_id_fields = ('teacher', 'subject', 'room')
+
+class HolidayAdmin(admin.ModelAdmin):
+    list_display = ('name', 'date', 'holiday_type', 'is_recurring', 'academic_year', 'tenant')
+    list_filter = ('holiday_type', 'is_recurring', 'academic_year', 'tenant')
+    search_fields = ('name', 'description')
+    date_hierarchy = 'date'
+    ordering = ('date',)
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'academic_year', 'name', 'date', 'holiday_type', 'is_recurring')
+        }),
+        ('Details', {
+            'fields': ('description',)
+        }),
+    )
+
+class SubstituteTeacherAdmin(admin.ModelAdmin):
+    list_display = ('timetable', 'date', 'original_teacher', 'substitute_teacher', 'reason', 'is_active', 'tenant')
+    list_filter = ('is_active', 'date', 'tenant')
+    search_fields = ('timetable__class_obj__name', 'original_teacher__user__username', 'substitute_teacher__user__username', 'reason')
+    date_hierarchy = 'date'
+    ordering = ('-date', 'timetable')
+    raw_id_fields = ('timetable', 'original_teacher', 'substitute_teacher')
+    readonly_fields = ('created_at',)
+
+secure_admin_site.register(Period, PeriodAdmin)
+secure_admin_site.register(Room, RoomAdmin)
+secure_admin_site.register(Timetable, TimetableAdmin)
+secure_admin_site.register(Holiday, HolidayAdmin)
+secure_admin_site.register(SubstituteTeacher, SubstituteTeacherAdmin)
 
 # Register your models here.

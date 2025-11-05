@@ -6,6 +6,13 @@ from .views import (
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views
 )
+from .views.timetable_views import (
+    PeriodListCreateView, PeriodDetailView, RoomListCreateView, RoomDetailView,
+    TimetableListCreateView, TimetableDetailView, TimetableByClassView,
+    HolidayListCreateView, HolidayDetailView,
+    SubstituteTeacherListCreateView, SubstituteTeacherDetailView,
+    AvailableTeachersView, AvailableRoomsView, TimetableSuggestionsView
+)
 from .views import notification_views
 from .views import enhanced_analytics_views
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
@@ -144,6 +151,22 @@ urlpatterns = [
     path('education/installments/regenerate/', education_views.FeeInstallmentRegenerateView.as_view(), name='education-installments-regenerate'),
     path('education/installments/<int:pk>/', education_views.FeeInstallmentDetailView.as_view(), name='education-installment-detail'),
     path('education/students/<int:student_id>/installments/', education_views.StudentInstallmentsView.as_view(), name='education-student-installments'),
+    
+    # Timetable Management endpoints
+    path('education/timetable/periods/', PeriodListCreateView.as_view(), name='education-periods'),
+    path('education/timetable/periods/<int:pk>/', PeriodDetailView.as_view(), name='education-period-detail'),
+    path('education/timetable/rooms/', RoomListCreateView.as_view(), name='education-rooms'),
+    path('education/timetable/rooms/<int:pk>/', RoomDetailView.as_view(), name='education-room-detail'),
+    path('education/timetable/', TimetableListCreateView.as_view(), name='education-timetable'),
+    path('education/timetable/<int:pk>/', TimetableDetailView.as_view(), name='education-timetable-detail'),
+    path('education/timetable/class/<int:class_id>/', TimetableByClassView.as_view(), name='education-timetable-by-class'),
+    path('education/timetable/holidays/', HolidayListCreateView.as_view(), name='education-holidays'),
+    path('education/timetable/holidays/<int:pk>/', HolidayDetailView.as_view(), name='education-holiday-detail'),
+    path('education/timetable/substitutes/', SubstituteTeacherListCreateView.as_view(), name='education-substitutes'),
+    path('education/timetable/substitutes/<int:pk>/', SubstituteTeacherDetailView.as_view(), name='education-substitute-detail'),
+    path('education/timetable/available-teachers/', AvailableTeachersView.as_view(), name='education-available-teachers'),
+    path('education/timetable/available-rooms/', AvailableRoomsView.as_view(), name='education-available-rooms'),
+    path('education/timetable/suggestions/', TimetableSuggestionsView.as_view(), name='education-timetable-suggestions'),
     path('education/installments/overdue/', education_views.OverdueInstallmentsView.as_view(), name='education-overdue-installments'),
     
     # Old Balance Management

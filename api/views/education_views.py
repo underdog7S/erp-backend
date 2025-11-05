@@ -9,7 +9,8 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication,
+    Period, Room, Timetable, Holiday, SubstituteTeacher
 )
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
 from api.models.serializers_education import (
@@ -20,7 +21,9 @@ from api.models.serializers_education import (
     TermSerializer, SubjectSerializer, UnitSerializer, AssessmentTypeSerializer, 
     AssessmentSerializer, MarksEntrySerializer, FeeInstallmentPlanSerializer, 
     FeeInstallmentSerializer, OldBalanceSerializer, BalanceAdjustmentSerializer,
-    TransferCertificateSerializer
+    TransferCertificateSerializer,
+    PeriodSerializer, RoomSerializer, TimetableSerializer, TimetableDetailSerializer,
+    HolidaySerializer, SubstituteTeacherSerializer
 )
 from django.http import HttpResponse
 import csv

@@ -3,7 +3,8 @@ from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
-    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication
+    OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication,
+    Period, Room, Timetable, Holiday, SubstituteTeacher
 )
 from api.models.user import UserProfile
 
@@ -483,4 +484,142 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdmissionApplication
         fields = '__all__'
-        read_only_fields = ['created_at'] 
+        read_only_fields = ['created_at']
+
+
+# ============================================
+# TIMETABLE MANAGEMENT SERIALIZERS
+# ============================================
+
+class PeriodSerializer(serializers.ModelSerializer):
+    """Serializer for Period model"""
+    start_time_display = serializers.SerializerMethodField()
+    end_time_display = serializers.SerializerMethodField()
+    duration_minutes = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Period
+        fields = [
+            'id', 'name', 'order', 'start_time', 'end_time', 'start_time_display', 
+            'end_time_display', 'duration_minutes', 'is_break', 'break_type', 
+            'is_active', 'tenant'
+        ]
+        read_only_fields = ['tenant']
+    
+    def get_start_time_display(self, obj):
+        return obj.start_time.strftime('%I:%M %p')
+    
+    def get_end_time_display(self, obj):
+        return obj.end_time.strftime('%I:%M %p')
+    
+    def get_duration_minutes(self, obj):
+        from datetime import datetime, timedelta
+        start = datetime.combine(datetime.today(), obj.start_time)
+        end = datetime.combine(datetime.today(), obj.end_time)
+        if end < start:
+            end += timedelta(days=1)
+        return int((end - start).total_seconds() / 60)
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    """Serializer for Room model"""
+    room_type_display = serializers.CharField(source='get_room_type_display', read_only=True)
+    
+    class Meta:
+        model = Room
+        fields = [
+            'id', 'name', 'room_number', 'room_type', 'room_type_display', 
+            'capacity', 'facilities', 'is_active', 'tenant'
+        ]
+        read_only_fields = ['tenant']
+
+
+class TimetableSerializer(serializers.ModelSerializer):
+    """Serializer for Timetable model"""
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    period_name = serializers.CharField(source='period.name', read_only=True)
+    period_start_time = serializers.TimeField(source='period.start_time', read_only=True, format='%I:%M %p')
+    period_end_time = serializers.TimeField(source='period.end_time', read_only=True, format='%I:%M %p')
+    teacher_name = serializers.SerializerMethodField()
+    room_name = serializers.CharField(source='room.name', read_only=True)
+    day_display = serializers.CharField(source='get_day_display', read_only=True)
+    
+    class Meta:
+        model = Timetable
+        fields = [
+            'id', 'academic_year', 'class_obj', 'class_name', 'day', 'day_display',
+            'period', 'period_name', 'period_start_time', 'period_end_time',
+            'subject', 'subject_name', 'teacher', 'teacher_name', 'room', 'room_name',
+            'is_active', 'notes', 'created_at', 'updated_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at']
+    
+    def get_teacher_name(self, obj):
+        if obj.teacher and obj.teacher.user:
+            return obj.teacher.user.get_full_name() or obj.teacher.user.username
+        return None
+
+
+class TimetableDetailSerializer(TimetableSerializer):
+    """Detailed serializer for Timetable with nested objects"""
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    period_detail = PeriodSerializer(source='period', read_only=True)
+    subject_detail = SubjectSerializer(source='subject', read_only=True)
+    room_detail = RoomSerializer(source='room', read_only=True)
+    
+    class Meta(TimetableSerializer.Meta):
+        fields = TimetableSerializer.Meta.fields + [
+            'academic_year_name', 'period_detail', 'subject_detail', 'room_detail'
+        ]
+
+
+class HolidaySerializer(serializers.ModelSerializer):
+    """Serializer for Holiday model"""
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    holiday_type_display = serializers.CharField(source='get_holiday_type_display', read_only=True)
+    date_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Holiday
+        fields = [
+            'id', 'academic_year', 'academic_year_name', 'name', 'date', 'date_display',
+            'holiday_type', 'holiday_type_display', 'is_recurring', 'description', 'tenant'
+        ]
+        read_only_fields = ['tenant']
+    
+    def get_date_display(self, obj):
+        return obj.date.strftime('%d %b %Y')
+
+
+class SubstituteTeacherSerializer(serializers.ModelSerializer):
+    """Serializer for SubstituteTeacher model"""
+    timetable_class = serializers.CharField(source='timetable.class_obj.name', read_only=True)
+    timetable_period = serializers.CharField(source='timetable.period.name', read_only=True)
+    timetable_subject = serializers.CharField(source='timetable.subject.name', read_only=True)
+    original_teacher_name = serializers.SerializerMethodField()
+    substitute_teacher_name = serializers.SerializerMethodField()
+    date_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = SubstituteTeacher
+        fields = [
+            'id', 'timetable', 'timetable_class', 'timetable_period', 'timetable_subject',
+            'date', 'date_display', 'original_teacher', 'original_teacher_name',
+            'substitute_teacher', 'substitute_teacher_name', 'reason', 'notes',
+            'is_active', 'created_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at']
+    
+    def get_original_teacher_name(self, obj):
+        if obj.original_teacher and obj.original_teacher.user:
+            return obj.original_teacher.user.get_full_name() or obj.original_teacher.user.username
+        return None
+    
+    def get_substitute_teacher_name(self, obj):
+        if obj.substitute_teacher and obj.substitute_teacher.user:
+            return obj.substitute_teacher.user.get_full_name() or obj.substitute_teacher.user.username
+        return None
+    
+    def get_date_display(self, obj):
+        return obj.date.strftime('%d %b %Y') 
