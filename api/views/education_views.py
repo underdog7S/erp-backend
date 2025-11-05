@@ -1255,49 +1255,52 @@ class ReportCardPDFView(APIView):
             summary_start_x = 25 * mm
             summary_end_x = width - 25 * mm
             
-            # Distribute items evenly with proper alignment
-            if len(summary_items) <= 3:
-                # 3 items: distribute evenly with proper spacing
-                item_spacing = available_summary_width / (len(summary_items) + 1)
-                for i, (label, value) in enumerate(summary_items):
-                    center_x = summary_start_x + (i + 1) * item_spacing
-                    # Center-align label
-                    label_width = p.stringWidth(label + ':', 'Helvetica-Bold', 10)
-                    label_x = max(summary_start_x, center_x - label_width / 2)
-                    p.setFont('Helvetica-Bold', 10)
-                    p.drawString(min(label_x, summary_end_x - label_width), y, label + ':')
-                    # Center-align value
-                    value_width = p.stringWidth(value, 'Helvetica', 11)
-                    value_x = max(summary_start_x, center_x - value_width / 2)
-                    p.setFont('Helvetica', 11)
-                    p.drawString(min(value_x, summary_end_x - value_width), y - 12, value)
-            else:
-                # 4 items: use 2x2 grid with proper alignment
-                left_col_label = 30 * mm
-                left_col_value = 95 * mm
-                right_col_label = width / 2 + 10 * mm
-                right_col_value = width / 2 + 75 * mm
-                for i, (label, value) in enumerate(summary_items):
-                    if i < 2:
-                        # Left column
-                        label_x = left_col_label
-                        value_x = left_col_value
-                        row_y = y if i == 0 else y - 30
-                    else:
-                        # Right column
-                        label_x = right_col_label
-                        value_x = right_col_value
-                        row_y = y if i == 2 else y - 30
-                    p.setFont('Helvetica-Bold', 10)
-                    p.drawString(label_x, row_y, label + ':')
-                    p.setFont('Helvetica', 11)
-                    # Ensure value doesn't exceed right margin
-                    max_value_x = width - 25 * mm
-                    if value_x + p.stringWidth(value, 'Helvetica', 11) > max_value_x:
-                        value_x = max_value_x - p.stringWidth(value, 'Helvetica', 11)
-                    p.drawString(value_x, row_y - 12, value)
+            # IMPROVED: Better spacing and alignment to prevent text overlapping
+            # Use two-column layout with proper spacing
+            left_label_x = 30 * mm
+            left_value_x = 95 * mm
+            right_label_x = 130 * mm
+            right_value_x = 170 * mm
+            
+            # Calculate row positions with proper vertical spacing
+            row_height = 20  # Increased spacing between rows
+            current_y = y
+            
+            for i, (label, value) in enumerate(summary_items):
+                if i % 2 == 0:
+                    # Left column (even indices)
+                    label_x = left_label_x
+                    value_x = left_value_x
+                    row_y = current_y
+                else:
+                    # Right column (odd indices)
+                    label_x = right_label_x
+                    value_x = right_value_x
+                    row_y = current_y
+                
+                # Draw label and value on same line
+                p.setFont('Helvetica-Bold', 10)
+                label_text = label + ':'
+                # Ensure label doesn't exceed column boundary
+                max_label_width = value_x - label_x - 5 * mm
+                if p.stringWidth(label_text, 'Helvetica-Bold', 10) > max_label_width:
+                    label_text = label_text[:15] + '...'
+                p.drawString(label_x, row_y, label_text)
+                
+                # Draw value - ensure it doesn't exceed right margin
+                p.setFont('Helvetica', 11)
+                value_width = p.stringWidth(value, 'Helvetica', 11)
+                max_value_x = width - 25 * mm
+                if value_x + value_width > max_value_x:
+                    value_x = max_value_x - value_width
+                p.drawString(value_x, row_y, value)
+                
+                # Move to next row if we've filled both columns or this is the last item
+                if i % 2 == 1 or i == len(summary_items) - 1:
+                    current_y -= row_height
+            
             p.setFillColor(colors.black)  # Switch back to black for rest
-            y -= 25
+            y = current_y - 5  # Add extra spacing after summary
 
             # Attendance and Conduct - clean white background, no colors
             y -= 5
@@ -1315,28 +1318,34 @@ class ReportCardPDFView(APIView):
             p.drawCentredString(width / 2, y - 7, 'ATTENDANCE & CONDUCT')
             y -= 18
             
+            # IMPROVED: Better spacing to prevent overlapping
+            # First row: Days Present and Days Absent
             p.setFont('Helvetica-Bold', 10)
             p.drawString(25 * mm, y, 'Days Present:')
             p.setFont('Helvetica', 10)
-            p.drawString(75 * mm, y, str(report_card.days_present))
+            present_val = str(report_card.days_present)
+            p.drawString(90 * mm, y, present_val)  # Increased spacing
             
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(100 * mm, y, 'Days Absent:')
+            p.drawString(120 * mm, y, 'Days Absent:')  # Increased spacing from previous
             p.setFont('Helvetica', 10)
-            p.drawString(150 * mm, y, str(report_card.days_absent))
-            y -= 12
+            absent_val = str(report_card.days_absent)
+            p.drawString(170 * mm, y, absent_val)  # Increased spacing
+            y -= 16  # Increased line spacing
             
+            # Second row: Attendance Percentage and Conduct Grade
             p.setFont('Helvetica-Bold', 10)
             p.drawString(25 * mm, y, 'Attendance Percentage:')
             p.setFont('Helvetica', 10)
-            p.drawString(85 * mm, y, f"{float(report_card.attendance_percentage):.2f}%")
+            att_percent = f"{float(report_card.attendance_percentage):.2f}%"
+            p.drawString(100 * mm, y, att_percent)  # Increased spacing
             
             if report_card.conduct_grade:
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(140 * mm, y, 'Conduct Grade:')
+                p.drawString(150 * mm, y, 'Conduct Grade:')  # Increased spacing
                 p.setFont('Helvetica', 10)
-                p.drawString(165 * mm, y, report_card.conduct_grade)
-            y -= 22
+                p.drawString(175 * mm, y, report_card.conduct_grade)
+            y -= 25  # Increased spacing after section
 
             # Remarks section - clean white background
             if report_card.teacher_remarks or report_card.principal_remarks:
@@ -1360,28 +1369,62 @@ class ReportCardPDFView(APIView):
                 y -= 18
                 
                 p.setFont('Helvetica', 10)
-                def wrap(text, max_chars=95):
-                    return [text[i:i+max_chars] for i in range(0, len(text), max_chars)] if text else []
+                # IMPROVED: Better text wrapping that respects word boundaries
+                def wrap_text(text, max_width_mm):
+                    """Wrap text at word boundaries to fit within max_width_mm"""
+                    if not text:
+                        return []
+                    words = text.split()
+                    lines = []
+                    current_line = ''
+                    max_width = max_width_mm
+                    
+                    for word in words:
+                        test_line = current_line + (' ' if current_line else '') + word
+                        test_width = p.stringWidth(test_line, 'Helvetica', 9)
+                        if test_width <= max_width:
+                            current_line = test_line
+                        else:
+                            if current_line:
+                                lines.append(current_line)
+                            current_line = word
+                            # If single word is too long, truncate it
+                            if p.stringWidth(word, 'Helvetica', 9) > max_width:
+                                # Truncate word to fit
+                                while p.stringWidth(current_line, 'Helvetica', 9) > max_width and len(current_line) > 1:
+                                    current_line = current_line[:-1]
+                                current_line += '...'
+                    if current_line:
+                        lines.append(current_line)
+                    return lines
+                
+                max_remarks_width = width - 50 * mm  # Available width for remarks
                 
                 if report_card.teacher_remarks:
                     p.setFont('Helvetica-Bold', 10)
                     p.drawString(25 * mm, y, 'Class Teacher:')
-                    y -= 12
+                    y -= 14  # Increased spacing
                     p.setFont('Helvetica', 9)
-                    for line in wrap(report_card.teacher_remarks):
+                    remarks_lines = wrap_text(report_card.teacher_remarks, max_remarks_width)
+                    for line in remarks_lines[:5]:  # Limit to 5 lines
+                        if y < 60:  # Prevent overflow to footer
+                            break
                         p.drawString(25 * mm, y, line)
-                        y -= 12
-                    y -= 6
+                        y -= 12  # Consistent line spacing
+                    y -= 8  # Extra spacing after section
                 
                 if report_card.principal_remarks:
                     p.setFont('Helvetica-Bold', 10)
                     p.drawString(25 * mm, y, 'Principal:')
-                    y -= 12
+                    y -= 14  # Increased spacing
                     p.setFont('Helvetica', 9)
-                    for line in wrap(report_card.principal_remarks):
+                    remarks_lines = wrap_text(report_card.principal_remarks, max_remarks_width)
+                    for line in remarks_lines[:5]:  # Limit to 5 lines
+                        if y < 60:  # Prevent overflow to footer
+                            break
                         p.drawString(25 * mm, y, line)
-                        y -= 12
-                y -= 8
+                        y -= 12  # Consistent line spacing
+                y -= 10  # Extra spacing after section
 
             # Signature section - clean white background, no colors
             sig_y_start = 25 * mm
@@ -2197,37 +2240,60 @@ class FeePaymentReceiptPDFView(APIView):
             roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or getattr(payment.student, 'upper_id', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
-            # IMPROVED: Better alignment with more spacing between columns
+            # IMPROVED: Better alignment with proper spacing to prevent overlapping
             label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 105 * mm         # Increased spacing for values
-            label_x2 = 140 * mm        # Increased spacing for right column
-            value_x2 = 180 * mm        # Increased spacing for right column values
+            value_x = 100 * mm          # Increased spacing for values
+            label_x2 = 140 * mm         # Increased spacing for right column
+            value_x2 = 175 * mm         # Increased spacing for right column values (reduced to prevent overflow)
             
+            # First row: Student Name and Roll Number
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Student Name:')
             p.setFont('Helvetica', 10)
-            # Truncate if too long
+            # Truncate if too long to prevent overflow
             name_text = student_name.upper()
-            if p.stringWidth(name_text, 'Helvetica', 10) > (value_x2 - value_x - 10 * mm):
-                name_text = name_text[:30] + '...' if len(name_text) > 30 else name_text
+            max_name_width = label_x2 - value_x - 10 * mm  # Available space between columns
+            if p.stringWidth(name_text, 'Helvetica', 10) > max_name_width:
+                # Truncate name to fit
+                while p.stringWidth(name_text, 'Helvetica', 10) > max_name_width and len(name_text) > 1:
+                    name_text = name_text[:-1]
+                name_text = name_text.rstrip() + '...'
             p.drawString(value_x, y, name_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Roll Number:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, str(roll_number))
-            y -= 18  # Increased line spacing
+            roll_text = str(roll_number)
+            # Ensure roll number doesn't exceed page width
+            max_roll_x = width - 25 * mm
+            if value_x2 + p.stringWidth(roll_text, 'Helvetica', 10) > max_roll_x:
+                value_x2 = max_roll_x - p.stringWidth(roll_text, 'Helvetica', 10)
+            p.drawString(value_x2, y, roll_text)
+            y -= 20  # Increased line spacing
             
+            # Second row: Class and Fee Type
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Class:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, class_name)
+            class_text = class_name
+            # Ensure class name doesn't exceed column boundary
+            if p.stringWidth(class_text, 'Helvetica', 10) > max_name_width:
+                while p.stringWidth(class_text, 'Helvetica', 10) > max_name_width and len(class_text) > 1:
+                    class_text = class_text[:-1]
+                class_text = class_text.rstrip() + '...'
+            p.drawString(value_x, y, class_text)
             
             fee_type = payment.fee_structure.fee_type if payment.fee_structure else 'N/A'
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Fee Type:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, fee_type)
+            fee_type_text = fee_type
+            # Ensure fee type doesn't exceed page width
+            if value_x2 + p.stringWidth(fee_type_text, 'Helvetica', 10) > max_roll_x:
+                value_x2_fee = max_roll_x - p.stringWidth(fee_type_text, 'Helvetica', 10)
+            else:
+                value_x2_fee = value_x2
+            p.drawString(value_x2_fee, y, fee_type_text)
             y -= 25  # Increased spacing after section
 
             # Payment details section - IMPROVED SPACING AND LAYOUT

@@ -350,32 +350,57 @@ class PaymentReceiptPDFView(APIView):
             receipt_number = f"PYT-{transaction.id:08X}"
             payment_date = transaction.verified_at.strftime('%d/%m/%Y') if transaction.verified_at else transaction.created_at.strftime('%d/%m/%Y')
             
+            # IMPROVED: Better spacing to prevent overlapping
             label_x = 25 * mm
-            value_x = 95 * mm
-            label_x2 = 130 * mm
-            value_x2 = 170 * mm
+            value_x = 100 * mm  # Increased spacing
+            label_x2 = 140 * mm  # Increased spacing
+            value_x2 = 175 * mm  # Increased spacing (reduced to prevent overflow)
             
+            # First row: Receipt Number and Payment Date
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x, y, 'Receipt Number:')
             p.setFont('Helvetica', 11)
-            p.drawString(value_x, y, receipt_number)
+            receipt_text = receipt_number
+            # Ensure receipt number doesn't exceed column boundary
+            max_receipt_width = label_x2 - value_x - 10 * mm
+            if p.stringWidth(receipt_text, 'Helvetica', 11) > max_receipt_width:
+                receipt_text = receipt_text[:15] + '...'
+            p.drawString(value_x, y, receipt_text)
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x2, y, 'Payment Date:')
             p.setFont('Helvetica', 11)
-            p.drawString(value_x2, y, payment_date)
-            y -= 18
+            date_text = payment_date
+            # Ensure date doesn't exceed page width
+            max_date_x = width - 25 * mm
+            if value_x2 + p.stringWidth(date_text, 'Helvetica', 11) > max_date_x:
+                value_x2_date = max_date_x - p.stringWidth(date_text, 'Helvetica', 11)
+            else:
+                value_x2_date = value_x2
+            p.drawString(value_x2_date, y, date_text)
+            y -= 20  # Increased line spacing
             
+            # Second row: Order ID and Payment ID
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x, y, 'Order ID:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, transaction.order_id)
+            order_text = transaction.order_id
+            # Ensure order ID doesn't exceed column boundary
+            if p.stringWidth(order_text, 'Helvetica', 10) > max_receipt_width:
+                order_text = order_text[:20] + '...'
+            p.drawString(value_x, y, order_text)
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x2, y, 'Payment ID:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, transaction.payment_id[:20] + '...' if len(transaction.payment_id) > 20 else transaction.payment_id)
-            y -= 40
+            payment_id_text = transaction.payment_id[:20] + '...' if len(transaction.payment_id) > 20 else transaction.payment_id
+            # Ensure payment ID doesn't exceed page width
+            if value_x2 + p.stringWidth(payment_id_text, 'Helvetica', 10) > max_date_x:
+                value_x2_payment = max_date_x - p.stringWidth(payment_id_text, 'Helvetica', 10)
+            else:
+                value_x2_payment = value_x2
+            p.drawString(value_x2_payment, y, payment_id_text)
+            y -= 25  # Increased spacing after section
 
             # Customer information section
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -390,28 +415,62 @@ class PaymentReceiptPDFView(APIView):
             customer_email = transaction.user.email or 'N/A'
             tenant_name = transaction.tenant.name if transaction.tenant else 'N/A'
             
+            # IMPROVED: Better spacing with proper column boundaries
+            label_x = 25 * mm
+            value_x = 100 * mm  # Increased spacing
+            label_x2 = 140 * mm  # Increased spacing
+            value_x2 = 175 * mm  # Increased spacing (reduced to prevent overflow)
+            max_right_x = width - 25 * mm
+            
+            # First row: Customer Name and Email
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Customer Name:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, customer_name.upper())
+            name_text = customer_name.upper()
+            # Truncate if too long
+            max_name_width = label_x2 - value_x - 10 * mm
+            if p.stringWidth(name_text, 'Helvetica', 10) > max_name_width:
+                while p.stringWidth(name_text, 'Helvetica', 10) > max_name_width and len(name_text) > 1:
+                    name_text = name_text[:-1]
+                name_text = name_text.rstrip() + '...'
+            p.drawString(value_x, y, name_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Email:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, customer_email)
-            y -= 15
+            email_text = customer_email
+            # Ensure email doesn't exceed page width
+            if value_x2 + p.stringWidth(email_text, 'Helvetica', 10) > max_right_x:
+                value_x2_email = max_right_x - p.stringWidth(email_text, 'Helvetica', 10)
+            else:
+                value_x2_email = value_x2
+            p.drawString(value_x2_email, y, email_text)
+            y -= 18  # Increased line spacing
             
+            # Second row: Organization and Plan
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Organization:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, tenant_name)
+            org_text = tenant_name
+            # Ensure organization name doesn't exceed column boundary
+            if p.stringWidth(org_text, 'Helvetica', 10) > max_name_width:
+                while p.stringWidth(org_text, 'Helvetica', 10) > max_name_width and len(org_text) > 1:
+                    org_text = org_text[:-1]
+                org_text = org_text.rstrip() + '...'
+            p.drawString(value_x, y, org_text)
             
             plan_name = transaction.plan.name if transaction.plan else 'N/A'
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Plan:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, plan_name)
-            y -= 35
+            plan_text = plan_name
+            # Ensure plan name doesn't exceed page width
+            if value_x2 + p.stringWidth(plan_text, 'Helvetica', 10) > max_right_x:
+                value_x2_plan = max_right_x - p.stringWidth(plan_text, 'Helvetica', 10)
+            else:
+                value_x2_plan = value_x2
+            p.drawString(value_x2_plan, y, plan_text)
+            y -= 30  # Increased spacing after section
 
             # Payment information section
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -426,33 +485,57 @@ class PaymentReceiptPDFView(APIView):
             currency = transaction.currency or 'INR'
             billing_cycle = transaction.plan.billing_cycle if transaction.plan else 'N/A'
             
+            # IMPROVED: Better spacing to prevent overlapping
             label_x = 25 * mm
-            value_x = 95 * mm
-            label_x2 = 130 * mm
+            value_x = 100 * mm  # Increased spacing
+            label_x2 = 140 * mm  # Increased spacing
+            value_x2 = 175 * mm  # Increased spacing (reduced to prevent overflow)
             currency_x = width - 25 * mm
+            max_right_x = width - 25 * mm
             
+            # First row: Plan Name and Billing Cycle
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Plan Name:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, plan_name)
+            plan_display_text = plan_name
+            # Ensure plan name doesn't exceed column boundary
+            max_plan_width = label_x2 - value_x - 10 * mm
+            if p.stringWidth(plan_display_text, 'Helvetica', 10) > max_plan_width:
+                while p.stringWidth(plan_display_text, 'Helvetica', 10) > max_plan_width and len(plan_display_text) > 1:
+                    plan_display_text = plan_display_text[:-1]
+                plan_display_text = plan_display_text.rstrip() + '...'
+            p.drawString(value_x, y, plan_display_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Billing Cycle:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x2, y, billing_cycle.upper())
-            y -= 15
+            cycle_text = billing_cycle.upper()
+            # Ensure billing cycle doesn't exceed page width
+            if value_x2 + p.stringWidth(cycle_text, 'Helvetica', 10) > max_right_x:
+                value_x2_cycle = max_right_x - p.stringWidth(cycle_text, 'Helvetica', 10)
+            else:
+                value_x2_cycle = value_x2
+            p.drawString(value_x2_cycle, y, cycle_text)
+            y -= 18  # Increased line spacing
             
+            # Second row: Currency and Status
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Currency:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, currency)
+            currency_text = currency
+            p.drawString(value_x, y, currency_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Status:')
             p.setFont('Helvetica', 10)
             status_text = transaction.status.upper() if transaction.status else 'VERIFIED'
-            p.drawString(value_x2, y, status_text)
-            y -= 20
+            # Ensure status doesn't exceed page width
+            if value_x2 + p.stringWidth(status_text, 'Helvetica', 10) > max_right_x:
+                value_x2_status = max_right_x - p.stringWidth(status_text, 'Helvetica', 10)
+            else:
+                value_x2_status = value_x2
+            p.drawString(value_x2_status, y, status_text)
+            y -= 25  # Increased spacing after section
             
             # Important notice about charges
             p.setFont('Helvetica-Bold', 11)
