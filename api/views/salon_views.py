@@ -2,6 +2,7 @@ from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.views import APIView
+from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg
@@ -13,7 +14,7 @@ from api.serializers import ServiceCategorySerializer, ServiceSerializer, Stylis
 
 
 class ServiceCategoryListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = ServiceCategorySerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -50,7 +51,7 @@ class ServiceCategoryListCreateView(generics.ListCreateAPIView):
 
 
 class ServiceCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = ServiceCategorySerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -59,7 +60,7 @@ class ServiceCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ServiceListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = ServiceSerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -86,7 +87,7 @@ class ServiceListCreateView(generics.ListCreateAPIView):
 
 
 class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = ServiceSerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -95,7 +96,7 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class StylistListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = StylistSerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -111,7 +112,7 @@ class StylistListCreateView(generics.ListCreateAPIView):
 
 
 class StylistDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = StylistSerializer
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
@@ -120,7 +121,7 @@ class StylistDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class AppointmentListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = AppointmentSerializer
 	
 	def get_queryset(self):
@@ -173,7 +174,7 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 
 
 class AppointmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 	serializer_class = AppointmentSerializer
 	
 	def get_queryset(self):
@@ -186,7 +187,7 @@ from django.utils import timezone
 
 
 class AppointmentCheckInView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 
 	def post(self, request, pk):
 		try:
@@ -199,7 +200,7 @@ class AppointmentCheckInView(APIView):
 
 
 class AppointmentCompleteView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 
 	def post(self, request, pk):
 		try:
@@ -214,7 +215,7 @@ class AppointmentCompleteView(APIView):
 
 
 class AppointmentCancelView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 
 	def post(self, request, pk):
 		try:
@@ -227,7 +228,7 @@ class AppointmentCancelView(APIView):
 
 
 class SalonAnalyticsView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon'), HasFeaturePermissionFactory('analytics')]
 
 	def get(self, request):
 		tenant = request.user.userprofile.tenant
@@ -314,7 +315,7 @@ class SalonAnalyticsView(APIView):
 
 
 class AppointmentBulkDeleteView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 
 	def post(self, request):
 		appointment_ids = request.data.get('ids', [])
@@ -327,7 +328,7 @@ class AppointmentBulkDeleteView(APIView):
 
 
 class AppointmentBulkStatusUpdateView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
 
 	def post(self, request):
 		appointment_ids = request.data.get('ids', [])

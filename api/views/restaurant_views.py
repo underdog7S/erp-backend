@@ -1,6 +1,7 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg, F
@@ -12,7 +13,7 @@ from api.serializers import MenuCategorySerializer, MenuItemSerializer, TableSer
 
 
 class MenuCategoryListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = MenuCategorySerializer
 	
 	def get_queryset(self):
@@ -27,7 +28,7 @@ class MenuCategoryListCreateView(generics.ListCreateAPIView):
 
 
 class MenuCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = MenuCategorySerializer
 	
 	def get_queryset(self):
@@ -35,7 +36,7 @@ class MenuCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class MenuItemListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = MenuItemSerializer
 	
 	def get_queryset(self):
@@ -56,7 +57,7 @@ class MenuItemListCreateView(generics.ListCreateAPIView):
 
 
 class MenuItemDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = MenuItemSerializer
 	
 	def get_queryset(self):
@@ -64,7 +65,7 @@ class MenuItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class TableListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = TableSerializer
 	
 	def get_queryset(self):
@@ -75,7 +76,7 @@ class TableListCreateView(generics.ListCreateAPIView):
 
 
 class TableDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = TableSerializer
 	
 	def get_queryset(self):
@@ -83,7 +84,7 @@ class TableDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class OrderListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = OrderSerializer
 	
 	def get_queryset(self):
@@ -122,7 +123,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
 
 
 class OrderDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = OrderSerializer
 	
 	def get_queryset(self):
@@ -130,7 +131,7 @@ class OrderDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class OrderItemListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = OrderItemSerializer
 	
 	def get_queryset(self):
@@ -141,7 +142,7 @@ class OrderItemListCreateView(generics.ListCreateAPIView):
 
 
 class OrderItemDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 	serializer_class = OrderItemSerializer
 	
 	def get_queryset(self):
@@ -149,7 +150,7 @@ class OrderItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class OrderServeView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 
 	def post(self, request, pk):
 		try:
@@ -162,7 +163,7 @@ class OrderServeView(APIView):
 
 
 class OrderMarkPaidView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 
 	def post(self, request, pk):
 		try:
@@ -175,7 +176,7 @@ class OrderMarkPaidView(APIView):
 
 
 class RestaurantAnalyticsView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant'), HasFeaturePermissionFactory('analytics')]
 
 	def get(self, request):
 		tenant = request.user.userprofile.tenant
@@ -185,16 +186,20 @@ class RestaurantAnalyticsView(APIView):
 		# Menu statistics
 		total_items = MenuItem.objects.filter(tenant=tenant).count()
 		available_items = MenuItem.objects.filter(tenant=tenant, is_available=True).count()
+		unavailable_items = total_items - available_items
 		total_categories = MenuCategory.objects.filter(tenant=tenant).count()
 		
 		# Table statistics
 		total_tables = Table.objects.filter(tenant=tenant).count()
+		occupied_tables = Order.objects.filter(tenant=tenant, status__in=['open', 'served']).values('table').distinct().count()
+		utilization_rate = round((occupied_tables / total_tables * 100) if total_tables > 0 else 0, 2)
 		
 		# Order statistics
 		total_orders = Order.objects.filter(tenant=tenant).count()
 		open_orders = Order.objects.filter(tenant=tenant, status='open').count()
 		served_orders = Order.objects.filter(tenant=tenant, status='served').count()
 		paid_orders = Order.objects.filter(tenant=tenant, status='paid').count()
+		cancelled_orders = Order.objects.filter(tenant=tenant, status='cancelled').count()
 		recent_orders = Order.objects.filter(tenant=tenant, created_at__date__gte=thirty_days_ago).count()
 		
 		# Revenue statistics
@@ -207,6 +212,13 @@ class RestaurantAnalyticsView(APIView):
 			avg_order_value=Avg('total_amount'),
 			order_count=Count('id')
 		)
+		
+		# Today's revenue
+		today_revenue = Order.objects.filter(
+			tenant=tenant,
+			created_at__date=today,
+			status='paid'
+		).aggregate(total=Sum('total_amount'))
 		
 		# Popular items (top 5) - calculate line_total as quantity * price
 		popular_items = OrderItem.objects.filter(
@@ -225,29 +237,35 @@ class RestaurantAnalyticsView(APIView):
 			'menu': {
 				'total_items': total_items,
 				'available_items': available_items,
+				'unavailable_items': unavailable_items,
 				'total_categories': total_categories
 			},
 			'tables': {
-				'total': total_tables
+				'total': total_tables,
+				'occupied': occupied_tables,
+				'utilization_rate': utilization_rate
 			},
 			'orders': {
 				'total': total_orders,
 				'open': open_orders,
 				'served': served_orders,
 				'paid': paid_orders,
+				'cancelled': cancelled_orders,
 				'recent_30_days': recent_orders
 			},
 			'revenue': {
 				'total_30_days': float(revenue_stats['total_revenue'] or 0),
+				'today': float(today_revenue['total'] or 0),
 				'average_order_value': float(revenue_stats['avg_order_value'] or 0),
 				'order_count': revenue_stats['order_count'] or 0
 			},
-			'popular_items': list(popular_items)
+			'popular_items': list(popular_items),
+			'top_items': list(popular_items)  # Alias for compatibility
 		})
 
 
 class OrderBulkDeleteView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 
 	def post(self, request):
 		order_ids = request.data.get('ids', [])
@@ -260,7 +278,7 @@ class OrderBulkDeleteView(APIView):
 
 
 class OrderBulkStatusUpdateView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
 
 	def post(self, request):
 		order_ids = request.data.get('ids', [])

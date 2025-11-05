@@ -18,6 +18,10 @@ class IsTenantMember(BasePermission):
 
 
 def HasFeaturePermissionFactory(feature_name):
+    """
+    Factory function to create permission class that checks if user's plan has a specific feature.
+    Returns proper error messages when feature is not available.
+    """
     class _HasFeaturePermission(BasePermission):
         def has_permission(self, request, view):
             if not request.user or not request.user.is_authenticated:
@@ -25,12 +29,58 @@ def HasFeaturePermissionFactory(feature_name):
             try:
                 profile = UserProfile._default_manager.get(user=request.user)
                 tenant = profile.tenant
+                
+                if not tenant:
+                    return False
+                
                 plan = tenant.plan
                 if not plan:
+                    # No plan assigned
                     return False
-                return plan.has_feature(feature_name)
+                
+                # Check if plan has the feature
+                has_feature = plan.has_feature(feature_name)
+                
+                if not has_feature:
+                    # Feature not available - return detailed error message
+                    from rest_framework.exceptions import PermissionDenied
+                    feature_display_name = feature_name.replace('_', ' ').title()
+                    
+                    # Get plan name and suggest upgrade
+                    current_plan = plan.name
+                    error_message = (
+                        f"{feature_display_name} module is not available in your current plan ({current_plan}). "
+                        f"Please upgrade to a plan that includes {feature_display_name} to access this feature."
+                    )
+                    
+                    # Raise PermissionDenied with detailed message
+                    raise PermissionDenied(detail=error_message)
+                
+                return True
+            except PermissionDenied:
+                # Re-raise PermissionDenied exceptions
+                raise
             except Exception:
+                # For other exceptions, return False (will show generic 403)
                 return False
+        
+        def get_error_message(self, request, view):
+            """Get error message for when permission is denied"""
+            try:
+                profile = UserProfile._default_manager.get(user=request.user)
+                tenant = profile.tenant
+                plan = tenant.plan if tenant else None
+                
+                feature_display_name = feature_name.replace('_', ' ').title()
+                current_plan = plan.name if plan else "No Plan"
+                
+                return (
+                    f"{feature_display_name} module is not available in your current plan ({current_plan}). "
+                    f"Please upgrade to a plan that includes {feature_display_name} to access this feature."
+                )
+            except:
+                return f"{feature_name.replace('_', ' ').title()} feature is not available. Please upgrade your plan."
+    
     _HasFeaturePermission.__name__ = f"Has{feature_name.capitalize()}FeaturePermission"
     return _HasFeaturePermission
 

@@ -1789,7 +1789,7 @@ class AdminEducationSummaryView(APIView):
 
 class ClassStatsView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -1817,7 +1817,7 @@ class ClassStatsView(APIView):
 
 class MonthlyReportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -1846,7 +1846,7 @@ class MonthlyReportView(APIView):
 
 class ExportClassStatsCSVView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
         if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal']:
@@ -2124,8 +2124,8 @@ class FeePaymentReceiptPDFView(APIView):
             school_y = logo_y_top
             p.drawString(text_x, school_y, school_name.upper())
             
-            # School contact info below name
-            info_y = school_y - 16
+            # School contact info below name - IMPROVED SPACING
+            info_y = school_y - 20  # Increased spacing from school name
             p.setFont('Helvetica', 9)
             if school_address:
                 max_addr_width = width - text_x - 25 * mm
@@ -2133,42 +2133,42 @@ class FeePaymentReceiptPDFView(APIView):
                     addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
                     for line in addr_lines[:2]:
                         p.drawString(text_x, info_y, line)
-                        info_y -= 11
+                        info_y -= 12  # Consistent line spacing
                 else:
                     p.drawString(text_x, info_y, school_address)
-                    info_y -= 11
+                    info_y -= 12  # Consistent line spacing
             if school_phone:
                 p.drawString(text_x, info_y, f"Phone: {school_phone}")
-                info_y -= 11
+                info_y -= 12  # Consistent line spacing
             if school_email:
                 p.drawString(text_x, info_y, f"Email: {school_email}")
-                info_y -= 11
+                info_y -= 12  # Consistent line spacing
             
-            # Document title below contact info
-            info_y -= 5
+            # Document title below contact info - IMPROVED SPACING
+            info_y -= 10  # Increased spacing before title
             p.setFont('Helvetica-Bold', 14)
             p.drawString(text_x, info_y, 'FEE PAYMENT RECEIPT')
             
-            y = height - 70
+            y = info_y - 25  # Start receipt details section with proper spacing
             p.setFillColor(colors.black)
 
-            # Receipt number and date section - no background colors
+            # Receipt number and date section - IMPROVED SPACING AND LAYOUT
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=0)
+            p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=0)  # Increased height for better spacing
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y - 8, 'RECEIPT DETAILS')
-            y -= 18
+            p.drawString(25 * mm, y - 10, 'RECEIPT DETAILS')  # Adjusted position
+            y -= 20  # Increased spacing after header
             
             receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
             payment_date = payment.payment_date.strftime('%d/%m/%Y')
             
-            # Government marksheet standard alignment - consistent spacing
+            # IMPROVED: Better alignment with more spacing
             receipt_label_x = 25 * mm
-            receipt_value_x = 95 * mm
-            date_label_x = 130 * mm
-            date_value_x = 170 * mm
+            receipt_value_x = 105 * mm  # Increased spacing
+            date_label_x = 140 * mm  # Increased spacing
+            date_value_x = 175 * mm  # Increased spacing
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(receipt_label_x, y, 'Receipt Number:')
@@ -2179,37 +2179,41 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(date_label_x, y, 'Date:')
             p.setFont('Helvetica', 11)
             p.drawString(date_value_x, y, payment_date)
-            y -= 18
+            y -= 20  # Increased spacing after section
 
-            # Student information section - no background colors
+            # Student information section - IMPROVED SPACING AND LAYOUT
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(20 * mm, y - 50, width - 40 * mm, 50, stroke=1, fill=0)
+            p.rect(20 * mm, y - 55, width - 40 * mm, 55, stroke=1, fill=0)  # Increased height
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y - 8, 'STUDENT INFORMATION')
-            y -= 18
+            p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')  # Adjusted position
+            y -= 20  # Increased spacing after header
             
             student_name = payment.student.name if payment.student else 'N/A'
             roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or getattr(payment.student, 'upper_id', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
-            # Properly aligned labels and values - Government marksheet standard alignment
+            # IMPROVED: Better alignment with more spacing between columns
             label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 95 * mm          # Fixed value position (consistent spacing)
-            label_x2 = 130 * mm        # Fixed label position (right column)
-            value_x2 = 170 * mm        # Fixed value position (consistent spacing)
+            value_x = 105 * mm         # Increased spacing for values
+            label_x2 = 140 * mm        # Increased spacing for right column
+            value_x2 = 180 * mm        # Increased spacing for right column values
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Student Name:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, student_name.upper())
+            # Truncate if too long
+            name_text = student_name.upper()
+            if p.stringWidth(name_text, 'Helvetica', 10) > (value_x2 - value_x - 10 * mm):
+                name_text = name_text[:30] + '...' if len(name_text) > 30 else name_text
+            p.drawString(value_x, y, name_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Roll Number:')
             p.setFont('Helvetica', 10)
             p.drawString(value_x2, y, str(roll_number))
-            y -= 15
+            y -= 18  # Increased line spacing
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Class:')
@@ -2221,16 +2225,18 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(label_x2, y, 'Fee Type:')
             p.setFont('Helvetica', 10)
             p.drawString(value_x2, y, fee_type)
-            y -= 35
+            y -= 25  # Increased spacing after section
 
-            # Payment details section - no background colors
+            # Payment details section - IMPROVED SPACING AND LAYOUT
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(20 * mm, y - 60, width - 40 * mm, 60, stroke=1, fill=0)
+            # Calculate dynamic height based on content
+            section_height = 75 if (payment.fee_structure and remaining > 0) else 60
+            p.rect(20 * mm, y - section_height, width - 40 * mm, section_height, stroke=1, fill=0)
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y - 8, 'PAYMENT INFORMATION')
-            y -= 18
+            p.drawString(25 * mm, y - 10, 'PAYMENT INFORMATION')  # Adjusted position
+            y -= 20  # Increased spacing after header
             
             payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
             amount_paid = float(payment.amount_paid)
@@ -2238,63 +2244,68 @@ class FeePaymentReceiptPDFView(APIView):
             remaining = max(0, total_fee - amount_paid)
             discount = float(payment.discount_amount) if payment.discount_amount else 0
             
-            # Government marksheet standard alignment - consistent spacing
+            # IMPROVED: Better alignment with proper spacing
             label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 95 * mm          # Fixed value position for text
-            label_x2 = 130 * mm        # Fixed label position (right column)
-            currency_x = width - 25 * mm  # Fixed right-aligned position for all currency (like government receipts)
+            value_x = 105 * mm         # Increased spacing for text values
+            currency_x = width - 30 * mm  # Fixed right-aligned position for all currency with margin
             
+            # Payment Method - on its own line
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Payment Method:')
             p.setFont('Helvetica', 10)
             p.drawString(value_x, y, payment_method.upper())
+            y -= 18  # Increased line spacing
             
-            if discount > 0:
-                p.setFont('Helvetica-Bold', 10)
-                p.drawString(label_x2, y, 'Discount:')
-                p.setFont('Helvetica', 10)
-                p.drawRightString(currency_x, y, f"₹{discount:.2f}")  # Right align currency (consistent)
-            y -= 15
-            
+            # Amount Paid - on its own line
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Amount Paid:')
-            p.setFont('Helvetica-Bold', 11)  # Bold for emphasis, but black color
-            p.setFillColor(colors.black)  # Black text on white
-            # IMPROVED: Ensure currency fits within bounds and doesn't collapse
+            p.setFont('Helvetica-Bold', 11)
+            p.setFillColor(colors.black)
             amount_text = f"₹{amount_paid:,.2f}"
             amount_width = p.stringWidth(amount_text, 'Helvetica-Bold', 11)
-            if amount_width > width - currency_x - 5 * mm:
-                # If too long, use smaller font
+            if amount_width > (width - currency_x):
                 p.setFont('Helvetica-Bold', 10)
                 amount_text = f"₹{amount_paid:,.2f}"
-            p.drawRightString(currency_x, y, amount_text)  # Right align currency (consistent)
+            p.drawRightString(currency_x, y, amount_text)
+            y -= 18  # Increased line spacing
             
+            # Discount (if exists) - on its own line
+            if discount > 0:
+                p.setFont('Helvetica-Bold', 10)
+                p.drawString(label_x, y, 'Discount:')
+                p.setFont('Helvetica', 10)
+                discount_text = f"₹{discount:,.2f}"
+                p.drawRightString(currency_x, y, discount_text)
+                y -= 18  # Increased line spacing
+            
+            # Total Fee (if exists) - on its own line
             if payment.fee_structure:
-                y -= 15
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Total Fee:')
                 p.setFont('Helvetica', 10)
                 total_text = f"₹{total_fee:,.2f}"
                 total_width = p.stringWidth(total_text, 'Helvetica', 10)
-                if total_width > width - currency_x - 5 * mm:
+                if total_width > (width - currency_x):
                     p.setFont('Helvetica', 9)
                     total_text = f"₹{total_fee:,.2f}"
-                p.drawRightString(currency_x, y, total_text)  # Right align currency (consistent)
-            y -= 15
+                p.drawRightString(currency_x, y, total_text)
+                y -= 18  # Increased line spacing
             
+            # Remaining (if exists) - on its own line
             if payment.fee_structure and remaining > 0:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
-                p.setFillColor(colors.black)  # Black text on white
-                # IMPROVED: Ensure currency fits within bounds
+                p.setFillColor(colors.black)
                 remaining_text = f"₹{remaining:,.2f}"
                 remaining_width = p.stringWidth(remaining_text, 'Helvetica', 10)
-                if remaining_width > width - currency_x - 5 * mm:
+                if remaining_width > (width - currency_x):
                     p.setFont('Helvetica', 9)
                     remaining_text = f"₹{remaining:,.2f}"
-                p.drawRightString(currency_x, y, remaining_text)  # Right align currency (consistent)
-            y -= 25
+                p.drawRightString(currency_x, y, remaining_text)
+                y -= 18  # Increased line spacing
+            
+            y -= 15  # Extra spacing after payment section
 
             # Notes section (if exists) - IMPROVED: Better text wrapping to prevent word collapsing
             if payment.notes:
@@ -2328,22 +2339,22 @@ class FeePaymentReceiptPDFView(APIView):
             else:
                 y -= 15
 
-            # Total amount section - no background colors
+            # Total amount section - IMPROVED SPACING AND ALIGNMENT
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1.5)
-            p.rect(20 * mm, y - 35, width - 40 * mm, 35, stroke=1, fill=0)
-            p.setFillColor(colors.black)  # Black text on white
+            p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=0)  # Increased height
+            p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 14)
-            p.drawString(25 * mm, y - 12, 'TOTAL AMOUNT PAID:')
+            p.drawString(25 * mm, y - 15, 'TOTAL AMOUNT PAID:')  # Adjusted position
             p.setFont('Helvetica-Bold', 18)
             # IMPROVED: Ensure total amount fits within bounds
             total_paid_text = f"₹{amount_paid:,.2f}"
             total_paid_width = p.stringWidth(total_paid_text, 'Helvetica-Bold', 18)
-            if total_paid_width > width - 25 * mm - 5 * mm:
+            if total_paid_width > (width - 30 * mm):
                 p.setFont('Helvetica-Bold', 16)
                 total_paid_text = f"₹{amount_paid:,.2f}"
-            p.drawRightString(width - 25 * mm, y - 10, total_paid_text)
-            y -= 45
+            p.drawRightString(width - 30 * mm, y - 12, total_paid_text)  # Adjusted position with margin
+            y -= 50  # Increased spacing after total section
 
             # Thank you message (black text on white background)
             p.setFont('Helvetica', 11)
@@ -2899,7 +2910,7 @@ class ClassAttendanceStatusView(APIView):
 # Missing analytics endpoints
 class AttendanceTrendsView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -2930,7 +2941,7 @@ class AttendanceTrendsView(APIView):
 
 class StaffDistributionView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -2964,7 +2975,7 @@ class StaffDistributionView(APIView):
 
 class FeeCollectionView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -3007,7 +3018,7 @@ class FeeCollectionView(APIView):
 
 class ClassPerformanceView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
@@ -3549,7 +3560,7 @@ class ClassFeeSummaryView(APIView):
 class ComprehensiveAnalyticsView(APIView):
     """Comprehensive analytics for admin and principal"""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -3751,7 +3762,7 @@ class ComprehensiveAnalyticsView(APIView):
 class EducationAnalyticsView(APIView):
     """Main analytics dashboard endpoint"""
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
         try:

@@ -6,6 +6,7 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.http import JsonResponse
 from django.conf import settings
+from api.models.permissions import HasFeaturePermissionFactory
 
 
 class IsSuperUserOrStaff(BasePermission):
@@ -38,7 +39,7 @@ class APIDocumentationView(APIView):
     - Supports both JWT (for API clients) and Session (for Django admin users)
     """
     authentication_classes = [SessionAuthentication, JWTAuthentication]  # Support both session (Django admin) and JWT (API clients)
-    permission_classes = [AllowAny] if settings.DEBUG else [IsSuperUserOrStaff]
+    permission_classes = [AllowAny] if settings.DEBUG else [IsSuperUserOrStaff, HasFeaturePermissionFactory('api_access')]
 
     def get(self, request):
         """Main API documentation page"""
@@ -268,7 +269,7 @@ class APIDocumentationView(APIView):
 
 @api_view(['GET'])
 @authentication_classes([SessionAuthentication, JWTAuthentication])  # Support both session (Django admin) and JWT (API clients)
-@permission_classes([AllowAny] if settings.DEBUG else [IsSuperUserOrStaff])
+@permission_classes([AllowAny] if settings.DEBUG else [IsSuperUserOrStaff, HasFeaturePermissionFactory('api_access')])
 def api_examples(request):
     """Interactive API examples"""
     examples = {

@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from api.models.permissions import HasFeaturePermissionFactory
 from django.db.models import Q, Sum, Count
 from django.utils import timezone
 from datetime import timedelta
@@ -36,7 +37,7 @@ from ..serializers import (
 
 # Medicine Category Views
 class MedicineCategoryListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineCategorySerializer
     
     def get_queryset(self):
@@ -46,7 +47,7 @@ class MedicineCategoryListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class MedicineCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineCategorySerializer
     
     def get_queryset(self):
@@ -54,7 +55,7 @@ class MedicineCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Supplier Views
 class SupplierListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
@@ -64,7 +65,7 @@ class SupplierListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
@@ -72,7 +73,7 @@ class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Medicine Views
 class MedicineListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineSerializer
     
     def get_queryset(self):
@@ -101,7 +102,7 @@ class MedicineListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class MedicineDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineSerializer
     
     def get_queryset(self):
@@ -109,7 +110,7 @@ class MedicineDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Medicine Search View for Barcode Scanning
 class MedicineSearchView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
     def get(self, request):
         try:
@@ -168,7 +169,7 @@ class MedicineSearchView(APIView):
 
 # Medicine Batch Views
 class MedicineBatchListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineBatchSerializer
     
     def get_queryset(self):
@@ -182,7 +183,7 @@ class MedicineBatchListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class MedicineBatchDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineBatchSerializer
     
     def get_queryset(self):
@@ -190,7 +191,7 @@ class MedicineBatchDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Customer Views
 class CustomerListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = CustomerSerializer
     
     def get_queryset(self):
@@ -208,7 +209,7 @@ class CustomerListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class CustomerDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = CustomerSerializer
     
     def get_queryset(self):
@@ -216,7 +217,7 @@ class CustomerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Prescription Views
 class PrescriptionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = PrescriptionSerializer
     
     def get_queryset(self):
@@ -230,7 +231,7 @@ class PrescriptionListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class PrescriptionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = PrescriptionSerializer
     
     def get_queryset(self):
@@ -238,7 +239,7 @@ class PrescriptionDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Sale Views
 class SaleListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SaleSerializer
     
     def get_queryset(self):
@@ -303,7 +304,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
                 )
 
 class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SaleSerializer
     
     def get_queryset(self):
@@ -316,7 +317,7 @@ class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Purchase Order Views
 class PurchaseOrderListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = PurchaseOrderSerializer
     
     def get_queryset(self):
@@ -347,7 +348,7 @@ class PurchaseOrderListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
 
 class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = PurchaseOrderSerializer
     
     def get_queryset(self):
@@ -355,7 +356,7 @@ class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Stock Adjustment Views
 class StockAdjustmentListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = StockAdjustmentSerializer
     
     def get_queryset(self):
@@ -365,7 +366,7 @@ class StockAdjustmentListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, adjusted_by=self.request.user.userprofile)
 
 class StockAdjustmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = StockAdjustmentSerializer
     
     def get_queryset(self):
@@ -373,7 +374,7 @@ class StockAdjustmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Staff Attendance Views
 class StaffAttendanceListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = StaffAttendanceSerializer
     
     def get_queryset(self):
@@ -383,7 +384,7 @@ class StaffAttendanceListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class StaffAttendanceDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = StaffAttendanceSerializer
     
     def get_queryset(self):
@@ -391,7 +392,7 @@ class StaffAttendanceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Analytics Views
 class PharmacyAnalyticsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy'), HasFeaturePermissionFactory('analytics')]
     
     def get(self, request):
         tenant = request.user.userprofile.tenant
@@ -530,7 +531,7 @@ class PharmacyAnalyticsView(APIView):
 
 # Check-in/Check-out Views
 class StaffAttendanceCheckInView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
     def post(self, request):
         staff = request.user.userprofile
@@ -554,7 +555,7 @@ class StaffAttendanceCheckInView(APIView):
         })
 
 class StaffAttendanceCheckOutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
     def post(self, request):
         staff = request.user.userprofile
@@ -581,7 +582,7 @@ class StaffAttendanceCheckOutView(APIView):
 
 class MedicineExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -679,7 +680,7 @@ class MedicineExportView(APIView):
 
 class PharmacySaleExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -760,7 +761,7 @@ class PharmacySaleExportView(APIView):
 
 class PharmacyPurchaseOrderExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -841,7 +842,7 @@ class PharmacyPurchaseOrderExportView(APIView):
 
 class PharmacyInventoryExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -927,7 +928,7 @@ class PharmacyInventoryExportView(APIView):
 
 # Bulk Operations for Pharmacy
 class PharmacySaleBulkDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def post(self, request):
         sale_ids = request.data.get('ids', [])
@@ -940,7 +941,7 @@ class PharmacySaleBulkDeleteView(APIView):
 
 
 class PharmacySaleBulkStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def post(self, request):
         sale_ids = request.data.get('ids', [])
@@ -959,7 +960,7 @@ class PharmacySaleBulkStatusUpdateView(APIView):
 
 
 class PharmacyPurchaseOrderBulkDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def post(self, request):
         po_ids = request.data.get('ids', [])
@@ -972,7 +973,7 @@ class PharmacyPurchaseOrderBulkDeleteView(APIView):
 
 
 class PharmacyPurchaseOrderBulkStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
 
     def post(self, request):
         po_ids = request.data.get('ids', [])
@@ -992,7 +993,7 @@ class PharmacyPurchaseOrderBulkStatusUpdateView(APIView):
 
 # Sale Return Views
 class SaleReturnListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SaleReturnSerializer
     
     def get_queryset(self):
@@ -1087,7 +1088,7 @@ class SaleReturnListCreateView(generics.ListCreateAPIView):
         # Note: Stock is NOT restored here - only when return is processed
 
 class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SaleReturnSerializer
     
     def get_queryset(self):
@@ -1098,7 +1099,7 @@ class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class SaleReturnProcessView(APIView):
     """Process a return (approve and complete refund)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
     def post(self, request, pk):
         try:
@@ -1129,7 +1130,7 @@ class SaleReturnProcessView(APIView):
 
 # Loyalty Program Views
 class LoyaltyRewardListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = LoyaltyRewardSerializer
     
     def get_queryset(self):
@@ -1143,14 +1144,14 @@ class LoyaltyRewardListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class LoyaltyRewardDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = LoyaltyRewardSerializer
     
     def get_queryset(self):
         return LoyaltyReward.objects.filter(tenant=self.request.user.userprofile.tenant)
 
 class LoyaltyTransactionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = LoyaltyTransactionSerializer
     
     def get_queryset(self):
@@ -1167,7 +1168,7 @@ class LoyaltyTransactionListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
 
 class LoyaltyTransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = LoyaltyTransactionSerializer
     
     def get_queryset(self):
@@ -1175,7 +1176,7 @@ class LoyaltyTransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class LoyaltyRedeemView(APIView):
     """Redeem loyalty points for a reward"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
     def post(self, request):
         try:

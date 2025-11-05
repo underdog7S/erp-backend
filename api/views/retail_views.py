@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Q, Sum, Count
@@ -40,7 +41,7 @@ from ..serializers import (
 
 # Product Category Views
 class ProductCategoryListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = ProductCategorySerializer
     
     def get_queryset(self):
@@ -50,7 +51,7 @@ class ProductCategoryListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class ProductCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = ProductCategorySerializer
     
     def get_queryset(self):
@@ -58,7 +59,7 @@ class ProductCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Supplier Views
 class SupplierListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
@@ -68,7 +69,7 @@ class SupplierListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
@@ -76,7 +77,7 @@ class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Warehouse Views
 class WarehouseListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = WarehouseSerializer
     
     def get_queryset(self):
@@ -86,7 +87,7 @@ class WarehouseListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class WarehouseDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = WarehouseSerializer
     
     def get_queryset(self):
@@ -94,7 +95,7 @@ class WarehouseDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Product Views
 class ProductListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = ProductSerializer
     parser_classes = [MultiPartParser, FormParser]
     
@@ -109,7 +110,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = ProductSerializer
     parser_classes = [MultiPartParser, FormParser]
     
@@ -118,7 +119,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Inventory Views
 class InventoryListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = InventorySerializer
     
     def get_queryset(self):
@@ -132,7 +133,7 @@ class InventoryListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class InventoryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = InventorySerializer
     
     def get_queryset(self):
@@ -140,7 +141,7 @@ class InventoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Customer Views
 class CustomerListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = CustomerSerializer
     
     def get_queryset(self):
@@ -164,7 +165,7 @@ class CustomerListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class CustomerDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = CustomerSerializer
     
     def get_queryset(self):
@@ -172,7 +173,7 @@ class CustomerDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Price List Views
 class PriceListListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PriceListSerializer
     
     def get_queryset(self):
@@ -194,14 +195,14 @@ class PriceListListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class PriceListDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PriceListSerializer
     
     def get_queryset(self):
         return PriceList.objects.filter(tenant=self.request.user.userprofile.tenant).prefetch_related('items')
 
 class PriceListItemListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PriceListItemSerializer
     
     def get_queryset(self):
@@ -223,7 +224,7 @@ class PriceListItemListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class PriceListItemDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PriceListItemSerializer
     
     def get_queryset(self):
@@ -231,7 +232,7 @@ class PriceListItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class GetProductPriceView(APIView):
     """Get product price based on customer and quantity"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     
     def get(self, request):
         customer_id = request.query_params.get('customer')
@@ -279,7 +280,7 @@ class GetProductPriceView(APIView):
 
 # Quotation Views
 class QuotationListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = QuotationSerializer
     
     def get_queryset(self):
@@ -369,7 +370,7 @@ class QuotationListCreateView(generics.ListCreateAPIView):
         return quotation
 
 class QuotationDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = QuotationSerializer
     
     def get_queryset(self):
@@ -425,7 +426,7 @@ class QuotationDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class ConvertQuotationToSaleView(APIView):
     """Convert an accepted quotation to a sale"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     
     def post(self, request, quotation_id):
         try:
@@ -535,7 +536,7 @@ class ConvertQuotationToSaleView(APIView):
 
 # Purchase Order Views
 class PurchaseOrderListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PurchaseOrderSerializer
     
     def get_queryset(self):
@@ -566,7 +567,7 @@ class PurchaseOrderListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
 
 class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = PurchaseOrderSerializer
     
     def get_queryset(self):
@@ -574,7 +575,7 @@ class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Goods Receipt Views
 class GoodsReceiptListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = GoodsReceiptSerializer
     
     def get_queryset(self):
@@ -588,7 +589,7 @@ class GoodsReceiptListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, received_by=self.request.user.userprofile)
 
 class GoodsReceiptDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = GoodsReceiptSerializer
     
     def get_queryset(self):
@@ -596,7 +597,7 @@ class GoodsReceiptDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Sale Views
 class SaleListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SaleSerializer
     
     def get_queryset(self):
@@ -652,7 +653,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, sold_by=self.request.user.userprofile)
 
 class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SaleSerializer
     
     def get_queryset(self):
@@ -660,7 +661,7 @@ class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Stock Transfer Views
 class StockTransferListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StockTransferSerializer
     
     def get_queryset(self):
@@ -676,7 +677,7 @@ class StockTransferListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, transferred_by=self.request.user.userprofile)
 
 class StockTransferDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StockTransferSerializer
     
     def get_queryset(self):
@@ -684,7 +685,7 @@ class StockTransferDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Stock Adjustment Views
 class StockAdjustmentListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StockAdjustmentSerializer
     
     def get_queryset(self):
@@ -704,7 +705,7 @@ class StockAdjustmentListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant, adjusted_by=self.request.user.userprofile)
 
 class StockAdjustmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StockAdjustmentSerializer
     
     def get_queryset(self):
@@ -712,7 +713,7 @@ class StockAdjustmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Staff Attendance Views
 class StaffAttendanceListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StaffAttendanceSerializer
     
     def get_queryset(self):
@@ -722,7 +723,7 @@ class StaffAttendanceListCreateView(generics.ListCreateAPIView):
         serializer.save(tenant=self.request.user.userprofile.tenant)
 
 class StaffAttendanceDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = StaffAttendanceSerializer
     
     def get_queryset(self):
@@ -730,7 +731,7 @@ class StaffAttendanceDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Analytics Views
 class RetailAnalyticsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail'), HasFeaturePermissionFactory('analytics')]
     
     def get(self, request):
         tenant = request.user.userprofile.tenant
@@ -893,7 +894,7 @@ class RetailAnalyticsView(APIView):
 
 # Check-in/Check-out Views
 class StaffAttendanceCheckInView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     
     def post(self, request):
         staff = request.user.userprofile
@@ -917,7 +918,7 @@ class StaffAttendanceCheckInView(APIView):
         })
 
 class StaffAttendanceCheckOutView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     
     def post(self, request):
         staff = request.user.userprofile
@@ -944,7 +945,7 @@ class StaffAttendanceCheckOutView(APIView):
 
 class RetailProductExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -1039,7 +1040,7 @@ class RetailProductExportView(APIView):
 
 class RetailSaleExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -1120,7 +1121,7 @@ class RetailSaleExportView(APIView):
 
 class RetailPurchaseOrderExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -1201,7 +1202,7 @@ class RetailPurchaseOrderExportView(APIView):
 
 class RetailInventoryExportView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -1277,7 +1278,7 @@ class RetailInventoryExportView(APIView):
 
 # Bulk Operations for Retail
 class RetailSaleBulkDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def post(self, request):
         sale_ids = request.data.get('ids', [])
@@ -1290,7 +1291,7 @@ class RetailSaleBulkDeleteView(APIView):
 
 
 class RetailSaleBulkStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def post(self, request):
         sale_ids = request.data.get('ids', [])
@@ -1309,7 +1310,7 @@ class RetailSaleBulkStatusUpdateView(APIView):
 
 
 class RetailPurchaseOrderBulkDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def post(self, request):
         po_ids = request.data.get('ids', [])
@@ -1322,7 +1323,7 @@ class RetailPurchaseOrderBulkDeleteView(APIView):
 
 
 class RetailPurchaseOrderBulkStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
 
     def post(self, request):
         po_ids = request.data.get('ids', [])
@@ -1342,7 +1343,7 @@ class RetailPurchaseOrderBulkStatusUpdateView(APIView):
 
 # Sale Return Views
 class SaleReturnListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SaleReturnSerializer
     
     def get_queryset(self):
@@ -1410,7 +1411,7 @@ class SaleReturnListCreateView(generics.ListCreateAPIView):
         # Note: Stock is NOT restored here - only when return is processed
 
 class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = SaleReturnSerializer
     
     def get_queryset(self):
@@ -1421,7 +1422,7 @@ class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class SaleReturnProcessView(APIView):
     """Process a return (approve and complete refund)"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     
     def post(self, request, pk):
         from django.utils import timezone

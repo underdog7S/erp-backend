@@ -1,6 +1,7 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg
@@ -12,7 +13,7 @@ from api.serializers import RoomTypeSerializer, RoomSerializer, GuestSerializer,
 
 
 class RoomTypeListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = RoomTypeSerializer
 	
 	def get_queryset(self):
@@ -23,7 +24,7 @@ class RoomTypeListCreateView(generics.ListCreateAPIView):
 
 
 class RoomTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = RoomTypeSerializer
 	
 	def get_queryset(self):
@@ -31,7 +32,7 @@ class RoomTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class RoomListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = RoomSerializer
 	
 	def get_queryset(self):
@@ -49,7 +50,7 @@ class RoomListCreateView(generics.ListCreateAPIView):
 
 
 class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = RoomSerializer
 	
 	def get_queryset(self):
@@ -57,7 +58,7 @@ class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class GuestListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = GuestSerializer
 	
 	def get_queryset(self):
@@ -72,7 +73,7 @@ class GuestListCreateView(generics.ListCreateAPIView):
 
 
 class GuestDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = GuestSerializer
 	
 	def get_queryset(self):
@@ -80,7 +81,7 @@ class GuestDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class BookingListCreateView(generics.ListCreateAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = BookingSerializer
 	
 	def get_queryset(self):
@@ -119,7 +120,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
 
 
 class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 	serializer_class = BookingSerializer
 	
 	def get_queryset(self):
@@ -127,7 +128,7 @@ class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class BookingCheckInView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
 	def post(self, request, pk):
 		try:
@@ -143,7 +144,7 @@ class BookingCheckInView(APIView):
 
 
 class BookingCheckOutView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
 	def post(self, request, pk):
 		try:
@@ -159,7 +160,7 @@ class BookingCheckOutView(APIView):
 
 
 class HotelAnalyticsView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel'), HasFeaturePermissionFactory('analytics')]
 
 	def get(self, request):
 		tenant = request.user.userprofile.tenant
@@ -189,6 +190,43 @@ class HotelAnalyticsView(APIView):
 			booking_count=Count('id')
 		)
 		
+		# Today's revenue
+		today_revenue = Booking.objects.filter(
+			tenant=tenant,
+			created_at__date=today,
+			status__in=['checked_out']
+		).aggregate(total=Sum('total_amount'))
+		
+		# Monthly bookings trend (last 6 months)
+		monthly_bookings = []
+		for i in range(6):
+			month_start = (today - timedelta(days=30*i)).replace(day=1)
+			month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+			count = Booking.objects.filter(
+				tenant=tenant,
+				created_at__date__gte=month_start,
+				created_at__date__lte=month_end
+			).count()
+			monthly_bookings.append({
+				'month': month_start.strftime('%b %Y'),
+				'count': count
+			})
+		monthly_bookings.reverse()
+		
+		# Revenue trend (last 7 days)
+		revenue_trend = []
+		for i in range(7):
+			date = today - timedelta(days=6-i)
+			day_revenue = Booking.objects.filter(
+				tenant=tenant,
+				created_at__date=date,
+				status__in=['checked_out']
+			).aggregate(total=Sum('total_amount'))
+			revenue_trend.append({
+				'date': date.strftime('%Y-%m-%d'),
+				'revenue': float(day_revenue['total'] or 0)
+			})
+		
 		# Guest statistics
 		total_guests = Guest.objects.filter(tenant=tenant).count()
 		recent_guests = Guest.objects.filter(tenant=tenant, bookings__created_at__date__gte=thirty_days_ago).distinct().count()
@@ -205,13 +243,19 @@ class HotelAnalyticsView(APIView):
 				'total': total_bookings,
 				'active': active_bookings,
 				'reserved': reserved_bookings,
+				'checked_in': active_bookings,
+				'checked_out': Booking.objects.filter(tenant=tenant, status='checked_out').count(),
+				'cancelled': Booking.objects.filter(tenant=tenant, status='cancelled').count(),
 				'recent_30_days': recent_bookings
 			},
 			'revenue': {
 				'total_30_days': float(revenue_stats['total_revenue'] or 0),
+				'today': float(today_revenue['total'] or 0),
 				'average_booking': float(revenue_stats['avg_revenue'] or 0),
 				'booking_count': revenue_stats['booking_count'] or 0
 			},
+			'monthly_bookings': monthly_bookings,
+			'revenue_trend': revenue_trend,
 			'guests': {
 				'total': total_guests,
 				'recent_30_days': recent_guests
@@ -220,7 +264,7 @@ class HotelAnalyticsView(APIView):
 
 
 class BookingBulkDeleteView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
 	def post(self, request):
 		booking_ids = request.data.get('ids', [])
@@ -233,7 +277,7 @@ class BookingBulkDeleteView(APIView):
 
 
 class BookingBulkStatusUpdateView(APIView):
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
 	def post(self, request):
 		booking_ids = request.data.get('ids', [])
