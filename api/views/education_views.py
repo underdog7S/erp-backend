@@ -2040,15 +2040,22 @@ class FeePaymentListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
-            # Admin/Accountant/Principal can see all fee payments
-            payments = FeePayment._default_manager.filter(tenant=profile.tenant)
-        else:
-            # Staff/teachers can only see payments for their assigned classes
-            payments = FeePayment._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())
-        serializer = FeePaymentSerializer(payments, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
+                # Admin/Accountant/Principal can see all fee payments
+                payments = FeePayment._default_manager.filter(tenant=profile.tenant)
+            else:
+                # Staff/teachers can only see payments for their assigned classes
+                payments = FeePayment._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())
+            serializer = FeePaymentSerializer(payments, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeePaymentListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher', 'accountant')
     def post(self, request):
@@ -2066,13 +2073,20 @@ class FeePaymentDetailView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request, pk):
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            payment = FeePayment._default_manager.get(id=pk, tenant=profile.tenant)
-        except Exception:
-            return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = FeePaymentSerializer(payment)
-        return Response(serializer.data)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                payment = FeePayment._default_manager.get(id=pk, tenant=profile.tenant)
+            except FeePayment.DoesNotExist:
+                return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
+            serializer = FeePaymentSerializer(payment)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeePaymentDetailView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher', 'accountant')
     def put(self, request, pk):
@@ -2480,13 +2494,20 @@ class FeeInstallmentPlanListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        fee_structure_id = request.query_params.get('fee_structure')
-        plans = FeeInstallmentPlan._default_manager.filter(tenant=profile.tenant)
-        if fee_structure_id:
-            plans = plans.filter(fee_structure_id=fee_structure_id)
-        serializer = FeeInstallmentPlanSerializer(plans, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            fee_structure_id = request.query_params.get('fee_structure')
+            plans = FeeInstallmentPlan._default_manager.filter(tenant=profile.tenant)
+            if fee_structure_id:
+                plans = plans.filter(fee_structure_id=fee_structure_id)
+            serializer = FeeInstallmentPlanSerializer(plans, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeeInstallmentPlanListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'accountant')
     def post(self, request):
@@ -2504,13 +2525,20 @@ class FeeInstallmentPlanDetailView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request, pk):
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            plan = FeeInstallmentPlan._default_manager.get(id=pk, tenant=profile.tenant)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                plan = FeeInstallmentPlan._default_manager.get(id=pk, tenant=profile.tenant)
+            except FeeInstallmentPlan.DoesNotExist:
+                return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
             serializer = FeeInstallmentPlanSerializer(plan)
             return Response(serializer.data)
-        except FeeInstallmentPlan.DoesNotExist:
-            return Response({'error': 'Installment plan not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeeInstallmentPlanDetailView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'accountant')
     def put(self, request, pk):
