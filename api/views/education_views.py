@@ -578,10 +578,17 @@ class AssessmentTypeListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        assessment_types = AssessmentType._default_manager.filter(tenant=profile.tenant)
-        serializer = AssessmentTypeSerializer(assessment_types, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            assessment_types = AssessmentType._default_manager.filter(tenant=profile.tenant)
+            serializer = AssessmentTypeSerializer(assessment_types, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in AssessmentTypeListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal')
     def post(self, request):
@@ -1661,25 +1668,32 @@ class StaffAttendanceListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        if profile.role and profile.role.name == 'admin':
-            # Admin can filter by staff, class, date
-            staff_id = request.query_params.get('staff')
-            class_id = request.query_params.get('class')
-            date = request.query_params.get('date')
-            qs = StaffAttendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
-            if staff_id:
-                qs = qs.filter(staff_id=staff_id)
-            if class_id:
-                qs = qs.filter(staff__assigned_classes__id=class_id)
-            if date:
-                qs = qs.filter(date=date)
-            qs = qs.distinct()
-        else:
-            # Staff can only see their own
-            qs = StaffAttendance._default_manager.filter(tenant=profile.tenant, staff=profile)  # type: ignore
-        serializer = StaffAttendanceSerializer(qs, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if profile.role and profile.role.name == 'admin':
+                # Admin can filter by staff, class, date
+                staff_id = request.query_params.get('staff')
+                class_id = request.query_params.get('class')
+                date = request.query_params.get('date')
+                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
+                if staff_id:
+                    qs = qs.filter(staff_id=staff_id)
+                if class_id:
+                    qs = qs.filter(staff__assigned_classes__id=class_id)
+                if date:
+                    qs = qs.filter(date=date)
+                qs = qs.distinct()
+            else:
+                # Staff can only see their own
+                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant, staff=profile)  # type: ignore
+            serializer = StaffAttendanceSerializer(qs, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in StaffAttendanceListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_exclude('student')
     def post(self, request):
@@ -2526,82 +2540,91 @@ class FeeInstallmentListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        student_id = request.query_params.get('student')
-        fee_structure_id = request.query_params.get('fee_structure')
-        status_filter = request.query_params.get('status')
-        
-        installments = FeeInstallment._default_manager.filter(tenant=profile.tenant)
-        if student_id:
-            installments = installments.filter(student_id=student_id)
-        if fee_structure_id:
-            installments = installments.filter(fee_structure_id=fee_structure_id)
-        if status_filter:
-            installments = installments.filter(status=status_filter)
-        # Recompute paid amounts and status from payments to ensure UI reflects actual payments
         try:
-            from django.db.models import Sum
-            from education.models import FeePayment
-            from decimal import Decimal
-            # Group installments by (student, fee_structure)
-            groups = {}
-            for inst in installments.order_by('fee_structure', 'installment_number'):
-                key = (inst.student_id, inst.fee_structure_id)
-                groups.setdefault(key, []).append(inst)
-            for (student_id_val, fee_structure_id_val), inst_list in groups.items():
-                # Sum all payments for this student+fee_structure
-                total_paid_all = FeePayment._default_manager.filter(
-                    tenant=profile.tenant,
-                    student_id=student_id_val,
-                    fee_structure_id=fee_structure_id_val
-                ).aggregate(total=Sum('amount_paid'))['total'] or 0
-                total_paid_all = Decimal(str(total_paid_all))
-                # Compute current allocated (direct + split)
-                total_allocated = Decimal('0')
-                per_inst_paid = {}
-                for inst in inst_list:
-                    direct_paid = FeePayment._default_manager.filter(
-                        tenant=profile.tenant,
-                        installment=inst
-                    ).aggregate(total=Sum('amount_paid'))['total'] or 0
-                    direct_paid = Decimal(str(direct_paid))
-                    split_paid = Decimal('0')
-                    for p in FeePayment._default_manager.filter(
+            profile = UserProfile._default_manager.get(user=request.user)
+            student_id = request.query_params.get('student')
+            fee_structure_id = request.query_params.get('fee_structure')
+            status_filter = request.query_params.get('status')
+            
+            installments = FeeInstallment._default_manager.filter(tenant=profile.tenant)
+            if student_id:
+                installments = installments.filter(student_id=student_id)
+            if fee_structure_id:
+                installments = installments.filter(fee_structure_id=fee_structure_id)
+            if status_filter:
+                installments = installments.filter(status=status_filter)
+            
+            # Recompute paid amounts and status from payments to ensure UI reflects actual payments
+            try:
+                from django.db.models import Sum
+                from education.models import FeePayment
+                from decimal import Decimal
+                # Group installments by (student, fee_structure)
+                groups = {}
+                for inst in installments.order_by('fee_structure', 'installment_number'):
+                    key = (inst.student_id, inst.fee_structure_id)
+                    groups.setdefault(key, []).append(inst)
+                for (student_id_val, fee_structure_id_val), inst_list in groups.items():
+                    # Sum all payments for this student+fee_structure
+                    total_paid_all = FeePayment._default_manager.filter(
                         tenant=profile.tenant,
                         student_id=student_id_val,
                         fee_structure_id=fee_structure_id_val
-                    ):
-                        try:
-                            alloc = p.split_installments.get(str(inst.id))
-                            if alloc:
-                                split_paid += Decimal(str(alloc))
-                        except Exception:
-                            continue
-                    per_inst_paid[inst.id] = direct_paid + split_paid
-                    total_allocated += per_inst_paid[inst.id]
-                # Residual from generic payments not tagged to installments
-                residual = total_paid_all - total_allocated
-                # Allocate residual across installments in order
-                for inst in inst_list:
-                    if residual <= 0:
-                        break
-                    due = Decimal(str(inst.due_amount))
-                    current = per_inst_paid.get(inst.id, Decimal('0'))
-                    need = max(Decimal('0'), due - current)
-                    apply = min(residual, need)
-                    if apply > 0:
-                        current += apply
-                        per_inst_paid[inst.id] = current
-                        residual -= apply
-                # Update installments
-                for inst in inst_list:
-                    inst.paid_amount = per_inst_paid.get(inst.id, Decimal('0'))
-                    inst.update_status()
-        except Exception:
-            pass
-        
-        serializer = FeeInstallmentSerializer(installments, many=True)
-        return Response(serializer.data)
+                    ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    total_paid_all = Decimal(str(total_paid_all))
+                    # Compute current allocated (direct + split)
+                    total_allocated = Decimal('0')
+                    per_inst_paid = {}
+                    for inst in inst_list:
+                        direct_paid = FeePayment._default_manager.filter(
+                            tenant=profile.tenant,
+                            installment=inst
+                        ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                        direct_paid = Decimal(str(direct_paid))
+                        split_paid = Decimal('0')
+                        for p in FeePayment._default_manager.filter(
+                            tenant=profile.tenant,
+                            student_id=student_id_val,
+                            fee_structure_id=fee_structure_id_val
+                        ):
+                            try:
+                                alloc = p.split_installments.get(str(inst.id))
+                                if alloc:
+                                    split_paid += Decimal(str(alloc))
+                            except Exception:
+                                continue
+                        per_inst_paid[inst.id] = direct_paid + split_paid
+                        total_allocated += per_inst_paid[inst.id]
+                    # Residual from generic payments not tagged to installments
+                    residual = total_paid_all - total_allocated
+                    # Allocate residual across installments in order
+                    for inst in inst_list:
+                        if residual <= 0:
+                            break
+                        due = Decimal(str(inst.due_amount))
+                        current = per_inst_paid.get(inst.id, Decimal('0'))
+                        need = max(Decimal('0'), due - current)
+                        apply = min(residual, need)
+                        if apply > 0:
+                            current += apply
+                            per_inst_paid[inst.id] = current
+                            residual -= apply
+                    # Update installments
+                    for inst in inst_list:
+                        inst.paid_amount = per_inst_paid.get(inst.id, Decimal('0'))
+                        inst.update_status()
+            except Exception as e:
+                logger.error(f"Error computing installment status in FeeInstallmentListCreateView.get: {str(e)}", exc_info=True)
+                # Continue with serialization even if status update fails
+            
+            serializer = FeeInstallmentSerializer(installments, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeeInstallmentListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'accountant')
     def post(self, request):
