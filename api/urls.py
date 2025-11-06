@@ -13,6 +13,17 @@ from .views.timetable_views import (
     SubstituteTeacherListCreateView, SubstituteTeacherDetailView,
     AvailableTeachersView, AvailableRoomsView, TimetableSuggestionsView
 )
+from .views.reporting_views import (
+    ReportFieldListCreateView, ReportFieldDetailView,
+    ReportTemplateListCreateView, ReportTemplateDetailView,
+    CustomReportBuilderView, ComparativeAnalysisView
+)
+from .views.exam_views import (
+    ExamListCreateView, ExamDetailView,
+    ExamScheduleListCreateView, ExamScheduleDetailView,
+    SeatingArrangementListCreateView, SeatingArrangementDetailView,
+    HallTicketListCreateView, HallTicketDetailView, GenerateHallTicketsView
+)
 from .views import notification_views
 from .views import enhanced_analytics_views
 from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
@@ -167,6 +178,26 @@ urlpatterns = [
     path('education/timetable/available-teachers/', AvailableTeachersView.as_view(), name='education-available-teachers'),
     path('education/timetable/available-rooms/', AvailableRoomsView.as_view(), name='education-available-rooms'),
     path('education/timetable/suggestions/', TimetableSuggestionsView.as_view(), name='education-timetable-suggestions'),
+    
+    # Advanced Reporting System
+    path('education/reports/fields/', ReportFieldListCreateView.as_view(), name='education-report-fields'),
+    path('education/reports/fields/<int:pk>/', ReportFieldDetailView.as_view(), name='education-report-field-detail'),
+    path('education/reports/templates/', ReportTemplateListCreateView.as_view(), name='education-report-templates'),
+    path('education/reports/templates/<int:pk>/', ReportTemplateDetailView.as_view(), name='education-report-template-detail'),
+    path('education/reports/build/', CustomReportBuilderView.as_view(), name='education-custom-report-builder'),
+    path('education/reports/compare/', ComparativeAnalysisView.as_view(), name='education-comparative-analysis'),
+    
+    # Exam Management System
+    path('education/exams/', ExamListCreateView.as_view(), name='education-exams'),
+    path('education/exams/<int:pk>/', ExamDetailView.as_view(), name='education-exam-detail'),
+    path('education/exam-schedules/', ExamScheduleListCreateView.as_view(), name='education-exam-schedules'),
+    path('education/exam-schedules/<int:pk>/', ExamScheduleDetailView.as_view(), name='education-exam-schedule-detail'),
+    path('education/seating-arrangements/', SeatingArrangementListCreateView.as_view(), name='education-seating-arrangements'),
+    path('education/seating-arrangements/<int:pk>/', SeatingArrangementDetailView.as_view(), name='education-seating-arrangement-detail'),
+    path('education/hall-tickets/', HallTicketListCreateView.as_view(), name='education-hall-tickets'),
+    path('education/hall-tickets/<int:pk>/', HallTicketDetailView.as_view(), name='education-hall-ticket-detail'),
+    path('education/hall-tickets/generate/', GenerateHallTicketsView.as_view(), name='education-generate-hall-tickets'),
+    
     path('education/installments/overdue/', education_views.OverdueInstallmentsView.as_view(), name='education-overdue-installments'),
     
     # Old Balance Management

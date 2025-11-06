@@ -1012,3 +1012,258 @@ class SubstituteTeacher(models.Model):
     
     def __str__(self):
         return f"{self.date} - {self.timetable.class_obj.name} {self.timetable.period.name}: {self.substitute_teacher.user.get_full_name()} (sub for {self.original_teacher.user.get_full_name()})"
+
+
+# ============================================
+# ADVANCED REPORTING SYSTEM
+# ============================================
+
+class ReportTemplate(models.Model):
+    """Custom report templates for drag-and-drop report builder"""
+    REPORT_TYPE_CHOICES = [
+        ('student_performance', 'Student Performance'),
+        ('class_performance', 'Class Performance'),
+        ('attendance', 'Attendance'),
+        ('fee_collection', 'Fee Collection'),
+        ('comparative', 'Comparative Analysis'),
+        ('custom', 'Custom Report'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='report_templates')
+    name = models.CharField(max_length=200, help_text="Report template name")
+    description = models.TextField(blank=True, help_text="Report description")
+    report_type = models.CharField(max_length=50, choices=REPORT_TYPE_CHOICES, default='custom')
+    
+    # Template configuration (JSON field for flexibility)
+    template_config = models.JSONField(default=dict, help_text="Drag-and-drop field configuration")
+    
+    # Filters and parameters
+    available_filters = models.JSONField(default=list, help_text="Available filter options")
+    default_parameters = models.JSONField(default=dict, help_text="Default parameters for the report")
+    
+    # Display settings
+    is_public = models.BooleanField(default=False, help_text="Can be used by all users")
+    created_by = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_report_templates')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('tenant', 'name')
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_report_type_display()})"
+
+
+class ReportField(models.Model):
+    """Fields available for custom reports"""
+    FIELD_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('number', 'Number'),
+        ('percentage', 'Percentage'),
+        ('date', 'Date'),
+        ('boolean', 'Boolean'),
+        ('choice', 'Choice'),
+        ('aggregate', 'Aggregate (Sum/Avg/Max/Min)'),
+    ]
+    
+    AGGREGATE_TYPE_CHOICES = [
+        ('sum', 'Sum'),
+        ('avg', 'Average'),
+        ('max', 'Maximum'),
+        ('min', 'Minimum'),
+        ('count', 'Count'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='report_fields')
+    name = models.CharField(max_length=100, help_text="Field name (e.g., 'Total Marks', 'Attendance %')")
+    field_key = models.CharField(max_length=100, help_text="Internal field key (e.g., 'total_marks', 'attendance_percentage')")
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default='number')
+    data_source = models.CharField(max_length=100, help_text="Data source model (e.g., 'ReportCard', 'MarksEntry', 'Attendance')")
+    data_field = models.CharField(max_length=100, help_text="Model field name (e.g., 'total_marks', 'percentage')")
+    
+    # For aggregate fields
+    aggregate_type = models.CharField(max_length=10, choices=AGGREGATE_TYPE_CHOICES, blank=True, null=True, help_text="Aggregate function if applicable")
+    filter_conditions = models.JSONField(default=dict, help_text="Filter conditions for this field")
+    
+    # Display settings
+    display_name = models.CharField(max_length=100, blank=True, help_text="Display name in report")
+    format_string = models.CharField(max_length=50, blank=True, help_text="Format string (e.g., '%.2f', '%d')")
+    sortable = models.BooleanField(default=True, help_text="Can be sorted in report")
+    groupable = models.BooleanField(default=False, help_text="Can be grouped in report")
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['name']
+        unique_together = ('tenant', 'field_key')
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_field_type_display()})"
+
+
+# ============================================
+# EXAM MANAGEMENT SYSTEM
+# ============================================
+
+class Exam(models.Model):
+    """Exam types/names (e.g., Mid-Term, Final, Unit Test)"""
+    EXAM_TYPE_CHOICES = [
+        ('unit_test', 'Unit Test'),
+        ('mid_term', 'Mid-Term Exam'),
+        ('final', 'Final Exam'),
+        ('preliminary', 'Preliminary Exam'),
+        ('mock', 'Mock Exam'),
+        ('internal', 'Internal Assessment'),
+        ('assignment', 'Assignment'),
+        ('project', 'Project'),
+        ('practical', 'Practical Exam'),
+        ('other', 'Other'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exams')
+    name = models.CharField(max_length=200, help_text="Exam name (e.g., 'Mid-Term Exam 2025')")
+    exam_type = models.CharField(max_length=50, choices=EXAM_TYPE_CHOICES, default='mid_term')
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='exams')
+    term = models.ForeignKey(Term, on_delete=models.SET_NULL, null=True, blank=True, related_name='exams')
+    description = models.TextField(blank=True, help_text="Exam description")
+    start_date = models.DateField(help_text="Exam start date")
+    end_date = models.DateField(help_text="Exam end date")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-start_date', 'name']
+        unique_together = ('tenant', 'name', 'academic_year')
+    
+    def __str__(self):
+        return f"{self.name} ({self.academic_year.name})"
+
+
+class ExamSchedule(models.Model):
+    """Individual exam schedule entries (subject-wise, date-wise, time-wise)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exam_schedules')
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='schedules')
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='exam_schedules')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='exam_schedules')
+    date = models.DateField(help_text="Exam date")
+    start_time = models.TimeField(help_text="Exam start time")
+    end_time = models.TimeField(help_text="Exam end time")
+    duration_minutes = models.IntegerField(help_text="Duration in minutes", null=True, blank=True)
+    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True, related_name='exam_schedules', help_text="Exam hall/room")
+    max_marks = models.DecimalField(max_digits=10, decimal_places=2, default=100, help_text="Maximum marks")
+    instructions = models.TextField(blank=True, help_text="Exam instructions for students")
+    invigilator = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='invigilated_exams', help_text="Assigned invigilator")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['date', 'start_time', 'class_obj']
+        unique_together = ('tenant', 'exam', 'class_obj', 'subject', 'date')
+        indexes = [
+            models.Index(fields=['tenant', 'exam', 'date']),
+            models.Index(fields=['class_obj', 'date']),
+            models.Index(fields=['room', 'date', 'start_time']),
+        ]
+    
+    def __str__(self):
+        return f"{self.exam.name} - {self.subject.name} ({self.class_obj.name}) - {self.date}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate duration if not provided
+        if not self.duration_minutes and self.start_time and self.end_time:
+            start_dt = timezone.datetime.combine(self.date, self.start_time)
+            end_dt = timezone.datetime.combine(self.date, self.end_time)
+            if end_dt > start_dt:
+                self.duration_minutes = int((end_dt - start_dt).total_seconds() / 60)
+        super().save(*args, **kwargs)
+
+
+class SeatingArrangement(models.Model):
+    """Seating arrangement for exams - assigns students to seats"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='seating_arrangements')
+    exam_schedule = models.ForeignKey(ExamSchedule, on_delete=models.CASCADE, related_name='seating_arrangements')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='exam_seating')
+    seat_number = models.CharField(max_length=50, help_text="Seat number (e.g., 'A1', 'B5', 'Row 3 Seat 12')")
+    row_number = models.IntegerField(null=True, blank=True, help_text="Row number")
+    column_number = models.IntegerField(null=True, blank=True, help_text="Column/Seat number in row")
+    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True, related_name='seating_arrangements', help_text="Exam hall/room (if different from schedule)")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['exam_schedule', 'seat_number']
+        unique_together = ('tenant', 'exam_schedule', 'student')
+        indexes = [
+            models.Index(fields=['exam_schedule', 'seat_number']),
+            models.Index(fields=['student', 'exam_schedule']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student.name} - {self.exam_schedule.subject.name} - Seat {self.seat_number}"
+
+
+class HallTicket(models.Model):
+    """Hall tickets for students - generated for exams"""
+    STATUS_CHOICES = [
+        ('generated', 'Generated'),
+        ('issued', 'Issued'),
+        ('downloaded', 'Downloaded'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='hall_tickets')
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='hall_tickets')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='hall_tickets')
+    exam_schedule = models.ForeignKey(ExamSchedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='hall_tickets')
+    seating_arrangement = models.ForeignKey(SeatingArrangement, on_delete=models.SET_NULL, null=True, blank=True, related_name='hall_tickets')
+    ticket_number = models.CharField(max_length=100, unique=True, help_text="Unique hall ticket number")
+    issued_date = models.DateField(default=timezone.now, help_text="Date when hall ticket was issued")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='generated')
+    photo_verified = models.BooleanField(default=False, help_text="Student photo verified")
+    signature_verified = models.BooleanField(default=False, help_text="Student signature verified")
+    remarks = models.TextField(blank=True, help_text="Additional remarks")
+    generated_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='generated_hall_tickets')
+    generated_at = models.DateTimeField(auto_now_add=True)
+    downloaded_at = models.DateTimeField(null=True, blank=True, help_text="When student downloaded the ticket")
+    
+    class Meta:
+        ordering = ['-generated_at', 'student']
+        unique_together = ('tenant', 'exam', 'student')
+        indexes = [
+            models.Index(fields=['tenant', 'exam', 'student']),
+            models.Index(fields=['ticket_number']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"Hall Ticket {self.ticket_number} - {self.student.name} - {self.exam.name}"
+    
+    def generate_ticket_number(self):
+        """Generate unique ticket number"""
+        if not self.ticket_number:
+            prefix = f"HT{self.exam.exam_type.upper()[:3]}"
+            year = self.exam.academic_year.name.replace('-', '')[:4]
+            student_id = self.student.upper_id or str(self.student.id).zfill(6)
+            base_ticket = f"{prefix}-{year}-{student_id}"
+            
+            # Check for uniqueness and add suffix if needed
+            import random
+            ticket_number = base_ticket
+            counter = 0
+            while HallTicket.objects.filter(ticket_number=ticket_number).exclude(pk=self.pk if self.pk else None).exists():
+                counter += 1
+                ticket_number = f"{base_ticket}-{counter:03d}"
+                if counter > 999:  # Safety limit
+                    # Use UUID as fallback
+                    import uuid
+                    ticket_number = f"{base_ticket}-{str(uuid.uuid4())[:8]}"
+                    break
+            
+            self.ticket_number = ticket_number
+        return self.ticket_number

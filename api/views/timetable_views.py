@@ -35,13 +35,57 @@ class PeriodListCreateView(APIView):
     def post(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
-            serializer = PeriodSerializer(data=request.data)
+            
+            # Prepare data with proper formatting
+            data = request.data.copy()
+            
+            # Ensure order is an integer
+            if 'order' in data:
+                try:
+                    data['order'] = int(data['order'])
+                except (ValueError, TypeError):
+                    return Response({
+                        'error': 'Invalid order value. Must be a positive integer.',
+                        'details': f"Received: {data.get('order')}"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Ensure time fields are properly formatted (HTML time input sends HH:MM, Django accepts HH:MM:SS)
+            if 'start_time' in data and data['start_time']:
+                if len(data['start_time']) == 5:  # HH:MM format
+                    data['start_time'] = data['start_time'] + ':00'  # Convert to HH:MM:SS
+            if 'end_time' in data and data['end_time']:
+                if len(data['end_time']) == 5:  # HH:MM format
+                    data['end_time'] = data['end_time'] + ':00'  # Convert to HH:MM:SS
+            
+            # Handle break_type - only include if is_break is True
+            if 'is_break' in data and not data.get('is_break'):
+                data['break_type'] = ''
+            
+            serializer = PeriodSerializer(data=data)
             if serializer.is_valid():
                 serializer.save(tenant=profile.tenant)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Return detailed validation errors
+            error_details = {}
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    error_details[field] = errors[0] if errors else 'Invalid value'
+                else:
+                    error_details[field] = str(errors)
+            
+            return Response({
+                'error': 'Validation failed',
+                'details': error_details
+            }, status=status.HTTP_400_BAD_REQUEST)
         except UserProfile.DoesNotExist:
             return Response({'error': 'User profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error creating period: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Failed to create period: {str(e)}',
+                'details': 'Please check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class PeriodDetailView(APIView):
@@ -63,13 +107,59 @@ class PeriodDetailView(APIView):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
             period = Period.objects.get(id=pk, tenant=profile.tenant)
-            serializer = PeriodSerializer(period, data=request.data, partial=True)
+            
+            # Prepare data with proper formatting
+            data = request.data.copy()
+            
+            # Ensure order is an integer if provided
+            if 'order' in data:
+                try:
+                    data['order'] = int(data['order'])
+                except (ValueError, TypeError):
+                    return Response({
+                        'error': 'Invalid order value. Must be a positive integer.',
+                        'details': f"Received: {data.get('order')}"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Ensure time fields are properly formatted
+            if 'start_time' in data and data['start_time']:
+                if len(data['start_time']) == 5:  # HH:MM format
+                    data['start_time'] = data['start_time'] + ':00'  # Convert to HH:MM:SS
+            if 'end_time' in data and data['end_time']:
+                if len(data['end_time']) == 5:  # HH:MM format
+                    data['end_time'] = data['end_time'] + ':00'  # Convert to HH:MM:SS
+            
+            # Handle break_type - only include if is_break is True
+            if 'is_break' in data and not data.get('is_break'):
+                data['break_type'] = ''
+            
+            serializer = PeriodSerializer(period, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Return detailed validation errors
+            error_details = {}
+            for field, errors in serializer.errors.items():
+                if isinstance(errors, list):
+                    error_details[field] = errors[0] if errors else 'Invalid value'
+                else:
+                    error_details[field] = str(errors)
+            
+            return Response({
+                'error': 'Validation failed',
+                'details': error_details
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Period.DoesNotExist:
             return Response({'error': 'Period not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error updating period: {str(e)}", exc_info=True)
+            return Response({
+                'error': f'Failed to update period: {str(e)}',
+                'details': 'Please check server logs for more information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def delete(self, request, pk):
         try:

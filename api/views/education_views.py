@@ -10,7 +10,7 @@ from education.models import (
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
     OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication,
-    Period, Room, Timetable, Holiday, SubstituteTeacher
+    Period, Room, Timetable, Holiday, SubstituteTeacher, ReportTemplate, ReportField
 )
 from api.models.permissions import HasFeaturePermissionFactory, role_required, role_exclude
 from api.models.serializers_education import (

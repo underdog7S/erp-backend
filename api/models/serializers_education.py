@@ -4,7 +4,8 @@ from education.models import (
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
     Unit, AssessmentType, Assessment, MarksEntry, FeeInstallmentPlan, FeeInstallment,
     OldBalance, BalanceAdjustment, StudentPromotion, TransferCertificate, AdmissionApplication,
-    Period, Room, Timetable, Holiday, SubstituteTeacher
+    Period, Room, Timetable, Holiday, SubstituteTeacher, ReportTemplate, ReportField,
+    Exam, ExamSchedule, SeatingArrangement, HallTicket
 )
 from api.models.user import UserProfile
 
@@ -18,508 +19,281 @@ class ClassSerializer(serializers.ModelSerializer):
         read_only_fields = ['next_class_name']
 
 class OldBalanceSerializer(serializers.ModelSerializer):
-    """Serializer for OldBalance model"""
-    student_name = serializers.CharField(source='student.name', read_only=True)
-    student_upper_id = serializers.CharField(source='student.upper_id', read_only=True)
-    student_class = serializers.CharField(source='student.assigned_class.name', read_only=True)
-    
+    """Serializer for OldBalance model."""
     class Meta:
         model = OldBalance
-        fields = [
-            'id', 'student', 'student_name', 'student_upper_id', 'student_class',
-            'academic_year', 'class_name', 'balance_amount', 'carried_forward_to',
-            'is_settled', 'settled_date', 'settlement_payment', 'notes',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['created_at', 'updated_at']
+        fields = ['id', 'student', 'amount', 'description', 'created_at']
+        read_only_fields = ['created_at']
 
 class BalanceAdjustmentSerializer(serializers.ModelSerializer):
-    """Serializer for BalanceAdjustment model"""
-    student_name = serializers.CharField(source='student.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.user.get_full_name', read_only=True)
-    approved_by_name = serializers.CharField(source='approved_by.user.get_full_name', read_only=True)
-    
+    """Serializer for BalanceAdjustment model."""
     class Meta:
         model = BalanceAdjustment
-        fields = [
-            'id', 'student', 'student_name', 'adjustment_type', 'amount', 'reason',
-            'academic_year', 'fee_structure', 'approved_by', 'approved_by_name',
-            'created_by', 'created_by_name', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['created_at', 'updated_at', 'created_by']
+        fields = ['id', 'student', 'adjustment_type', 'amount', 'reason', 'created_at']
+        read_only_fields = ['created_at']
 
 class StudentSerializer(serializers.ModelSerializer):
-    """Enhanced serializer for Student model with validation."""
-    assigned_class = ClassSerializer(read_only=True)
-    assigned_class_id = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.all(), source='assigned_class', write_only=True, required=True
-    )
+    """Serializer for Student model."""
+    assigned_class_name = serializers.CharField(source='assigned_class.name', read_only=True)
+    assigned_class_id = serializers.IntegerField(source='assigned_class.id', read_only=True)
     
     class Meta:
         model = Student
         fields = [
-            'id', 'name', 'email', 'upper_id', 'admission_date', 'assigned_class', 'assigned_class_id',
-            'phone', 'address', 'date_of_birth', 'gender', 'cast', 'religion', 'parent_name', 'parent_phone',
-            'aadhaar_uid', 'father_name', 'father_aadhaar', 'mother_name', 'mother_aadhaar',
-            'is_active', 'created_at', 'updated_at'
+            'id', 'name', 'email', 'upper_id', 'admission_date', 'assigned_class', 
+            'assigned_class_name', 'assigned_class_id', 'phone', 'address', 
+            'date_of_birth', 'gender', 'cast', 'religion', 'parent_name', 'parent_phone',
+            'aadhaar_uid', 'father_name', 'father_aadhaar', 'mother_name', 'mother_aadhaar'
         ]
-        read_only_fields = ['created_at', 'updated_at']
-    
-    def validate_name(self, value):
-        if not value:
-            raise serializers.ValidationError("Name is required.")
-        return value
-    
-    def validate_email(self, value):
-        if not value:
-            raise serializers.ValidationError("Email is required.")
-        return value
-    
-    def validate_upper_id(self, value):
-        if value:
-            # Convert to uppercase for consistency
-            value = value.upper()
-            # Check if upper_id already exists for this tenant
-            if self.instance:
-                # For updates, exclude current instance
-                existing = Student.objects.filter(upper_id=value, tenant=self.context.get('tenant')).exclude(id=self.instance.id)
-            else:
-                # For creates, check all instances
-                existing = Student.objects.filter(upper_id=value, tenant=self.context.get('tenant'))
-            
-            if existing.exists():
-                raise serializers.ValidationError("A student with this Upper ID already exists.")
-        return value
-    
-    def validate(self, data):
-        if not data.get('assigned_class'):
-            raise serializers.ValidationError({"assigned_class_id": "Class assignment is required."})
-        if not data.get('cast'):
-            raise serializers.ValidationError({"cast": "Cast is required."})
-        return data
 
 class FeeStructureSerializer(serializers.ModelSerializer):
-    """Serializer for FeeStructure model with validation."""
-    class_obj = ClassSerializer(read_only=True)
-    class_obj_id = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.all(), source='class_obj', write_only=True
-    )
+    """Serializer for FeeStructure model."""
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
     
     class Meta:
         model = FeeStructure
-        fields = ['id', 'class_obj', 'class_obj_id', 'fee_type', 'amount', 'description', 'is_optional', 'due_date', 'academic_year', 'installments_enabled']
-    
-    def validate_amount(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Amount must be positive.")
-        return value
-
-class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
-    """Serializer for FeeInstallmentPlan model"""
-    fee_structure_id = serializers.PrimaryKeyRelatedField(
-        queryset=FeeStructure.objects.all(), source='fee_structure', read_only=False, write_only=False
-    )
-    fee_structure_name = serializers.CharField(source='fee_structure.name', read_only=True, allow_null=True)
-    fee_structure_fee_type = serializers.CharField(source='fee_structure.fee_type', read_only=True, allow_null=True)
-    
-    class Meta:
-        model = FeeInstallmentPlan
-        fields = [
-            'id', 'fee_structure_id', 'fee_structure_name', 'fee_structure_fee_type', 
-            'name', 'number_of_installments',
-            'installment_type', 'description', 'is_active', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['created_at', 'updated_at']
-    
-    def validate(self, data):
-        """Validate installment plan"""
-        if data.get('number_of_installments') and data['number_of_installments'] <= 0:
-            raise serializers.ValidationError("Number of installments must be positive.")
-        return data
-
-class FeeInstallmentSerializer(serializers.ModelSerializer):
-    """Serializer for FeeInstallment model"""
-    student = StudentSerializer(read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(
-        queryset=Student.objects.all(), source='student', write_only=True
-    )
-    fee_structure_id = serializers.PrimaryKeyRelatedField(
-        queryset=FeeStructure.objects.all(), source='fee_structure', read_only=False, write_only=False
-    )
-    fee_structure_name = serializers.CharField(source='fee_structure.name', read_only=True, allow_null=True)
-    fee_structure_amount = serializers.DecimalField(source='fee_structure.amount', max_digits=10, decimal_places=2, read_only=True, allow_null=True)
-    installment_plan_id = serializers.PrimaryKeyRelatedField(
-        queryset=FeeInstallmentPlan.objects.all(), source='installment_plan', write_only=False, read_only=False, required=False, allow_null=True
-    )
-    installment_plan_name = serializers.CharField(source='installment_plan.name', read_only=True, allow_null=True)
-    remaining_amount = serializers.ReadOnlyField()
-    is_overdue = serializers.ReadOnlyField()
-    
-    class Meta:
-        model = FeeInstallment
-        fields = [
-            'id', 'student', 'student_id', 
-            'fee_structure_id', 'fee_structure_name', 'fee_structure_amount',
-            'installment_plan_id', 'installment_plan_name', 
-            'installment_number',
-            'due_amount', 'paid_amount', 'due_date', 'status', 'late_fee',
-            'payment_date', 'notes', 'remaining_amount', 'is_overdue',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['paid_amount', 'status', 'payment_date', 'created_at', 'updated_at', 'remaining_amount', 'is_overdue']
+        fields = ['id', 'class_obj', 'class_name', 'fee_type', 'amount', 'due_date', 'is_active']
+        read_only_fields = ['class_name']
 
 class FeePaymentSerializer(serializers.ModelSerializer):
-    """Serializer for FeePayment model with validation and installment support."""
-    student = StudentSerializer(read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(
-        queryset=Student.objects.all(), source='student', write_only=True  # type: ignore
-    )
-    fee_structure = FeeStructureSerializer(read_only=True)
-    fee_structure_id = serializers.PrimaryKeyRelatedField(
-        queryset=FeeStructure.objects.all(), source='fee_structure', write_only=True  # type: ignore
-    )
-    installment = FeeInstallmentSerializer(read_only=True)
-    installment_id = serializers.PrimaryKeyRelatedField(
-        queryset=FeeInstallment.objects.all(), source='installment', write_only=True, required=False, allow_null=True  # type: ignore
-    )
-    receipt_number = serializers.CharField(required=False, allow_blank=True)
+    """Serializer for FeePayment model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    class_name = serializers.CharField(source='student.assigned_class.name', read_only=True, allow_null=True)
+    fee_type_display = serializers.CharField(source='get_fee_type_display', read_only=True)
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     
     class Meta:
         model = FeePayment
         fields = [
-            'id', 'student', 'student_id', 'fee_structure', 'fee_structure_id',
-            'installment', 'installment_id', 'amount_paid', 'payment_date',
-            'payment_method', 'receipt_number', 'notes', 'discount_amount',
-            'discount_reason', 'split_installments'
+            'id', 'student', 'student_name', 'student_roll_number', 'class_name',
+            'fee_structure', 'amount_paid', 'payment_date', 'payment_method', 
+            'payment_method_display', 'fee_type', 'fee_type_display', 'notes', 
+            'receipt_number', 'created_at'
         ]
-    
-    def validate_amount_paid(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Amount must be positive.")
-        return value
-    
-    def validate(self, data):
-        """Validate payment and installment relationship"""
-        installment = data.get('installment')
-        split_installments = data.get('split_installments', {})
-        
-        if installment and split_installments:
-            raise serializers.ValidationError("Cannot specify both installment and split_installments.")
-        
-        if not installment and not split_installments and data.get('fee_structure'):
-            # Regular payment without installment - this is fine for backward compatibility
-            pass
-        
-        return data
-    
-    def create(self, validated_data):
-        # Auto-generate receipt number if not provided
-        if not validated_data.get('receipt_number'):
-            import uuid
-            validated_data['receipt_number'] = f"RCP-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Set collected_by to current user if not provided
-        if not validated_data.get('collected_by'):
-            request = self.context.get('request')
-            if request and request.user:
-                try:
-                    user_profile = UserProfile._default_manager.get(user=request.user)
-                    validated_data['collected_by'] = user_profile
-                except Exception:
-                    pass  # If user profile doesn't exist, continue without setting collected_by
-        
-        # Auto-allocate to installments if no explicit installment/split provided
-        if not validated_data.get('installment') and not validated_data.get('split_installments'):
-            student = validated_data.get('student')
-            fee_structure = validated_data.get('fee_structure')
-            amount_left = float(validated_data.get('amount_paid') or 0)
-            if student and fee_structure and amount_left > 0:
-                try:
-                    from education.models import FeeInstallment
-                    installments = FeeInstallment._default_manager.filter(
-                        tenant=student.tenant,
-                        student=student,
-                        fee_structure=fee_structure
-                    ).order_by('due_date', 'id')
-                    allocation = {}
-                    for inst in installments:
-                        if amount_left <= 0:
-                            break
-                        due_amt = float(inst.due_amount or 0)
-                        paid_amt = float(inst.paid_amount or 0)
-                        need = max(0.0, due_amt - paid_amt)
-                        if need <= 0:
-                            continue
-                        apply = min(amount_left, need)
-                        if apply > 0:
-                            allocation[str(inst.id)] = apply
-                            amount_left -= apply
-                    if allocation:
-                        validated_data['split_installments'] = allocation
-                except Exception:
-                    # If allocation fails, proceed without split
-                    pass
-        return super().create(validated_data)
+        read_only_fields = ['receipt_number', 'created_at']
 
 class FeeDiscountSerializer(serializers.ModelSerializer):
-    """Serializer for FeeDiscount model with validation."""
+    """Serializer for FeeDiscount model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    
     class Meta:
         model = FeeDiscount
-        fields = ['id', 'name', 'discount_type', 'discount_value', 'applicable_fee_types', 'min_amount', 'max_discount', 'valid_from', 'valid_until', 'is_active', 'description']
-    def validate_discount_value(self, value):
-        if value < 0:
-            raise serializers.ValidationError("Discount value cannot be negative.")
-        return value
-    def validate_min_amount(self, value):
-        if value < 0:
-            raise serializers.ValidationError("Minimum amount cannot be negative.")
-        return value
+        fields = ['id', 'student', 'student_name', 'fee_structure', 'discount_amount', 
+                 'discount_percentage', 'reason', 'created_at']
+        read_only_fields = ['created_at']
 
 class AttendanceSerializer(serializers.ModelSerializer):
-    student = StudentSerializer(read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(
-        queryset=Student.objects.all(), source='student', write_only=True  # type: ignore
-    )
+    """Serializer for Attendance model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    class_name = serializers.CharField(source='student.assigned_class.name', read_only=True, allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
     class Meta:
         model = Attendance
-        fields = ['id', 'student', 'student_id', 'date', 'present']
+        fields = ['id', 'student', 'student_name', 'student_roll_number', 'class_name',
+                 'date', 'status', 'status_display', 'remarks']
+        read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'status_display']
 
-# Academic Structure Serializers
+class ReportCardSerializer(serializers.ModelSerializer):
+    """Serializer for ReportCard model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    term_name = serializers.CharField(source='term.name', read_only=True)
+    grade_display = serializers.CharField(source='get_grade_display', read_only=True)
+    
+    class Meta:
+        model = ReportCard
+        fields = [
+            'id', 'student', 'student_name', 'student_roll_number', 'class_obj', 'class_name',
+            'academic_year', 'academic_year_name', 'term', 'term_name',
+            'total_marks', 'percentage', 'grade', 'grade_display',
+            'attendance_percentage', 'conduct_grade', 'remarks', 'issued_date', 'created_at'
+        ]
+        read_only_fields = ['created_at', 'issued_date']
+
+class StaffAttendanceSerializer(serializers.ModelSerializer):
+    """Serializer for StaffAttendance model."""
+    staff_name = serializers.SerializerMethodField()
+    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = StaffAttendance
+        fields = [
+            'id', 'staff', 'staff_name', 'department', 'department_name',
+            'date', 'check_in_time', 'check_out_time', 'status', 'status_display', 'remarks'
+        ]
+        read_only_fields = ['staff_name', 'department_name', 'status_display']
+    
+    def get_staff_name(self, obj):
+        if obj.staff and obj.staff.user:
+            return obj.staff.user.get_full_name() or obj.staff.user.username
+        return None
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    """Serializer for Department model."""
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'description', 'head', 'is_active']
+
 class AcademicYearSerializer(serializers.ModelSerializer):
+    """Serializer for AcademicYear model."""
     class Meta:
         model = AcademicYear
         fields = ['id', 'name', 'start_date', 'end_date', 'is_current', 'created_at']
         read_only_fields = ['created_at']
 
 class TermSerializer(serializers.ModelSerializer):
-    academic_year = AcademicYearSerializer(read_only=True)
-    academic_year_id = serializers.PrimaryKeyRelatedField(
-        queryset=AcademicYear.objects.all(), source='academic_year', write_only=True
-    )
+    """Serializer for Term model."""
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
     
     class Meta:
         model = Term
-        fields = ['id', 'academic_year', 'academic_year_id', 'name', 'order', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'name', 'academic_year', 'academic_year_name', 'start_date', 'end_date', 'order']
+        read_only_fields = ['academic_year_name']
 
 class SubjectSerializer(serializers.ModelSerializer):
-    class_obj = ClassSerializer(read_only=True)
-    class_obj_id = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.all(), source='class_obj', write_only=True
-    )
+    """Serializer for Subject model."""
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
     
     class Meta:
         model = Subject
         fields = [
-            'id', 'class_obj', 'class_obj_id', 'name', 'code', 'max_marks', 
-            'has_practical', 'practical_max_marks', 'order', 'is_active'
+            'id', 'name', 'code', 'class_obj', 'class_name', 'max_marks', 
+            'weightage', 'has_practical', 'practical_max_marks', 'order', 'is_active'
         ]
+        read_only_fields = ['class_name']
 
 class UnitSerializer(serializers.ModelSerializer):
-    subject = SubjectSerializer(read_only=True)
-    subject_id = serializers.PrimaryKeyRelatedField(
-        queryset=Subject.objects.all(), source='subject', write_only=True
-    )
+    """Serializer for Unit model."""
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
     
     class Meta:
         model = Unit
-        fields = ['id', 'subject', 'subject_id', 'name', 'number', 'description', 'order', 'is_active']
+        fields = ['id', 'name', 'subject', 'subject_name', 'order', 'is_active']
+        read_only_fields = ['subject_name']
 
 class AssessmentTypeSerializer(serializers.ModelSerializer):
+    """Serializer for AssessmentType model."""
     class Meta:
         model = AssessmentType
-        fields = ['id', 'name', 'code', 'max_marks', 'weightage', 'order', 'is_active']
+        fields = ['id', 'name', 'weightage', 'description']
 
 class AssessmentSerializer(serializers.ModelSerializer):
-    subject = SubjectSerializer(read_only=True)
-    subject_id = serializers.PrimaryKeyRelatedField(
-        queryset=Subject.objects.all(), source='subject', write_only=True
-    )
-    term = TermSerializer(read_only=True)
-    term_id = serializers.PrimaryKeyRelatedField(
-        queryset=Term.objects.all(), source='term', write_only=True
-    )
-    assessment_type = AssessmentTypeSerializer(read_only=True)
-    assessment_type_id = serializers.PrimaryKeyRelatedField(
-        queryset=AssessmentType.objects.all(), source='assessment_type', write_only=True
-    )
-    unit = UnitSerializer(read_only=True)
-    unit_id = serializers.PrimaryKeyRelatedField(
-        queryset=Unit.objects.all(), source='unit', write_only=True, required=False, allow_null=True
-    )
+    """Serializer for Assessment model."""
+    term_name = serializers.CharField(source='term.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
     
     class Meta:
         model = Assessment
         fields = [
-            'id', 'subject', 'subject_id', 'term', 'term_id', 'assessment_type', 
-            'assessment_type_id', 'unit', 'unit_id', 'name', 'date', 'max_marks', 
-            'passing_marks', 'is_active'
+            'id', 'name', 'assessment_type', 'term', 'term_name', 'subject', 'subject_name',
+            'max_marks', 'date', 'is_active'
         ]
+        read_only_fields = ['term_name', 'subject_name']
 
 class MarksEntrySerializer(serializers.ModelSerializer):
-    student = StudentSerializer(read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(
-        queryset=Student.objects.all(), source='student', write_only=True
-    )
-    assessment = AssessmentSerializer(read_only=True)
-    assessment_id = serializers.PrimaryKeyRelatedField(
-        queryset=Assessment.objects.all(), source='assessment', write_only=True
-    )
-    percentage = serializers.ReadOnlyField()
-    grade = serializers.ReadOnlyField()
+    """Serializer for MarksEntry model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    assessment_name = serializers.CharField(source='assessment.name', read_only=True)
+    subject_name = serializers.CharField(source='assessment.subject.name', read_only=True)
     
     class Meta:
         model = MarksEntry
         fields = [
-            'id', 'student', 'student_id', 'assessment', 'assessment_id', 
-            'marks_obtained', 'max_marks', 'percentage', 'grade', 'remarks', 
-            'entered_at', 'updated_at'
+            'id', 'student', 'student_name', 'student_roll_number', 'assessment', 'assessment_name',
+            'subject_name', 'marks_obtained', 'remarks', 'created_at'
         ]
-        read_only_fields = ['entered_at', 'updated_at', 'percentage', 'grade']
-    
-    def validate_marks_obtained(self, value):
-        if value < 0:
-            raise serializers.ValidationError("Marks cannot be negative.")
-        return value
+        read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'created_at']
 
-class ReportCardSerializer(serializers.ModelSerializer):
-    """Enhanced ReportCard serializer with full structure"""
-    student = StudentSerializer(read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(
-        queryset=Student.objects.all(), source='student', write_only=True
-    )
-    academic_year_id = serializers.PrimaryKeyRelatedField(
-        queryset=AcademicYear.objects.all(), source='academic_year', read_only=False, required=False, allow_null=True
-    )
-    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True, allow_null=True)
-    term_id = serializers.PrimaryKeyRelatedField(
-        queryset=Term.objects.all(), source='term', read_only=False, required=False, allow_null=True
-    )
-    term_name = serializers.CharField(source='term.name', read_only=True, allow_null=True)
-    class_obj_id = serializers.PrimaryKeyRelatedField(
-        queryset=Class.objects.all(), source='class_obj', read_only=False, required=False, allow_null=True
-    )
-    class_obj_name = serializers.CharField(source='class_obj.name', read_only=True, allow_null=True)
-    
-    # Legacy fields support
-    legacy_term = serializers.CharField(source='old_term', read_only=True)
-    legacy_grades = serializers.CharField(source='old_grades', read_only=True)
+class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
+    """Serializer for FeeInstallmentPlan model."""
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
     
     class Meta:
-        model = ReportCard
+        model = FeeInstallmentPlan
         fields = [
-            'id', 'student', 'student_id', 
-            'academic_year_id', 'academic_year_name', 
-            'term_id', 'term_name', 
-            'class_obj_id', 'class_obj_name',
-            'total_marks', 'max_total_marks', 'percentage', 'grade', 'rank_in_class',
-            'days_present', 'days_absent', 'attendance_percentage',
-            'teacher_remarks', 'principal_remarks', 'conduct_grade',
-            'generated_at', 'issued_date', 'updated_at',
-            'legacy_term', 'legacy_grades'  # For backward compatibility
+            'id', 'name', 'class_obj', 'class_name', 'total_amount', 
+            'number_of_installments', 'is_active'
         ]
-        read_only_fields = [
-            'total_marks', 'max_total_marks', 'percentage', 'grade', 
-            'days_present', 'days_absent', 'attendance_percentage',
-            'generated_at', 'updated_at'
-        ]
+        read_only_fields = ['class_name']
 
-class StaffAttendanceSerializer(serializers.ModelSerializer):
-    staff_id = serializers.PrimaryKeyRelatedField(
-        queryset=UserProfile._default_manager.all(),  # Allow all users initially
-        source='staff', 
-        write_only=True
-    )
-    staff = serializers.PrimaryKeyRelatedField(read_only=True)
+class FeeInstallmentSerializer(serializers.ModelSerializer):
+    """Serializer for FeeInstallment model."""
+    plan_name = serializers.CharField(source='plan.name', read_only=True)
     
     class Meta:
-        model = StaffAttendance
-        fields = ['id', 'staff', 'staff_id', 'date', 'check_in_time', 'check_out_time']
-        extra_kwargs = {
-            'date': {'required': True},
-        }
+        model = FeeInstallment
+        fields = [
+            'id', 'plan', 'plan_name', 'installment_number', 
+            'amount', 'due_date', 'is_active'
+        ]
+        read_only_fields = ['plan_name']
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        tenant = None
-        # Try to get tenant from context (passed from view)
-        request = self.context.get('request')
-        if request is not None:
-            try:
-                user = request.user
-                profile = UserProfile._default_manager.get(user=user)
-                tenant = profile.tenant
-            except Exception:
-                pass
-        fields = getattr(self, 'fields', {})
-        if tenant:
-            if 'staff_id' in fields:
-                fields['staff_id'].queryset = UserProfile._default_manager.filter(tenant=tenant).exclude(role__name='student')
-        else:
-            if 'staff_id' in fields:
-                fields['staff_id'].queryset = UserProfile._default_manager.all()  # Allow all if no tenant context 
-
-class DepartmentSerializer(serializers.ModelSerializer):
+class StudentPromotionSerializer(serializers.ModelSerializer):
+    """Serializer for StudentPromotion model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    from_class_name = serializers.CharField(source='from_class.name', read_only=True)
+    to_class_name = serializers.CharField(source='to_class.name', read_only=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    
     class Meta:
-        model = Department
-        fields = ['id', 'name']
-
+        model = StudentPromotion
+        fields = [
+            'id', 'student', 'student_name', 'from_class', 'from_class_name',
+            'to_class', 'to_class_name', 'academic_year', 'academic_year_name',
+            'promotion_date', 'remarks', 'created_at'
+        ]
+        read_only_fields = ['student_name', 'from_class_name', 'to_class_name', 'academic_year_name', 'created_at']
 
 class TransferCertificateSerializer(serializers.ModelSerializer):
-    """Serializer for Transfer Certificate model"""
-    student_name_display = serializers.CharField(source='student.name', read_only=True)
-    class_name = serializers.CharField(source='class_obj.name', read_only=True)
-    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
-    issued_by_name = serializers.CharField(source='issued_by.user.get_full_name', read_only=True)
-    approved_by_name = serializers.CharField(source='approved_by.user.get_full_name', read_only=True)
+    """Serializer for TransferCertificate model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    class_name = serializers.CharField(source='student.assigned_class.name', read_only=True, allow_null=True)
+    issued_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = TransferCertificate
-        fields = '__all__'
-        read_only_fields = ['tc_number', 'created_at', 'updated_at']
+        fields = [
+            'id', 'student', 'student_name', 'student_roll_number', 'class_name',
+            'tc_number', 'issue_date', 'reason', 'remarks', 'issued_by', 'issued_by_name', 'created_at'
+        ]
+        read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'issued_by_name', 'created_at']
+    
+    def get_issued_by_name(self, obj):
+        if obj.issued_by and obj.issued_by.user:
+            return obj.issued_by.user.get_full_name() or obj.issued_by.user.username
+        return None
 
 class AdmissionApplicationSerializer(serializers.ModelSerializer):
-    """Serializer for Admission Application model"""
-    desired_class_name = serializers.CharField(source='desired_class.name', read_only=True)
+    """Serializer for AdmissionApplication model."""
+    applied_class_name = serializers.CharField(source='applied_class.name', read_only=True, allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = AdmissionApplication
-        fields = '__all__'
-        read_only_fields = ['created_at']
-
-
-# ============================================
-# TIMETABLE MANAGEMENT SERIALIZERS
-# ============================================
+        fields = [
+            'id', 'student_name', 'date_of_birth', 'gender', 'parent_name', 'parent_phone',
+            'parent_email', 'applied_class', 'applied_class_name', 'status', 'status_display',
+            'remarks', 'created_at'
+        ]
+        read_only_fields = ['applied_class_name', 'status_display', 'created_at']
 
 class PeriodSerializer(serializers.ModelSerializer):
     """Serializer for Period model"""
-    start_time_display = serializers.SerializerMethodField()
-    end_time_display = serializers.SerializerMethodField()
-    duration_minutes = serializers.SerializerMethodField()
-    
     class Meta:
         model = Period
         fields = [
-            'id', 'name', 'order', 'start_time', 'end_time', 'start_time_display', 
-            'end_time_display', 'duration_minutes', 'is_break', 'break_type', 
-            'is_active', 'tenant'
+            'id', 'name', 'order', 'start_time', 'end_time', 
+            'is_break', 'break_type', 'tenant'
         ]
         read_only_fields = ['tenant']
-    
-    def get_start_time_display(self, obj):
-        return obj.start_time.strftime('%I:%M %p')
-    
-    def get_end_time_display(self, obj):
-        return obj.end_time.strftime('%I:%M %p')
-    
-    def get_duration_minutes(self, obj):
-        from datetime import datetime, timedelta
-        start = datetime.combine(datetime.today(), obj.start_time)
-        end = datetime.combine(datetime.today(), obj.end_time)
-        if end < start:
-            end += timedelta(days=1)
-        return int((end - start).total_seconds() / 60)
-
 
 class RoomSerializer(serializers.ModelSerializer):
     """Serializer for Room model"""
@@ -528,30 +302,28 @@ class RoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = [
-            'id', 'name', 'room_number', 'room_type', 'room_type_display', 
+            'id', 'name', 'room_number', 'room_type', 'room_type_display',
             'capacity', 'facilities', 'is_active', 'tenant'
         ]
         read_only_fields = ['tenant']
 
-
 class TimetableSerializer(serializers.ModelSerializer):
     """Serializer for Timetable model"""
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
     class_name = serializers.CharField(source='class_obj.name', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
     period_name = serializers.CharField(source='period.name', read_only=True)
-    period_start_time = serializers.TimeField(source='period.start_time', read_only=True, format='%I:%M %p')
-    period_end_time = serializers.TimeField(source='period.end_time', read_only=True, format='%I:%M %p')
     teacher_name = serializers.SerializerMethodField()
-    room_name = serializers.CharField(source='room.name', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True, allow_null=True)
     day_display = serializers.CharField(source='get_day_display', read_only=True)
     
     class Meta:
         model = Timetable
         fields = [
-            'id', 'academic_year', 'class_obj', 'class_name', 'day', 'day_display',
-            'period', 'period_name', 'period_start_time', 'period_end_time',
-            'subject', 'subject_name', 'teacher', 'teacher_name', 'room', 'room_name',
-            'is_active', 'notes', 'created_at', 'updated_at', 'tenant'
+            'id', 'academic_year', 'academic_year_name', 'class_obj', 'class_name',
+            'day', 'day_display', 'period', 'period_name', 'subject', 'subject_name',
+            'teacher', 'teacher_name', 'room', 'room_name', 'is_active', 'notes',
+            'created_at', 'updated_at', 'tenant'
         ]
         read_only_fields = ['tenant', 'created_at', 'updated_at']
     
@@ -562,35 +334,20 @@ class TimetableSerializer(serializers.ModelSerializer):
 
 
 class TimetableDetailSerializer(TimetableSerializer):
-    """Detailed serializer for Timetable with nested objects"""
-    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
-    period_detail = PeriodSerializer(source='period', read_only=True)
-    subject_detail = SubjectSerializer(source='subject', read_only=True)
-    room_detail = RoomSerializer(source='room', read_only=True)
-    
-    class Meta(TimetableSerializer.Meta):
-        fields = TimetableSerializer.Meta.fields + [
-            'academic_year_name', 'period_detail', 'subject_detail', 'room_detail'
-        ]
-
+    """Detailed serializer for Timetable with nested information"""
+    pass
 
 class HolidaySerializer(serializers.ModelSerializer):
     """Serializer for Holiday model"""
-    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
     holiday_type_display = serializers.CharField(source='get_holiday_type_display', read_only=True)
-    date_display = serializers.SerializerMethodField()
     
     class Meta:
         model = Holiday
         fields = [
-            'id', 'academic_year', 'academic_year_name', 'name', 'date', 'date_display',
-            'holiday_type', 'holiday_type_display', 'is_recurring', 'description', 'tenant'
+            'id', 'name', 'date', 'holiday_type', 'holiday_type_display',
+            'description', 'is_active', 'tenant'
         ]
         read_only_fields = ['tenant']
-    
-    def get_date_display(self, obj):
-        return obj.date.strftime('%d %b %Y')
-
 
 class SubstituteTeacherSerializer(serializers.ModelSerializer):
     """Serializer for SubstituteTeacher model"""
@@ -622,4 +379,272 @@ class SubstituteTeacherSerializer(serializers.ModelSerializer):
         return None
     
     def get_date_display(self, obj):
-        return obj.date.strftime('%d %b %Y') 
+        return obj.date.strftime('%d %b %Y')
+
+
+# ============================================
+# ADVANCED REPORTING SERIALIZERS
+# ============================================
+
+class ReportFieldSerializer(serializers.ModelSerializer):
+    """Serializer for ReportField model"""
+    field_type_display = serializers.CharField(source='get_field_type_display', read_only=True)
+    aggregate_type_display = serializers.CharField(source='get_aggregate_type_display', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = ReportField
+        fields = [
+            'id', 'name', 'field_key', 'field_type', 'field_type_display',
+            'data_source', 'data_field', 'aggregate_type', 'aggregate_type_display',
+            'filter_conditions', 'display_name', 'format_string',
+            'sortable', 'groupable', 'is_active', 'tenant'
+        ]
+        read_only_fields = ['tenant']
+
+
+class ReportTemplateSerializer(serializers.ModelSerializer):
+    """Serializer for ReportTemplate model"""
+    report_type_display = serializers.CharField(source='get_report_type_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ReportTemplate
+        fields = [
+            'id', 'name', 'description', 'report_type', 'report_type_display',
+            'template_config', 'available_filters', 'default_parameters',
+            'is_public', 'created_by', 'created_by_name', 'created_at', 'updated_at',
+            'is_active', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by and obj.created_by.user:
+            return obj.created_by.user.get_full_name() or obj.created_by.user.username
+        return None
+
+
+class ReportDataSerializer(serializers.Serializer):
+    """Serializer for report data requests"""
+    template_id = serializers.IntegerField(required=False, allow_null=True)
+    fields = serializers.ListField(child=serializers.CharField(), required=True)
+    filters = serializers.DictField(required=False, default=dict)
+    group_by = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    sort_by = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    limit = serializers.IntegerField(required=False, default=1000)
+
+
+# ============================================
+# EXAM MANAGEMENT SERIALIZERS
+# ============================================
+
+class ExamSerializer(serializers.ModelSerializer):
+    """Serializer for Exam model"""
+    exam_type_display = serializers.CharField(source='get_exam_type_display', read_only=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+    term_name = serializers.CharField(source='term.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Exam
+        fields = [
+            'id', 'name', 'exam_type', 'exam_type_display', 'academic_year', 'academic_year_name',
+            'term', 'term_name', 'description', 'start_date', 'end_date', 'is_active',
+            'created_at', 'updated_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        """Validate exam dates"""
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # If updating, get existing values if not provided
+        if self.instance:
+            start_date = start_date or self.instance.start_date
+            end_date = end_date or self.instance.end_date
+        
+        if start_date and end_date:
+            if end_date < start_date:
+                raise serializers.ValidationError({
+                    'end_date': 'End date must be greater than or equal to start date.'
+                })
+        
+        return data
+
+
+class ExamScheduleSerializer(serializers.ModelSerializer):
+    """Serializer for ExamSchedule model"""
+    exam_name = serializers.CharField(source='exam.name', read_only=True)
+    class_name = serializers.CharField(source='class_obj.name', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True, allow_null=True)
+    invigilator_name = serializers.SerializerMethodField()
+    duration_display = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ExamSchedule
+        fields = [
+            'id', 'exam', 'exam_name', 'class_obj', 'class_name', 'subject', 'subject_name',
+            'date', 'start_time', 'end_time', 'duration_minutes', 'duration_display',
+            'room', 'room_name', 'max_marks', 'instructions', 'invigilator', 'invigilator_name',
+            'is_active', 'created_at', 'updated_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at', 'duration_minutes']
+    
+    def get_invigilator_name(self, obj):
+        if obj.invigilator and obj.invigilator.user:
+            return obj.invigilator.user.get_full_name() or obj.invigilator.user.username
+        return None
+    
+    def get_duration_display(self, obj):
+        if obj.duration_minutes:
+            hours = obj.duration_minutes // 60
+            minutes = obj.duration_minutes % 60
+            if hours > 0:
+                return f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+            return f"{minutes}m"
+        return None
+    
+    def validate(self, data):
+        """Validate exam schedule times"""
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        date = data.get('date')
+        
+        # If updating, get existing values if not provided
+        if self.instance:
+            start_time = start_time or self.instance.start_time
+            end_time = end_time or self.instance.end_time
+            date = date or self.instance.date
+        
+        if start_time and end_time:
+            if end_time <= start_time:
+                raise serializers.ValidationError({
+                    'end_time': 'End time must be greater than start time.'
+                })
+        
+        if date and start_time and end_time:
+            from django.utils import timezone
+            from datetime import datetime
+            start_dt = timezone.datetime.combine(date, start_time)
+            end_dt = timezone.datetime.combine(date, end_time)
+            if end_dt <= start_dt:
+                raise serializers.ValidationError({
+                    'end_time': 'End time must be greater than start time on the same date.'
+                })
+        
+        return data
+
+
+class SeatingArrangementSerializer(serializers.ModelSerializer):
+    """Serializer for SeatingArrangement model"""
+    exam_schedule_info = serializers.SerializerMethodField()
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    room_name = serializers.CharField(source='room.name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = SeatingArrangement
+        fields = [
+            'id', 'exam_schedule', 'exam_schedule_info', 'student', 'student_name', 'student_roll_number',
+            'seat_number', 'row_number', 'column_number', 'room', 'room_name',
+            'is_active', 'created_at', 'updated_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'created_at', 'updated_at']
+    
+    def get_exam_schedule_info(self, obj):
+        if obj.exam_schedule:
+            return {
+                'id': obj.exam_schedule.id,
+                'subject': obj.exam_schedule.subject.name,
+                'date': obj.exam_schedule.date.strftime('%Y-%m-%d'),
+                'start_time': obj.exam_schedule.start_time.strftime('%H:%M'),
+            }
+        return None
+    
+    def validate(self, data):
+        """Validate seating arrangement uniqueness"""
+        exam_schedule = data.get('exam_schedule')
+        student = data.get('student')
+        
+        # If updating, get existing values if not provided
+        if self.instance:
+            exam_schedule = exam_schedule or self.instance.exam_schedule
+            student = student or self.instance.student
+        
+        if exam_schedule and student:
+            # Get tenant from context if available
+            request = self.context.get('request')
+            tenant = None
+            if request and hasattr(request, 'user') and hasattr(request.user, 'userprofile'):
+                tenant = request.user.userprofile.tenant
+            elif self.instance:
+                tenant = self.instance.tenant
+            
+            if tenant:
+                # Check for duplicate seating arrangement
+                existing = SeatingArrangement.objects.filter(
+                    tenant=tenant,
+                    exam_schedule=exam_schedule,
+                    student=student,
+                    is_active=True
+                )
+                
+                # Exclude current instance if updating
+                if self.instance:
+                    existing = existing.exclude(id=self.instance.id)
+                
+                if existing.exists():
+                    raise serializers.ValidationError({
+                        'student': 'This student already has a seating arrangement for this exam schedule.'
+                    })
+        
+        return data
+
+
+class HallTicketSerializer(serializers.ModelSerializer):
+    """Serializer for HallTicket model"""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    exam_name = serializers.CharField(source='exam.name', read_only=True)
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    exam_schedule_info = serializers.SerializerMethodField()
+    seating_info = serializers.SerializerMethodField()
+    generated_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = HallTicket
+        fields = [
+            'id', 'exam', 'exam_name', 'student', 'student_name', 'student_roll_number',
+            'exam_schedule', 'exam_schedule_info', 'seating_arrangement', 'seating_info',
+            'ticket_number', 'issued_date', 'status', 'status_display',
+            'photo_verified', 'signature_verified', 'remarks',
+            'generated_by', 'generated_by_name', 'generated_at', 'downloaded_at', 'tenant'
+        ]
+        read_only_fields = ['tenant', 'ticket_number', 'generated_at', 'downloaded_at']
+    
+    def get_exam_schedule_info(self, obj):
+        if obj.exam_schedule:
+            return {
+                'id': obj.exam_schedule.id,
+                'subject': obj.exam_schedule.subject.name,
+                'date': obj.exam_schedule.date.strftime('%Y-%m-%d'),
+                'start_time': obj.exam_schedule.start_time.strftime('%H:%M'),
+                'room': obj.exam_schedule.room.name if obj.exam_schedule.room else None,
+            }
+        return None
+    
+    def get_seating_info(self, obj):
+        if obj.seating_arrangement:
+            return {
+                'id': obj.seating_arrangement.id,
+                'seat_number': obj.seating_arrangement.seat_number,
+                'row_number': obj.seating_arrangement.row_number,
+                'column_number': obj.seating_arrangement.column_number,
+                'room': obj.seating_arrangement.room.name if obj.seating_arrangement.room else None,
+            }
+        return None
+    
+    def get_generated_by_name(self, obj):
+        if obj.generated_by and obj.generated_by.user:
+            return obj.generated_by.user.get_full_name() or obj.generated_by.user.username
+        return None

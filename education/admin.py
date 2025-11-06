@@ -1,10 +1,11 @@
 from django.contrib import admin
 from .models import (
-    Department, Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, 
+    Department, Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard,
     StaffAttendance, StudentPromotion, TransferCertificate, AcademicYear, Term, Subject, Unit,
-    AssessmentType, Assessment, MarksEntry, FeeInstallment, FeeInstallmentPlan, 
+    AssessmentType, Assessment, MarksEntry, FeeInstallment, FeeInstallmentPlan,
     AdmissionApplication, BalanceAdjustment, OldBalance,
-    Period, Room, Timetable, Holiday, SubstituteTeacher
+    Period, Room, Timetable, Holiday, SubstituteTeacher,
+    ReportTemplate, ReportField, Exam, ExamSchedule, SeatingArrangement, HallTicket
 )
 from api.admin_site import secure_admin_site
 
@@ -281,5 +282,63 @@ secure_admin_site.register(Room, RoomAdmin)
 secure_admin_site.register(Timetable, TimetableAdmin)
 secure_admin_site.register(Holiday, HolidayAdmin)
 secure_admin_site.register(SubstituteTeacher, SubstituteTeacherAdmin)
+
+# ============================================
+# ADVANCED REPORTING ADMIN
+# ============================================
+
+class ReportFieldAdmin(admin.ModelAdmin):
+    list_display = ('name', 'field_key', 'field_type', 'data_source', 'data_field', 'is_active', 'tenant')
+    list_filter = ('field_type', 'data_source', 'is_active', 'tenant')
+    search_fields = ('name', 'field_key', 'data_field')
+    ordering = ('name',)
+
+class ReportTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'report_type', 'is_public', 'created_by', 'created_at', 'is_active', 'tenant')
+    list_filter = ('report_type', 'is_public', 'is_active', 'tenant')
+    search_fields = ('name', 'description')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+secure_admin_site.register(ReportField, ReportFieldAdmin)
+secure_admin_site.register(ReportTemplate, ReportTemplateAdmin)
+
+
+# ============================================
+# EXAM MANAGEMENT ADMIN
+# ============================================
+
+class ExamAdmin(admin.ModelAdmin):
+    list_display = ('name', 'exam_type', 'academic_year', 'term', 'start_date', 'end_date', 'is_active', 'tenant')
+    list_filter = ('exam_type', 'academic_year', 'term', 'is_active', 'tenant')
+    search_fields = ('name', 'description')
+    ordering = ('-start_date', 'name')
+    readonly_fields = ('created_at', 'updated_at')
+
+class ExamScheduleAdmin(admin.ModelAdmin):
+    list_display = ('exam', 'class_obj', 'subject', 'date', 'start_time', 'end_time', 'room', 'invigilator', 'is_active', 'tenant')
+    list_filter = ('exam', 'class_obj', 'date', 'is_active', 'tenant')
+    search_fields = ('exam__name', 'subject__name', 'class_obj__name')
+    ordering = ('date', 'start_time', 'class_obj')
+    readonly_fields = ('created_at', 'updated_at', 'duration_minutes')
+
+class SeatingArrangementAdmin(admin.ModelAdmin):
+    list_display = ('exam_schedule', 'student', 'seat_number', 'row_number', 'column_number', 'room', 'is_active', 'tenant')
+    list_filter = ('exam_schedule', 'room', 'is_active', 'tenant')
+    search_fields = ('student__name', 'seat_number', 'exam_schedule__subject__name')
+    ordering = ('exam_schedule', 'seat_number')
+    readonly_fields = ('created_at', 'updated_at')
+
+class HallTicketAdmin(admin.ModelAdmin):
+    list_display = ('ticket_number', 'exam', 'student', 'status', 'issued_date', 'generated_by', 'generated_at', 'tenant')
+    list_filter = ('exam', 'status', 'issued_date', 'tenant')
+    search_fields = ('ticket_number', 'student__name', 'exam__name')
+    ordering = ('-generated_at', 'student')
+    readonly_fields = ('ticket_number', 'generated_at', 'downloaded_at')
+
+secure_admin_site.register(Exam, ExamAdmin)
+secure_admin_site.register(ExamSchedule, ExamScheduleAdmin)
+secure_admin_site.register(SeatingArrangement, SeatingArrangementAdmin)
+secure_admin_site.register(HallTicket, HallTicketAdmin)
 
 # Register your models here.
