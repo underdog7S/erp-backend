@@ -60,18 +60,22 @@ class FeePaymentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.name', read_only=True)
     student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
     class_name = serializers.CharField(source='student.assigned_class.name', read_only=True, allow_null=True)
-    fee_type_display = serializers.CharField(source='get_fee_type_display', read_only=True)
+    fee_type = serializers.CharField(source='fee_structure.fee_type', read_only=True)
+    fee_type_display = serializers.CharField(source='fee_structure.get_fee_type_display', read_only=True)
+    fee_structure_amount = serializers.DecimalField(source='fee_structure.amount', max_digits=10, decimal_places=2, read_only=True)
+    fee_structure_class = serializers.CharField(source='fee_structure.class_obj.name', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     
     class Meta:
         model = FeePayment
         fields = [
             'id', 'student', 'student_name', 'student_roll_number', 'class_name',
-            'fee_structure', 'amount_paid', 'payment_date', 'payment_method', 
-            'payment_method_display', 'fee_type', 'fee_type_display', 'notes', 
-            'receipt_number', 'created_at'
+            'fee_structure', 'fee_structure_class', 'fee_structure_amount',
+            'amount_paid', 'discount_amount', 'discount_reason',
+            'payment_date', 'payment_method', 'payment_method_display', 'fee_type', 'fee_type_display',
+            'receipt_number', 'notes', 'installment', 'split_installments', 'created_at'
         ]
-        read_only_fields = ['receipt_number', 'created_at']
+        read_only_fields = ['fee_structure_class', 'fee_structure_amount', 'payment_method_display', 'fee_type', 'fee_type_display', 'receipt_number', 'created_at']
 
 class FeeDiscountSerializer(serializers.ModelSerializer):
     """Serializer for FeeDiscount model."""
@@ -98,22 +102,37 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
 class ReportCardSerializer(serializers.ModelSerializer):
     """Serializer for ReportCard model."""
+
     student_name = serializers.CharField(source='student.name', read_only=True)
     student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
-    class_name = serializers.CharField(source='class_obj.name', read_only=True)
-    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
-    term_name = serializers.CharField(source='term.name', read_only=True)
-    grade_display = serializers.CharField(source='get_grade_display', read_only=True)
-    
+    class_name = serializers.CharField(source='class_obj.name', read_only=True, allow_null=True)
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True, allow_null=True)
+    term_name = serializers.CharField(source='term.name', read_only=True, allow_null=True)
+    teacher_remarks = serializers.CharField(read_only=True)
+    principal_remarks = serializers.CharField(read_only=True)
+    remarks = serializers.SerializerMethodField()
+
     class Meta:
         model = ReportCard
         fields = [
             'id', 'student', 'student_name', 'student_roll_number', 'class_obj', 'class_name',
             'academic_year', 'academic_year_name', 'term', 'term_name',
-            'total_marks', 'percentage', 'grade', 'grade_display',
-            'attendance_percentage', 'conduct_grade', 'remarks', 'issued_date', 'created_at'
+            'total_marks', 'max_total_marks', 'percentage', 'grade', 'rank_in_class',
+            'days_present', 'days_absent', 'attendance_percentage', 'conduct_grade',
+            'teacher_remarks', 'principal_remarks', 'remarks', 'issued_date', 'generated_at', 'updated_at'
         ]
-        read_only_fields = ['created_at', 'issued_date']
+        read_only_fields = [
+            'student_name', 'student_roll_number', 'class_name', 'academic_year_name', 'term_name',
+            'generated_at', 'updated_at'
+        ]
+
+    def get_remarks(self, obj):
+        parts = []
+        if getattr(obj, 'teacher_remarks', None):
+            parts.append(f"Teacher: {obj.teacher_remarks.strip()}")
+        if getattr(obj, 'principal_remarks', None):
+            parts.append(f"Principal: {obj.principal_remarks.strip()}")
+        return "\n".join(parts) if parts else ""
 
 class StaffAttendanceSerializer(serializers.ModelSerializer):
     """Serializer for StaffAttendance model."""
@@ -179,9 +198,10 @@ class UnitSerializer(serializers.ModelSerializer):
 
 class AssessmentTypeSerializer(serializers.ModelSerializer):
     """Serializer for AssessmentType model."""
+
     class Meta:
         model = AssessmentType
-        fields = ['id', 'name', 'weightage', 'description']
+        fields = ['id', 'name', 'code', 'max_marks', 'weightage', 'order', 'is_active']
 
 class AssessmentSerializer(serializers.ModelSerializer):
     """Serializer for Assessment model."""
@@ -213,27 +233,68 @@ class MarksEntrySerializer(serializers.ModelSerializer):
 
 class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
     """Serializer for FeeInstallmentPlan model."""
-    class_name = serializers.CharField(source='class_obj.name', read_only=True)
-    
+
+    fee_structure_fee_type = serializers.CharField(source='fee_structure.fee_type', read_only=True)
+    fee_structure_amount = serializers.DecimalField(source='fee_structure.amount', max_digits=10, decimal_places=2, read_only=True)
+    class_name = serializers.CharField(source='fee_structure.class_obj.name', read_only=True)
+
     class Meta:
         model = FeeInstallmentPlan
         fields = [
-            'id', 'name', 'class_obj', 'class_name', 'total_amount', 
-            'number_of_installments', 'is_active'
+            'id', 'fee_structure', 'fee_structure_fee_type', 'fee_structure_amount', 'class_name',
+            'name', 'number_of_installments', 'installment_type', 'description', 'is_active',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['class_name']
+        read_only_fields = ['fee_structure_fee_type', 'fee_structure_amount', 'class_name', 'created_at', 'updated_at']
 
 class FeeInstallmentSerializer(serializers.ModelSerializer):
     """Serializer for FeeInstallment model."""
-    plan_name = serializers.CharField(source='plan.name', read_only=True)
-    
+
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_info = serializers.SerializerMethodField()
+    fee_structure_fee_type = serializers.CharField(source='fee_structure.fee_type', read_only=True)
+    fee_structure_class = serializers.CharField(source='fee_structure.class_obj.name', read_only=True)
+    installment_plan_name = serializers.CharField(source='installment_plan.name', read_only=True, allow_null=True)
+    remaining_amount = serializers.SerializerMethodField()
+
     class Meta:
         model = FeeInstallment
         fields = [
-            'id', 'plan', 'plan_name', 'installment_number', 
-            'amount', 'due_date', 'is_active'
+            'id', 'student', 'student_name', 'student_info',
+            'fee_structure', 'fee_structure_fee_type', 'fee_structure_class',
+            'installment_plan', 'installment_plan_name',
+            'installment_number', 'due_amount', 'paid_amount', 'remaining_amount',
+            'due_date', 'status', 'late_fee', 'payment_date', 'notes',
+            'academic_year', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['plan_name']
+        read_only_fields = [
+            'student_name', 'student_info', 'fee_structure_fee_type', 'fee_structure_class',
+            'installment_plan_name', 'remaining_amount', 'created_at', 'updated_at'
+        ]
+
+    def get_student_info(self, obj):
+        student = obj.student
+        if not student:
+            return None
+        assigned_class = None
+        if getattr(student, 'assigned_class', None):
+            assigned_class = {
+                'id': student.assigned_class.id,
+                'name': student.assigned_class.name
+            }
+        return {
+            'id': student.id,
+            'name': student.name,
+            'upper_id': student.upper_id,
+            'assigned_class': assigned_class,
+            'parent_phone': getattr(student, 'parent_phone', None),
+            'parent_name': getattr(student, 'parent_name', None)
+        }
+
+    def get_remaining_amount(self, obj):
+        due = obj.due_amount or 0
+        paid = obj.paid_amount or 0
+        return max(float(due) - float(paid), 0)
 
 class StudentPromotionSerializer(serializers.ModelSerializer):
     """Serializer for StudentPromotion model."""
@@ -579,7 +640,7 @@ class SeatingArrangementSerializer(serializers.ModelSerializer):
                 tenant = request.user.userprofile.tenant
             elif self.instance:
                 tenant = self.instance.tenant
-            
+
             if tenant:
                 # Check for duplicate seating arrangement
                 existing = SeatingArrangement.objects.filter(
@@ -588,11 +649,11 @@ class SeatingArrangementSerializer(serializers.ModelSerializer):
                     student=student,
                     is_active=True
                 )
-                
+
                 # Exclude current instance if updating
                 if self.instance:
                     existing = existing.exclude(id=self.instance.id)
-                
+
                 if existing.exists():
                     raise serializers.ValidationError({
                         'student': 'This student already has a seating arrangement for this exam schedule.'
