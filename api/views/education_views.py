@@ -979,11 +979,12 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)
             
             # Professional single-column layout - one field per line to prevent overlapping
+            # IMPORTANT: Each field is on its own line - NO two-column layout
             p.setFillColor(colors.black)
             left_margin = 25 * mm
             label_x = left_margin
-            value_x = left_margin + 100 * mm  # Even more generous spacing (increased from 90 to 100)
-            max_value_width = width - value_x - 30 * mm  # Available width with extra margin
+            value_x = left_margin + 110 * mm  # Maximum spacing to prevent any overlap (increased from 100 to 110)
+            max_value_width = width - value_x - 35 * mm  # Available width with extra safety margin
             
             # Helper function for report card text truncation
             def truncate_text_rc(text, font_name, font_size, max_width):
@@ -1329,10 +1330,11 @@ class ReportCardPDFView(APIView):
                 return text_str[:low] + '...' if low < len(text_str) else text_str[:low]
             
             # Professional single-column layout - one item per line to prevent overlapping
+            # IMPORTANT: Each item is on its own line - NO two-column layout
             left_margin = 30 * mm
             label_x = left_margin
-            value_x = left_margin + 100 * mm  # Even more generous spacing (increased from 90 to 100)
-            max_value_width = width - value_x - 30 * mm  # Available width with extra margin
+            value_x = left_margin + 110 * mm  # Maximum spacing to prevent any overlap (increased from 100 to 110)
+            max_value_width = width - value_x - 35 * mm  # Available width with extra safety margin
             
             # Calculate row positions with proper vertical spacing
             row_height = 26  # Increased spacing between rows (from 24 to 26)
@@ -1340,24 +1342,28 @@ class ReportCardPDFView(APIView):
             
             for label, value in summary_items:
                 # Draw label and value on same line - single column
+                # Reset font to ensure clean state
                 p.setFont('Helvetica-Bold', 10)
                 label_text = label + ':'
-                # Ensure label doesn't exceed value_x position
+                # Ensure label doesn't exceed value_x position - with extra safety margin
                 label_width = p.stringWidth(label_text, 'Helvetica-Bold', 10)
-                if label_x + label_width > value_x - 5 * mm:
+                if label_x + label_width > value_x - 10 * mm:  # Increased safety margin from 5 to 10
                     # If label is too long, reduce font size slightly
                     p.setFont('Helvetica-Bold', 9)
                     label_text = label + ':'
+                    label_width = p.stringWidth(label_text, 'Helvetica-Bold', 9)
+                # Draw label
                 p.drawString(label_x, current_y, label_text)
                 
                 # Draw value - ensure it doesn't exceed page width
+                # Calculate exact available width with extra safety margin
+                available_width = width - value_x - 35 * mm  # Increased margin from 30 to 35
                 p.setFont('Helvetica', 11)
-                # Calculate exact available width
-                available_width = width - value_x - 30 * mm
                 value_text = truncate_text_rc(value, 'Helvetica', 11, available_width)
+                # Ensure value doesn't overlap with anything - draw at value_x
                 p.drawString(value_x, current_y, value_text)
                 
-                # Move to next row
+                # Move to next row - ensure proper spacing
                 current_y -= row_height
             
             p.setFillColor(colors.black)  # Switch back to black for rest
@@ -1382,10 +1388,11 @@ class ReportCardPDFView(APIView):
             y -= 18
             
             # Professional single-column layout - one field per line
+            # IMPORTANT: Each field is on its own line - NO two-column layout
             left_margin = 25 * mm
             label_x = left_margin
-            value_x = left_margin + 100 * mm  # Even more generous spacing (increased from 90 to 100)
-            max_value_width = width - value_x - 30 * mm  # Available width with extra margin
+            value_x = left_margin + 110 * mm  # Maximum spacing to prevent any overlap (increased from 100 to 110)
+            max_value_width = width - value_x - 35 * mm  # Available width with extra safety margin
             
             # Row 1: Days Present
             p.setFont('Helvetica-Bold', 10)
