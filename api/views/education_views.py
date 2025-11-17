@@ -983,8 +983,8 @@ class ReportCardPDFView(APIView):
             right_margin = 25 * mm
             mid_point = width / 2
             label_x = left_margin
-            value_x = left_margin + 70 * mm  # Fixed value position (reduced from 95 to prevent overlap)
-            label_x2 = mid_point + 5 * mm  # Start of right column (with gap from center)
+            value_x = left_margin + 75 * mm  # Increased from 70 to 75 for more space
+            label_x2 = mid_point + 8 * mm  # Start of right column (increased gap from 5 to 8)
             value_x2 = label_x2 + 70 * mm  # Fixed value position
             
             # Ensure right column doesn't exceed page width
@@ -1008,14 +1008,19 @@ class ReportCardPDFView(APIView):
                         high = mid - 1
                 return text_str[:low] + '...' if low < len(text_str) else text_str[:low]
             
-            # Calculate max widths to prevent overlap
-            max_left_width = label_x2 - value_x - 10 * mm
-            max_right_width = max_right - value_x2 - 5 * mm
+            # Calculate max widths to prevent overlap - increased spacing
+            max_left_width = label_x2 - value_x - 15 * mm  # Increased gap from 10 to 15
+            max_right_width = max_right - value_x2 - 10 * mm  # Increased gap from 5 to 10
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Full Name:')
             p.setFont('Helvetica', 10)
-            name_text = truncate_text_rc(report_card.student.name.upper(), 'Helvetica', 10, max_left_width)
+            # Only truncate if absolutely necessary - try to show full name
+            name_full = report_card.student.name.upper()
+            if p.stringWidth(name_full, 'Helvetica', 10) > max_left_width:
+                name_text = truncate_text_rc(name_full, 'Helvetica', 10, max_left_width)
+            else:
+                name_text = name_full
             p.drawString(value_x, y, name_text)
             
             roll_val = getattr(report_card.student, 'roll_number', None) or getattr(report_card.student, 'admission_number', None) or report_card.student.id
@@ -1024,27 +1029,43 @@ class ReportCardPDFView(APIView):
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Roll Number:')
             p.setFont('Helvetica', 10)
-            roll_text = truncate_text_rc(str(roll_val), 'Helvetica', 10, max_right_width)
+            roll_str = str(roll_val)
+            if p.stringWidth(roll_str, 'Helvetica', 10) > max_right_width:
+                roll_text = truncate_text_rc(roll_str, 'Helvetica', 10, max_right_width)
+            else:
+                roll_text = roll_str
             p.drawString(value_x2, y, roll_text)
-            y -= 18  # Increased line spacing
+            y -= 20  # Increased line spacing from 18 to 20
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Class:')
             p.setFont('Helvetica', 10)
-            class_text = truncate_text_rc(report_card.class_obj.name if report_card.class_obj else 'N/A', 'Helvetica', 10, max_left_width)
+            class_full = report_card.class_obj.name if report_card.class_obj else 'N/A'
+            if p.stringWidth(class_full, 'Helvetica', 10) > max_left_width:
+                class_text = truncate_text_rc(class_full, 'Helvetica', 10, max_left_width)
+            else:
+                class_text = class_full
             p.drawString(value_x, y, class_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Academic Year:')
             p.setFont('Helvetica', 10)
-            year_text = truncate_text_rc(report_card.academic_year.name if report_card.academic_year else 'N/A', 'Helvetica', 10, max_right_width)
+            year_full = report_card.academic_year.name if report_card.academic_year else 'N/A'
+            if p.stringWidth(year_full, 'Helvetica', 10) > max_right_width:
+                year_text = truncate_text_rc(year_full, 'Helvetica', 10, max_right_width)
+            else:
+                year_text = year_full
             p.drawString(value_x2, y, year_text)
-            y -= 18  # Increased line spacing
+            y -= 20  # Increased line spacing
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Term:')
             p.setFont('Helvetica', 10)
-            term_text = truncate_text_rc(report_card.term.name if report_card.term else 'N/A', 'Helvetica', 10, max_left_width)
+            term_full = report_card.term.name if report_card.term else 'N/A'
+            if p.stringWidth(term_full, 'Helvetica', 10) > max_left_width:
+                term_text = truncate_text_rc(term_full, 'Helvetica', 10, max_left_width)
+            else:
+                term_text = term_full
             p.drawString(value_x, y, term_text)
             
             # Use generated_at safely
@@ -1056,11 +1077,14 @@ class ReportCardPDFView(APIView):
             p.drawString(value_x2, y, issued_str)
             
             if upper_val:
-                y -= 18  # Increased line spacing
+                y -= 20  # Increased line spacing
                 p.setFont('Helvetica-Bold', 11)
                 p.drawString(label_x, y, 'Student ID:')
                 p.setFont('Helvetica', 11)
-                id_text = truncate_text_rc(upper_val, 'Helvetica', 11, max_left_width)
+                if p.stringWidth(upper_val, 'Helvetica', 11) > max_left_width:
+                    id_text = truncate_text_rc(upper_val, 'Helvetica', 11, max_left_width)
+                else:
+                    id_text = upper_val
                 p.drawString(value_x, y, id_text)
             
             y -= 20
@@ -1323,42 +1347,49 @@ class ReportCardPDFView(APIView):
             
             # IMPROVED: Better spacing and alignment to prevent text overlapping
             # Use two-column layout with proper spacing and safe margins
+            # Put each item on its own line to prevent overlapping
             left_margin = 30 * mm
-            column_width = (width - 60 * mm) / 2  # Two columns with margins
-            left_label_x = left_margin
-            left_value_x = left_margin + 65 * mm  # Fixed spacing
-            right_label_x = left_margin + column_width + 10 * mm
-            right_value_x = right_label_x + 65 * mm  # Fixed spacing
+            label_x = left_margin
+            value_x = left_margin + 80 * mm  # Increased spacing for values
+            mid_point = width / 2
+            right_label_x = mid_point + 10 * mm  # Start right column after center with gap
+            right_value_x = right_label_x + 80 * mm  # Increased spacing for right values
+            
+            # Ensure right column doesn't exceed page width
+            max_right = width - 25 * mm
+            if right_value_x > max_right - 10 * mm:
+                right_value_x = max_right - 10 * mm
+                right_label_x = right_value_x - 80 * mm
             
             # Calculate row positions with proper vertical spacing
-            row_height = 20  # Increased spacing between rows
+            row_height = 22  # Increased spacing between rows
             current_y = y
             
             for i, (label, value) in enumerate(summary_items):
                 if i % 2 == 0:
-                    # Left column (even indices)
-                    label_x = left_label_x
-                    value_x = left_value_x
+                    # Left column (even indices) - put on its own line
+                    label_x_pos = label_x
+                    value_x_pos = value_x
                     row_y = current_y
+                    # Calculate max width to prevent overlap with right column
+                    max_value_width = right_label_x - value_x_pos - 15 * mm
                 else:
-                    # Right column (odd indices)
-                    label_x = right_label_x
-                    value_x = right_value_x
+                    # Right column (odd indices) - put on same line if space allows
+                    label_x_pos = right_label_x
+                    value_x_pos = right_value_x
                     row_y = current_y
+                    # Calculate max width to prevent exceeding page
+                    max_value_width = max_right - value_x_pos - 5 * mm
                 
                 # Draw label and value on same line
                 p.setFont('Helvetica-Bold', 10)
                 label_text = label + ':'
-                # Ensure label doesn't exceed column boundary
-                max_label_width = value_x - label_x - 5 * mm
-                label_text = truncate_text_rc(label_text, 'Helvetica-Bold', 10, max_label_width)
-                p.drawString(label_x, row_y, label_text)
+                p.drawString(label_x_pos, row_y, label_text)
                 
-                # Draw value - ensure it doesn't exceed right margin
+                # Draw value - ensure it doesn't overlap with next column
                 p.setFont('Helvetica', 11)
-                max_value_width = width - value_x - 25 * mm
                 value_text = truncate_text_rc(value, 'Helvetica', 11, max_value_width)
-                p.drawString(value_x, row_y, value_text)
+                p.drawString(value_x_pos, row_y, value_text)
                 
                 # Move to next row if we've filled both columns or this is the last item
                 if i % 2 == 1 or i == len(summary_items) - 1:
@@ -1383,42 +1414,67 @@ class ReportCardPDFView(APIView):
             p.drawCentredString(width / 2, y - 7, 'ATTENDANCE & CONDUCT')
             y -= 18
             
-            # IMPROVED: Better spacing to prevent overlapping - use fixed column layout
+            # IMPROVED: Better spacing to prevent overlapping - use fixed column layout with center-based positioning
             left_margin = 25 * mm
-            column_width = (width - 50 * mm) / 2  # Two columns with margins
+            right_margin = 25 * mm
+            mid_point = width / 2
             left_label_x = left_margin
-            left_value_x = left_margin + 70 * mm
-            right_label_x = left_margin + column_width + 10 * mm
-            right_value_x = right_label_x + 70 * mm
+            left_value_x = left_margin + 85 * mm  # Increased spacing from 70 to 85
+            right_label_x = mid_point + 10 * mm  # Start right column after center with gap
+            right_value_x = right_label_x + 75 * mm  # Increased spacing
+            
+            # Ensure right column doesn't exceed page width
+            max_right = width - right_margin
+            if right_value_x > max_right - 10 * mm:
+                right_value_x = max_right - 10 * mm
+                right_label_x = right_value_x - 75 * mm
+            
+            # Calculate max widths to prevent overlap
+            max_left_width = right_label_x - left_value_x - 15 * mm
+            max_right_width = max_right - right_value_x - 5 * mm
             
             # First row: Days Present and Days Absent
             p.setFont('Helvetica-Bold', 10)
             p.drawString(left_label_x, y, 'Days Present:')
             p.setFont('Helvetica', 10)
-            present_val = truncate_text_rc(str(report_card.days_present), 'Helvetica', 10, column_width - 70 * mm)
+            present_str = str(report_card.days_present)
+            if p.stringWidth(present_str, 'Helvetica', 10) > max_left_width:
+                present_val = truncate_text_rc(present_str, 'Helvetica', 10, max_left_width)
+            else:
+                present_val = present_str
             p.drawString(left_value_x, y, present_val)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(right_label_x, y, 'Days Absent:')
             p.setFont('Helvetica', 10)
-            absent_val = truncate_text_rc(str(report_card.days_absent), 'Helvetica', 10, column_width - 70 * mm)
+            absent_str = str(report_card.days_absent)
+            if p.stringWidth(absent_str, 'Helvetica', 10) > max_right_width:
+                absent_val = truncate_text_rc(absent_str, 'Helvetica', 10, max_right_width)
+            else:
+                absent_val = absent_str
             p.drawString(right_value_x, y, absent_val)
-            y -= 16  # Increased line spacing
+            y -= 20  # Increased line spacing from 16 to 20
             
             # Second row: Attendance Percentage and Conduct Grade
             p.setFont('Helvetica-Bold', 10)
-            label_text = truncate_text_rc('Attendance %:', 'Helvetica-Bold', 10, left_value_x - left_label_x - 5 * mm)
-            p.drawString(left_label_x, y, label_text)
+            p.drawString(left_label_x, y, 'Attendance %:')
             p.setFont('Helvetica', 10)
-            att_percent = truncate_text_rc(f"{float(report_card.attendance_percentage):.2f}%", 'Helvetica', 10, column_width - 70 * mm)
+            att_percent_str = f"{float(report_card.attendance_percentage):.2f}%"
+            if p.stringWidth(att_percent_str, 'Helvetica', 10) > max_left_width:
+                att_percent = truncate_text_rc(att_percent_str, 'Helvetica', 10, max_left_width)
+            else:
+                att_percent = att_percent_str
             p.drawString(left_value_x, y, att_percent)
             
             if report_card.conduct_grade:
                 p.setFont('Helvetica-Bold', 10)
-                conduct_label = truncate_text_rc('Conduct Grade:', 'Helvetica-Bold', 10, right_value_x - right_label_x - 5 * mm)
-                p.drawString(right_label_x, y, conduct_label)
+                p.drawString(right_label_x, y, 'Conduct Grade:')
                 p.setFont('Helvetica', 10)
-                conduct_val = truncate_text_rc(str(report_card.conduct_grade), 'Helvetica', 10, column_width - 70 * mm)
+                conduct_str = str(report_card.conduct_grade)
+                if p.stringWidth(conduct_str, 'Helvetica', 10) > max_right_width:
+                    conduct_val = truncate_text_rc(conduct_str, 'Helvetica', 10, max_right_width)
+                else:
+                    conduct_val = conduct_str
                 p.drawString(right_value_x, y, conduct_val)
             y -= 25  # Increased spacing after section
 
