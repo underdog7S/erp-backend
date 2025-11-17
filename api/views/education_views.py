@@ -954,12 +954,13 @@ class ReportCardPDFView(APIView):
             y = height - 75
             p.line(20 * mm, y, width - 20 * mm, y)
             
-            y -= 20
+            y -= 25  # Increased spacing from 20 to 25mm
             p.setFillColor(colors.black)
 
             # Student information section - clean white background, no colors
             # Calculate height based on number of fields (7 fields max: name, roll, class, year, term, date, id)
-            y = height - 90
+            # Start position adjusted to ensure no overlap with header
+            y = height - 100  # Increased from 90 to 100mm to give more space from header
             # Outer border only - increased height for single-column layout with maximum spacing
             # 7 fields * 28mm spacing + header space = ~210mm
             section_height = 210  # Increased from 180 to accommodate 28mm line spacing
@@ -1083,7 +1084,7 @@ class ReportCardPDFView(APIView):
                 p.drawString(value_x, y, id_text)
                 y -= 28  # Increased spacing
             
-            y -= 5  # Extra spacing before table
+            y -= 10  # Increased spacing before table (from 5 to 10mm)
 
             # Classic styled marks table - with formal borders (FIXED COLUMNS TO PREVENT OVERFLOW)
             y -= 5
@@ -1294,7 +1295,8 @@ class ReportCardPDFView(APIView):
                 row_num += 1
 
             # Academic summary section - no background colors
-            y -= 8
+            # Ensure proper spacing after table - calculate based on table end position
+            y -= 20  # Increased spacing from 15 to 20mm before section to prevent overlap
             # Outer border only - increased height for single-column layout with maximum spacing
             # 4 items max * 28mm spacing + header space = ~130mm
             section_height = 130  # Increased from 120 to accommodate 28mm line spacing
@@ -1388,10 +1390,12 @@ class ReportCardPDFView(APIView):
                 current_y -= row_height
             
             p.setFillColor(colors.black)  # Switch back to black for rest
-            y = current_y - 5  # Add extra spacing after summary
+            # Move y to end of Academic Summary section (current_y is already at bottom of section)
+            y = current_y - 15  # Increased spacing after summary section (from 10 to 15mm)
 
             # Attendance and Conduct - clean white background, no colors
-            y -= 5
+            # Additional spacing before section to prevent overlap
+            y -= 10  # Extra spacing before section (total 25mm from previous section end)
             # Outer border only - increased height for single-column layout with maximum spacing
             # 4 fields max * 28mm spacing + header space = ~130mm
             section_height = 130  # Increased from 120 to accommodate 28mm line spacing
@@ -1473,7 +1477,7 @@ class ReportCardPDFView(APIView):
                 conduct_text = truncate_text_rc(conduct_str, 'Helvetica', 10, max_value_width)
                 p.drawString(value_x, y, conduct_text)
                 y -= 28  # Increased spacing
-            y -= 5  # Extra spacing after section
+            y -= 15  # Increased spacing after section (from 5 to 15mm)
 
             # Remarks section - clean white background
             if report_card.teacher_remarks or report_card.principal_remarks:
@@ -4911,12 +4915,32 @@ class TransferCertificatePDFView(APIView):
             
             y = height - 110
             
-            # TC Number and Date
+            # TC Number and Date - separate lines to prevent overlapping
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y, f'TC Number: {tc.tc_number}')
+            tc_number_text = f'TC Number: {tc.tc_number}'
+            # Ensure TC number doesn't exceed page width
+            max_tc_width = width - 50 * mm
+            if p.stringWidth(tc_number_text, 'Helvetica-Bold', 12) > max_tc_width:
+                # Truncate if too long
+                tc_num_str = str(tc.tc_number)
+                low, high = 0, len(tc_num_str)
+                while low < high:
+                    mid = (low + high + 1) // 2
+                    test_text = f'TC Number: {tc_num_str[:mid]}...'
+                    if p.stringWidth(test_text, 'Helvetica-Bold', 12) <= max_tc_width:
+                        low = mid
+                    else:
+                        high = mid - 1
+                tc_number_text = f'TC Number: {tc_num_str[:low]}...' if low < len(tc_num_str) else f'TC Number: {tc_num_str[:low]}'
+            p.drawString(25 * mm, y, tc_number_text)
+            y -= 22  # Line spacing
+            
+            # Date on separate line
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y, 'Date:')
             p.setFont('Helvetica', 12)
             issue_date_str = tc.issue_date.strftime('%d/%m/%Y') if tc.issue_date else 'N/A'
-            p.drawRightString(width - 25 * mm, y, f'Date: {issue_date_str}')
+            p.drawString(25 * mm + 50 * mm, y, issue_date_str)
             y -= 25
             
             # Border box for TC content
@@ -5115,36 +5139,71 @@ class TransferCertificatePDFView(APIView):
                     p.drawString(25 * mm, y, line)
                     y -= 11
             
-            # Authority signatures section (bottom)
-            p.showPage()
-            y = height - 60
+            # Authority signatures section (bottom) - keep on first page
+            # Check if we have enough space, if not, reduce spacing in previous sections
+            min_signature_space = 100 * mm  # Space needed for signatures and footer
+            if y < content_height + min_signature_space:
+                # Not enough space, adjust y to fit
+                y = max(content_height + 50 * mm, y)  # Ensure minimum space
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(25 * mm, y, 'AUTHORITY SIGNATURES')
-            y -= 25
+            y -= 22  # Reduced spacing
             
-            # Issued by
+            # Issued by - compact layout
             if tc.issued_by:
                 issuer_name = tc.issued_by.user.get_full_name() or tc.issued_by.user.username if tc.issued_by.user else 'N/A'
                 p.setFont('Helvetica', 10)
-                p.drawString(25 * mm, y, f'Issued By: {issuer_name}')
-                y -= 20
+                issuer_text = f'Issued By: {issuer_name}'
+                # Truncate if too long
+                max_issuer_width = width - 50 * mm
+                if p.stringWidth(issuer_text, 'Helvetica', 10) > max_issuer_width:
+                    issuer_name_str = str(issuer_name)
+                    low, high = 0, len(issuer_name_str)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_text = f'Issued By: {issuer_name_str[:mid]}...'
+                        if p.stringWidth(test_text, 'Helvetica', 10) <= max_issuer_width:
+                            low = mid
+                        else:
+                            high = mid - 1
+                    issuer_text = f'Issued By: {issuer_name_str[:low]}...' if low < len(issuer_name_str) else f'Issued By: {issuer_name_str[:low]}'
+                p.drawString(25 * mm, y, issuer_text)
+                y -= 18  # Reduced spacing
                 p.drawString(25 * mm, y, 'Signature: ___________________')
-                y -= 25
+                y -= 20  # Reduced spacing
             
-            # Approved by
+            # Approved by - compact layout
             if tc.approved_by:
                 approver_name = tc.approved_by.user.get_full_name() or tc.approved_by.user.username if tc.approved_by.user else 'N/A'
                 p.setFont('Helvetica', 10)
-                p.drawString(25 * mm, y, f'Approved By: {approver_name}')
-                y -= 20
+                approver_text = f'Approved By: {approver_name}'
+                # Truncate if too long
+                max_approver_width = width - 50 * mm
+                if p.stringWidth(approver_text, 'Helvetica', 10) > max_approver_width:
+                    approver_name_str = str(approver_name)
+                    low, high = 0, len(approver_name_str)
+                    while low < high:
+                        mid = (low + high + 1) // 2
+                        test_text = f'Approved By: {approver_name_str[:mid]}...'
+                        if p.stringWidth(test_text, 'Helvetica', 10) <= max_approver_width:
+                            low = mid
+                        else:
+                            high = mid - 1
+                    approver_text = f'Approved By: {approver_name_str[:low]}...' if low < len(approver_name_str) else f'Approved By: {approver_name_str[:low]}'
+                p.drawString(25 * mm, y, approver_text)
+                y -= 18  # Reduced spacing
                 p.drawString(25 * mm, y, 'Signature: ___________________')
             
-            # Footer
+            # Footer - ensure it fits on first page
+            y -= 10  # Space before footer
             p.setFont('Helvetica', 8)
             p.setFillColor(colors.black)
             footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
-            p.drawCentredString(width / 2, 20 * mm, footer_text)
+            # Ensure footer doesn't go below page
+            if y < 30 * mm:
+                y = 30 * mm
+            p.drawCentredString(width / 2, y, footer_text)
             
             p.save()
             buffer.seek(0)
