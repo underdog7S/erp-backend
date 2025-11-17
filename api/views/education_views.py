@@ -142,7 +142,15 @@ class StudentListCreateView(APIView):
 
     @role_required('admin', 'principal', 'teacher', 'staff', 'accountant')
     def post(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in StudentListCreateView.post: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
         serializer = StudentSerializer(data=data, context={'tenant': profile.tenant})
@@ -1262,12 +1270,30 @@ class ReportCardPDFView(APIView):
             summary_start_x = 25 * mm
             summary_end_x = width - 25 * mm
             
+            # Helper function to truncate text to fit width
+            def truncate_text_rc(text, font_name, font_size, max_width):
+                text_str = str(text)
+                if p.stringWidth(text_str, font_name, font_size) <= max_width:
+                    return text_str
+                # Binary search for optimal truncation
+                low, high = 0, len(text_str)
+                while low < high:
+                    mid = (low + high + 1) // 2
+                    test_text = text_str[:mid] + '...'
+                    if p.stringWidth(test_text, font_name, font_size) <= max_width:
+                        low = mid
+                    else:
+                        high = mid - 1
+                return text_str[:low] + '...' if low < len(text_str) else text_str[:low]
+            
             # IMPROVED: Better spacing and alignment to prevent text overlapping
-            # Use two-column layout with proper spacing
-            left_label_x = 30 * mm
-            left_value_x = 95 * mm
-            right_label_x = 130 * mm
-            right_value_x = 170 * mm
+            # Use two-column layout with proper spacing and safe margins
+            left_margin = 30 * mm
+            column_width = (width - 60 * mm) / 2  # Two columns with margins
+            left_label_x = left_margin
+            left_value_x = left_margin + 65 * mm  # Fixed spacing
+            right_label_x = left_margin + column_width + 10 * mm
+            right_value_x = right_label_x + 65 * mm  # Fixed spacing
             
             # Calculate row positions with proper vertical spacing
             row_height = 20  # Increased spacing between rows
@@ -1290,17 +1316,14 @@ class ReportCardPDFView(APIView):
                 label_text = label + ':'
                 # Ensure label doesn't exceed column boundary
                 max_label_width = value_x - label_x - 5 * mm
-                if p.stringWidth(label_text, 'Helvetica-Bold', 10) > max_label_width:
-                    label_text = label_text[:15] + '...'
+                label_text = truncate_text_rc(label_text, 'Helvetica-Bold', 10, max_label_width)
                 p.drawString(label_x, row_y, label_text)
                 
                 # Draw value - ensure it doesn't exceed right margin
                 p.setFont('Helvetica', 11)
-                value_width = p.stringWidth(value, 'Helvetica', 11)
-                max_value_x = width - 25 * mm
-                if value_x + value_width > max_value_x:
-                    value_x = max_value_x - value_width
-                p.drawString(value_x, row_y, value)
+                max_value_width = width - value_x - 25 * mm
+                value_text = truncate_text_rc(value, 'Helvetica', 11, max_value_width)
+                p.drawString(value_x, row_y, value_text)
                 
                 # Move to next row if we've filled both columns or this is the last item
                 if i % 2 == 1 or i == len(summary_items) - 1:
@@ -1325,33 +1348,43 @@ class ReportCardPDFView(APIView):
             p.drawCentredString(width / 2, y - 7, 'ATTENDANCE & CONDUCT')
             y -= 18
             
-            # IMPROVED: Better spacing to prevent overlapping
+            # IMPROVED: Better spacing to prevent overlapping - use fixed column layout
+            left_margin = 25 * mm
+            column_width = (width - 50 * mm) / 2  # Two columns with margins
+            left_label_x = left_margin
+            left_value_x = left_margin + 70 * mm
+            right_label_x = left_margin + column_width + 10 * mm
+            right_value_x = right_label_x + 70 * mm
+            
             # First row: Days Present and Days Absent
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Days Present:')
+            p.drawString(left_label_x, y, 'Days Present:')
             p.setFont('Helvetica', 10)
-            present_val = str(report_card.days_present)
-            p.drawString(90 * mm, y, present_val)  # Increased spacing
+            present_val = truncate_text_rc(str(report_card.days_present), 'Helvetica', 10, column_width - 70 * mm)
+            p.drawString(left_value_x, y, present_val)
             
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(120 * mm, y, 'Days Absent:')  # Increased spacing from previous
+            p.drawString(right_label_x, y, 'Days Absent:')
             p.setFont('Helvetica', 10)
-            absent_val = str(report_card.days_absent)
-            p.drawString(170 * mm, y, absent_val)  # Increased spacing
+            absent_val = truncate_text_rc(str(report_card.days_absent), 'Helvetica', 10, column_width - 70 * mm)
+            p.drawString(right_value_x, y, absent_val)
             y -= 16  # Increased line spacing
             
             # Second row: Attendance Percentage and Conduct Grade
             p.setFont('Helvetica-Bold', 10)
-            p.drawString(25 * mm, y, 'Attendance Percentage:')
+            label_text = truncate_text_rc('Attendance %:', 'Helvetica-Bold', 10, left_value_x - left_label_x - 5 * mm)
+            p.drawString(left_label_x, y, label_text)
             p.setFont('Helvetica', 10)
-            att_percent = f"{float(report_card.attendance_percentage):.2f}%"
-            p.drawString(100 * mm, y, att_percent)  # Increased spacing
+            att_percent = truncate_text_rc(f"{float(report_card.attendance_percentage):.2f}%", 'Helvetica', 10, column_width - 70 * mm)
+            p.drawString(left_value_x, y, att_percent)
             
             if report_card.conduct_grade:
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(150 * mm, y, 'Conduct Grade:')  # Increased spacing
+                conduct_label = truncate_text_rc('Conduct Grade:', 'Helvetica-Bold', 10, right_value_x - right_label_x - 5 * mm)
+                p.drawString(right_label_x, y, conduct_label)
                 p.setFont('Helvetica', 10)
-                p.drawString(175 * mm, y, report_card.conduct_grade)
+                conduct_val = truncate_text_rc(str(report_card.conduct_grade), 'Helvetica', 10, column_width - 70 * mm)
+                p.drawString(right_value_x, y, conduct_val)
             y -= 25  # Increased spacing after section
 
             # Remarks section - clean white background
@@ -1699,27 +1732,18 @@ class StaffAttendanceListCreateView(APIView):
     def post(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-            print(f"DEBUG: User profile found: {profile.id} - {profile.user.username}")
             logger.info(f"User profile found: {profile.id} - {profile.user.username}")
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            print(f"DEBUG: Error getting user profile: {e}")
             logger.error(f"Error getting user profile: {e}")
             return Response({'error': 'User profile not found.'}, status=status.HTTP_400_BAD_REQUEST)
         
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
         
-        # Debug: Log incoming data
-        print(f"DEBUG: Incoming data: {data}")
         logger.info(f"Incoming data: {data}")
-        
-        # No need to convert staff_id - serializer handles it directly
-        print(f"DEBUG: Using staff_id directly from request data")
-        logger.info(f"Using staff_id directly from request data")
-        
-        # Debug: Log processed data
-        print(f"DEBUG: Processed data: {data}")
-        logger.info(f"Processed data: {data}")
         
         # Only admin can create for others, staff can only create for self
         if profile.role and profile.role.name == 'admin':
@@ -1728,45 +1752,34 @@ class StaffAttendanceListCreateView(APIView):
         else:
             data['staff_id'] = profile.id
         
-        # Debug: Log final data before serialization
-        print(f"DEBUG: Final data before serialization: {data}")
-        logger.info(f"Final data before serialization: {data}")
-        
         # Check if the staff user exists
         staff_id_to_check = data.get('staff_id')
         if staff_id_to_check:
             try:
                 staff_user = UserProfile._default_manager.get(id=staff_id_to_check)
-                print(f"DEBUG: Staff user found: {staff_user.id} - {staff_user.user.username} - Tenant: {staff_user.tenant.id}")
                 logger.info(f"Staff user found: {staff_user.id} - {staff_user.user.username} - Tenant: {staff_user.tenant.id}")
             except UserProfile._default_manager.model.DoesNotExist:
-                print(f"DEBUG: Staff user with ID {staff_id_to_check} does not exist!")
                 logger.error(f"Staff user with ID {staff_id_to_check} does not exist!")
                 return Response({'error': f'Staff user with ID {staff_id_to_check} does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Double-check that staff field is not present (we use staff_id)
         if 'staff' in data:
-            print(f"DEBUG: staff field found in data, removing: {data}")
             logger.warning(f"staff field found in data, removing: {data}")
             data.pop('staff', None)
         
         try:
             serializer = StaffAttendanceSerializer(data=data, context={'request': request})
-            print(f"DEBUG: Serializer created with data: {data}")
             logger.info(f"Serializer created with data: {data}")
             
             if serializer.is_valid():
-                print("DEBUG: Serializer is valid, saving...")
                 logger.info("Serializer is valid, saving...")
                 serializer.save(tenant=profile.tenant)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
-                print(f"DEBUG: Serializer errors: {serializer.errors}")
                 logger.error(f"Serializer errors: {serializer.errors}")
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print(f"DEBUG: Exception in serializer: {e}")
-            logger.error(f"Exception in serializer: {e}")
+            logger.error(f"Exception in serializer: {e}", exc_info=True)
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class StaffAttendanceDetailView(APIView):
@@ -2269,33 +2282,44 @@ class FeePaymentReceiptPDFView(APIView):
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
             # IMPROVED: Better alignment with proper spacing to prevent overlapping
-            label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 100 * mm          # Increased spacing for values
-            label_x2 = 140 * mm         # Increased spacing for right column
-            value_x2 = 175 * mm         # Increased spacing for right column values (reduced to prevent overflow)
+            # Use fixed column widths with safe margins
+            left_margin = 25 * mm
+            right_margin = 25 * mm
+            available_width = width - left_margin - right_margin
+            column_width = available_width / 2 - 5 * mm  # Two columns with gap
+            
+            # Helper function to truncate text to fit width
+            def truncate_text(text, font_name, font_size, max_width):
+                text_str = str(text)
+                if p.stringWidth(text_str, font_name, font_size) <= max_width:
+                    return text_str
+                # Binary search for optimal truncation
+                low, high = 0, len(text_str)
+                while low < high:
+                    mid = (low + high + 1) // 2
+                    test_text = text_str[:mid] + '...'
+                    if p.stringWidth(test_text, font_name, font_size) <= max_width:
+                        low = mid
+                    else:
+                        high = mid - 1
+                return text_str[:low] + '...' if low < len(text_str) else text_str[:low]
             
             # First row: Student Name and Roll Number
+            label_x = left_margin
+            value_x = left_margin + 70 * mm  # Fixed position for values
+            label_x2 = left_margin + available_width / 2 + 5 * mm  # Start of right column
+            value_x2 = label_x2 + 70 * mm  # Fixed position for right column values
+            
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Student Name:')
             p.setFont('Helvetica', 10)
-            # Truncate if too long to prevent overflow
-            name_text = student_name.upper()
-            max_name_width = label_x2 - value_x - 10 * mm  # Available space between columns
-            if p.stringWidth(name_text, 'Helvetica', 10) > max_name_width:
-                # Truncate name to fit
-                while p.stringWidth(name_text, 'Helvetica', 10) > max_name_width and len(name_text) > 1:
-                    name_text = name_text[:-1]
-                name_text = name_text.rstrip() + '...'
+            name_text = truncate_text(student_name.upper(), 'Helvetica', 10, column_width - 70 * mm)
             p.drawString(value_x, y, name_text)
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Roll Number:')
             p.setFont('Helvetica', 10)
-            roll_text = str(roll_number)
-            # Ensure roll number doesn't exceed page width
-            max_roll_x = width - 25 * mm
-            if value_x2 + p.stringWidth(roll_text, 'Helvetica', 10) > max_roll_x:
-                value_x2 = max_roll_x - p.stringWidth(roll_text, 'Helvetica', 10)
+            roll_text = truncate_text(str(roll_number), 'Helvetica', 10, column_width - 70 * mm)
             p.drawString(value_x2, y, roll_text)
             y -= 20  # Increased line spacing
             
@@ -2303,28 +2327,25 @@ class FeePaymentReceiptPDFView(APIView):
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Class:')
             p.setFont('Helvetica', 10)
-            class_text = class_name
-            # Ensure class name doesn't exceed column boundary
-            if p.stringWidth(class_text, 'Helvetica', 10) > max_name_width:
-                while p.stringWidth(class_text, 'Helvetica', 10) > max_name_width and len(class_text) > 1:
-                    class_text = class_text[:-1]
-                class_text = class_text.rstrip() + '...'
+            class_text = truncate_text(class_name, 'Helvetica', 10, column_width - 70 * mm)
             p.drawString(value_x, y, class_text)
             
             fee_type = payment.fee_structure.fee_type if payment.fee_structure else 'N/A'
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Fee Type:')
             p.setFont('Helvetica', 10)
-            fee_type_text = fee_type
-            # Ensure fee type doesn't exceed page width
-            if value_x2 + p.stringWidth(fee_type_text, 'Helvetica', 10) > max_roll_x:
-                value_x2_fee = max_roll_x - p.stringWidth(fee_type_text, 'Helvetica', 10)
-            else:
-                value_x2_fee = value_x2
-            p.drawString(value_x2_fee, y, fee_type_text)
+            fee_type_text = truncate_text(fee_type, 'Helvetica', 10, column_width - 70 * mm)
+            p.drawString(value_x2, y, fee_type_text)
             y -= 25  # Increased spacing after section
 
             # Payment details section - IMPROVED SPACING AND LAYOUT
+            # Calculate payment values first before using them
+            payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
+            amount_paid = float(payment.amount_paid)
+            total_fee = float(payment.fee_structure.amount) if payment.fee_structure else amount_paid
+            remaining = max(0, total_fee - amount_paid)
+            discount = float(payment.discount_amount) if payment.discount_amount else 0
+            
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
             # Calculate dynamic height based on content
@@ -2335,22 +2356,17 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(25 * mm, y - 10, 'PAYMENT INFORMATION')  # Adjusted position
             y -= 20  # Increased spacing after header
             
-            payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
-            amount_paid = float(payment.amount_paid)
-            total_fee = float(payment.fee_structure.amount) if payment.fee_structure else amount_paid
-            remaining = max(0, total_fee - amount_paid)
-            discount = float(payment.discount_amount) if payment.discount_amount else 0
-            
-            # IMPROVED: Better alignment with proper spacing
+            # IMPROVED: Better alignment with proper spacing - prevent overlapping
             label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 105 * mm         # Increased spacing for text values
+            value_x = 105 * mm         # Fixed position for text values
             currency_x = width - 30 * mm  # Fixed right-aligned position for all currency with margin
             
             # Payment Method - on its own line
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Payment Method:')
             p.setFont('Helvetica', 10)
-            p.drawString(value_x, y, payment_method.upper())
+            method_text = truncate_text(payment_method.upper(), 'Helvetica', 10, currency_x - value_x - 5 * mm)
+            p.drawString(value_x, y, method_text)
             y -= 18  # Increased line spacing
             
             # Amount Paid - on its own line
@@ -2360,9 +2376,11 @@ class FeePaymentReceiptPDFView(APIView):
             p.setFillColor(colors.black)
             amount_text = f"₹{amount_paid:,.2f}"
             amount_width = p.stringWidth(amount_text, 'Helvetica-Bold', 11)
-            if amount_width > (width - currency_x):
+            # Ensure it fits within bounds
+            if amount_width > (currency_x - label_x):
                 p.setFont('Helvetica-Bold', 10)
                 amount_text = f"₹{amount_paid:,.2f}"
+                amount_width = p.stringWidth(amount_text, 'Helvetica-Bold', 10)
             p.drawRightString(currency_x, y, amount_text)
             y -= 18  # Increased line spacing
             
@@ -2372,6 +2390,10 @@ class FeePaymentReceiptPDFView(APIView):
                 p.drawString(label_x, y, 'Discount:')
                 p.setFont('Helvetica', 10)
                 discount_text = f"₹{discount:,.2f}"
+                discount_width = p.stringWidth(discount_text, 'Helvetica', 10)
+                if discount_width > (currency_x - label_x):
+                    p.setFont('Helvetica', 9)
+                    discount_text = f"₹{discount:,.2f}"
                 p.drawRightString(currency_x, y, discount_text)
                 y -= 18  # Increased line spacing
             
@@ -2382,7 +2404,7 @@ class FeePaymentReceiptPDFView(APIView):
                 p.setFont('Helvetica', 10)
                 total_text = f"₹{total_fee:,.2f}"
                 total_width = p.stringWidth(total_text, 'Helvetica', 10)
-                if total_width > (width - currency_x):
+                if total_width > (currency_x - label_x):
                     p.setFont('Helvetica', 9)
                     total_text = f"₹{total_fee:,.2f}"
                 p.drawRightString(currency_x, y, total_text)
@@ -2396,7 +2418,7 @@ class FeePaymentReceiptPDFView(APIView):
                 p.setFillColor(colors.black)
                 remaining_text = f"₹{remaining:,.2f}"
                 remaining_width = p.stringWidth(remaining_text, 'Helvetica', 10)
-                if remaining_width > (width - currency_x):
+                if remaining_width > (currency_x - label_x):
                     p.setFont('Helvetica', 9)
                     remaining_text = f"₹{remaining:,.2f}"
                 p.drawRightString(currency_x, y, remaining_text)

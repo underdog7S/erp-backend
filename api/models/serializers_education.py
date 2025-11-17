@@ -110,11 +110,12 @@ class AttendanceSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
     remarks = serializers.SerializerMethodField()
+    student_id = serializers.IntegerField(write_only=True, required=False)
     
     class Meta:
         model = Attendance
         fields = [
-            'id', 'student', 'student_name', 'student_roll_number', 'class_name',
+            'id', 'student', 'student_id', 'student_name', 'student_roll_number', 'class_name',
             'date', 'present', 'status', 'status_display', 'remarks'
         ]
         read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'status', 'status_display', 'remarks']
@@ -129,9 +130,26 @@ class AttendanceSerializer(serializers.ModelSerializer):
         return ''
     
     def validate(self, attrs):
+        # Handle student_id from frontend - convert to student
+        if 'student_id' in attrs and 'student' not in attrs:
+            attrs['student'] = attrs.pop('student_id')
+        elif 'student_id' in attrs and 'student' in attrs:
+            # If both are provided, use student_id
+            attrs['student'] = attrs.pop('student_id')
+        
+        # Handle status field from frontend
         status_value = self.initial_data.get('status')
         if status_value is not None and 'present' not in attrs:
             attrs['present'] = str(status_value).lower() in ['present', 'true', '1', 'yes']
+        
+        # Ensure date is provided
+        if 'date' not in attrs:
+            raise serializers.ValidationError({'date': 'Date is required.'})
+        
+        # Ensure student is provided
+        if 'student' not in attrs:
+            raise serializers.ValidationError({'student': 'Student is required.'})
+        
         return super().validate(attrs)
 
 class ReportCardSerializer(serializers.ModelSerializer):
