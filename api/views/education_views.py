@@ -960,12 +960,14 @@ class ReportCardPDFView(APIView):
             # Student information section - clean white background, no colors
             # Calculate height based on number of fields (7 fields max: name, roll, class, year, term, date, id)
             # Start position adjusted to ensure no overlap with header
-            y = height - 100  # Increased from 90 to 100mm to give more space from header
+            student_info_start_y = height - 100  # Increased from 90 to 100mm to give more space from header
+            y = student_info_start_y  # Set y to section start
             # Outer border only - increased height for single-column layout with maximum spacing
             # 7 fields * 28mm spacing + header space = ~210mm
             section_height = 210  # Increased from 180 to accommodate 28mm line spacing
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
+            # Draw box from (y - section_height) to y
             p.rect(22 * mm, y - section_height, width - 44 * mm, section_height, stroke=1, fill=0)
             # Simple header line (no background color)
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -1084,10 +1086,18 @@ class ReportCardPDFView(APIView):
                 p.drawString(value_x, y, id_text)
                 y -= 28  # Increased spacing
             
-            y -= 10  # Increased spacing before table (from 5 to 10mm)
-
+            # Calculate end of Student Information section
+            # Section box bottom is at (student_info_start_y - section_height)
+            # Content ends at current y (which is below all fields)
+            # Use whichever is lower: box bottom or content end
+            student_info_box_bottom = student_info_start_y - section_height
+            student_info_content_end = y  # Current y after all fields
+            student_info_actual_end = min(student_info_box_bottom, student_info_content_end)
+            
+            # Start marks table with proper spacing below Student Information section
+            y = student_info_actual_end - 25  # 25mm spacing below Student Information section
+            
             # Classic styled marks table - with formal borders (FIXED COLUMNS TO PREVENT OVERFLOW)
-            y -= 5
             # Get marks entries first to calculate table height
             from education.models import MarksEntry
             marks_entries = MarksEntry._default_manager.filter(
@@ -1097,7 +1107,9 @@ class ReportCardPDFView(APIView):
             ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
             
             # Table outer border - calculate height based on entries
+            table_start_y = y  # Save table start position
             table_height = len(marks_entries) * 14 + 15
+            # Ensure table doesn't go too low on page
             if table_height > y - 80:
                 table_height = y - 80
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -1106,6 +1118,7 @@ class ReportCardPDFView(APIView):
             table_left = 22 * mm
             table_right = width - 22 * mm
             table_width = table_right - table_left
+            # Draw table from (y - table_height) to y
             p.rect(table_left, y - table_height, table_width, table_height, stroke=1, fill=0)
             
             # Table header - no background color
@@ -1295,13 +1308,23 @@ class ReportCardPDFView(APIView):
                 row_num += 1
 
             # Academic summary section - no background colors
-            # Ensure proper spacing after table - calculate based on table end position
-            y -= 20  # Increased spacing from 15 to 20mm before section to prevent overlap
+            # Calculate end of marks table
+            # Table box extends from (table_start_y - table_height) to table_start_y
+            # Content (rows) ends at current y (which is below last row)
+            marks_table_box_bottom = table_start_y - table_height
+            marks_table_content_end = y  # Current y after all rows
+            marks_table_actual_end = min(marks_table_box_bottom, marks_table_content_end)
+            
+            # Start Academic Summary with proper spacing below marks table
+            academic_summary_start = marks_table_actual_end - 25  # 25mm spacing below table
+            y = academic_summary_start  # Set y to start position for Academic Summary
+            
             # Outer border only - increased height for single-column layout with maximum spacing
             # 4 items max * 28mm spacing + header space = ~130mm
             section_height = 130  # Increased from 120 to accommodate 28mm line spacing
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
+            # Draw box from (y - section_height) to y
             p.rect(22 * mm, y - section_height, width - 44 * mm, section_height, stroke=1, fill=0)
             # Header line
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -1390,12 +1413,16 @@ class ReportCardPDFView(APIView):
                 current_y -= row_height
             
             p.setFillColor(colors.black)  # Switch back to black for rest
-            # Move y to end of Academic Summary section (current_y is already at bottom of section)
-            y = current_y - 15  # Increased spacing after summary section (from 10 to 15mm)
-
-            # Attendance and Conduct - clean white background, no colors
-            # Additional spacing before section to prevent overlap
-            y -= 10  # Extra spacing before section (total 25mm from previous section end)
+            # Calculate end of Academic Summary section
+            # Section box extends from (academic_summary_start - section_height) to academic_summary_start
+            # Content ends at current_y
+            academic_summary_box_bottom = academic_summary_start - section_height
+            academic_summary_content_end = current_y  # Bottom of content
+            academic_summary_actual_end = min(academic_summary_box_bottom, academic_summary_content_end)
+            
+            # Start Attendance section with proper spacing below Academic Summary
+            attendance_start = academic_summary_actual_end - 25  # 25mm spacing below Academic Summary
+            y = attendance_start  # Set y to start position for Attendance section
             # Outer border only - increased height for single-column layout with maximum spacing
             # 4 fields max * 28mm spacing + header space = ~130mm
             section_height = 130  # Increased from 120 to accommodate 28mm line spacing
@@ -4916,32 +4943,37 @@ class TransferCertificatePDFView(APIView):
             y = height - 110
             
             # TC Number and Date - separate lines to prevent overlapping
+            # Use single-column layout for TC Number
             p.setFont('Helvetica-Bold', 12)
-            tc_number_text = f'TC Number: {tc.tc_number}'
-            # Ensure TC number doesn't exceed page width
-            max_tc_width = width - 50 * mm
-            if p.stringWidth(tc_number_text, 'Helvetica-Bold', 12) > max_tc_width:
-                # Truncate if too long
-                tc_num_str = str(tc.tc_number)
+            label_text = 'TC Number:'
+            label_x = 25 * mm
+            value_x = 25 * mm + 80 * mm  # Spacing between label and value
+            max_value_width = width - value_x - 25 * mm
+            p.drawString(label_x, y, label_text)
+            p.setFont('Helvetica', 12)
+            tc_num_str = str(tc.tc_number)
+            # Truncate if too long - inline truncation
+            if p.stringWidth(tc_num_str, 'Helvetica', 12) > max_value_width:
+                # Binary search for optimal truncation
                 low, high = 0, len(tc_num_str)
                 while low < high:
                     mid = (low + high + 1) // 2
-                    test_text = f'TC Number: {tc_num_str[:mid]}...'
-                    if p.stringWidth(test_text, 'Helvetica-Bold', 12) <= max_tc_width:
+                    test_text = tc_num_str[:mid] + '...'
+                    if p.stringWidth(test_text, 'Helvetica', 12) <= max_value_width:
                         low = mid
                     else:
                         high = mid - 1
-                tc_number_text = f'TC Number: {tc_num_str[:low]}...' if low < len(tc_num_str) else f'TC Number: {tc_num_str[:low]}'
-            p.drawString(25 * mm, y, tc_number_text)
-            y -= 22  # Line spacing
+                tc_num_str = tc_num_str[:low] + '...' if low < len(tc_num_str) else tc_num_str[:low]
+            p.drawString(value_x, y, tc_num_str)
+            y -= 25  # Increased line spacing from 22 to 25mm
             
-            # Date on separate line
+            # Date on separate line - single-column layout
             p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y, 'Date:')
+            p.drawString(label_x, y, 'Date:')
             p.setFont('Helvetica', 12)
             issue_date_str = tc.issue_date.strftime('%d/%m/%Y') if tc.issue_date else 'N/A'
-            p.drawString(25 * mm + 50 * mm, y, issue_date_str)
-            y -= 25
+            p.drawString(value_x, y, issue_date_str)
+            y -= 25  # Spacing after date
             
             # Border box for TC content
             content_y_start = y
@@ -5119,27 +5151,51 @@ class TransferCertificatePDFView(APIView):
                 y -= 20
             
             if tc.conduct_remarks:
+                # Single-column layout - label and value on same line to prevent overlapping
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(25 * mm, y, 'Conduct Remarks:')
-                y -= 12
+                label_text = 'Conduct Remarks:'
+                label_x = 25 * mm
+                value_x = 25 * mm + 100 * mm  # Spacing between label and value
+                max_value_width = width - value_x - 25 * mm
+                p.drawString(label_x, y, label_text)
                 p.setFont('Helvetica', 10)
-                conduct_trunc = str(tc.conduct_remarks)[:90] if len(str(tc.conduct_remarks)) > 90 else str(tc.conduct_remarks)
-                p.drawString(25 * mm, y, conduct_trunc)
-                y -= 20
+                conduct_text = str(tc.conduct_remarks)
+                # Truncate if too long
+                if p.stringWidth(conduct_text, 'Helvetica', 10) > max_value_width:
+                    conduct_text = truncate_text_tc(conduct_text, 'Helvetica', 10, max_value_width)
+                p.drawString(value_x, y, conduct_text)
+                y -= 22  # Increased spacing from 20 to 22mm
             
             if tc.remarks:
+                # Single-column layout - label on first line, value below if multi-line
                 p.setFont('Helvetica-Bold', 10)
-                p.drawString(25 * mm, y, 'Additional Remarks:')
-                y -= 12
-                p.setFont('Helvetica', 9)
-                remarks_lines = [tc.remarks[i:i+85] for i in range(0, min(len(tc.remarks), 255), 85)]
-                for line in remarks_lines[:4]:
-                    if y < content_height + 15:
-                        break
-                    p.drawString(25 * mm, y, line)
-                    y -= 11
+                label_text = 'Additional Remarks:'
+                label_x = 25 * mm
+                value_x = 25 * mm + 100 * mm  # Spacing between label and value
+                max_value_width = width - value_x - 25 * mm
+                p.drawString(label_x, y, label_text)
+                y -= 18  # Spacing after label
+                p.setFont('Helvetica', 10)
+                # Wrap text properly
+                remarks_text = str(tc.remarks)
+                if p.stringWidth(remarks_text, 'Helvetica', 10) <= max_value_width:
+                    # Single line - put on same line as label would be
+                    p.drawString(value_x, y + 18, remarks_text)  # Same y as label was
+                    y -= 22
+                else:
+                    # Multi-line - wrap properly
+                    remarks_lines = [tc.remarks[i:i+85] for i in range(0, min(len(tc.remarks), 255), 85)]
+                    for line in remarks_lines[:4]:
+                        if y < content_height + 15:
+                            break
+                        line_text = truncate_text_tc(line, 'Helvetica', 10, max_value_width)
+                        p.drawString(25 * mm, y, line_text)  # Start from left margin for multi-line
+                        y -= 14  # Line spacing for wrapped text
             
             # Authority signatures section (bottom) - keep on first page
+            # Ensure proper spacing before this section to prevent overlapping
+            y -= 15  # Extra spacing before AUTHORITY SIGNATURES section
+            
             # Check if we have enough space, if not, reduce spacing in previous sections
             min_signature_space = 100 * mm  # Space needed for signatures and footer
             if y < content_height + min_signature_space:
@@ -5147,8 +5203,13 @@ class TransferCertificatePDFView(APIView):
                 y = max(content_height + 50 * mm, y)  # Ensure minimum space
             
             p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'AUTHORITY SIGNATURES')
-            y -= 22  # Reduced spacing
+            # Ensure header doesn't exceed page width
+            header_text = 'AUTHORITY SIGNATURES'
+            header_width = p.stringWidth(header_text, 'Helvetica-Bold', 11)
+            if 25 * mm + header_width > width - 25 * mm:
+                p.setFont('Helvetica-Bold', 10)
+            p.drawString(25 * mm, y, header_text)
+            y -= 22  # Spacing after header
             
             # Issued by - compact layout
             if tc.issued_by:
