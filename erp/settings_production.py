@@ -10,8 +10,12 @@ import dj_database_url
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 SECRET_KEY = os.getenv('SECRET_KEY', 'replace-this-with-a-secure-key')
 
-# Allowed hosts
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+# Allowed hosts - filter out empty strings
+allowed_hosts_env = os.getenv('ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+# If no allowed hosts set, default to api domain
+if not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ['api.zenitherp.online', 'zenitherp.online']
 
 # Database Configuration - Supports Supabase DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -56,8 +60,43 @@ SECURE_HSTS_PRELOAD = True
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # CORS - Must be configured for production
+# Override base settings to ensure production CORS is used
 CORS_ALLOW_ALL_ORIGINS = False  # Never allow all in production!
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+# Get CORS origins from environment variable, filter out empty strings
+cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+
+# If no CORS origins are set, log a warning (but don't break the app)
+if not CORS_ALLOWED_ORIGINS:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ CORS_ALLOWED_ORIGINS is not set! API requests from frontend will fail. Set CORS_ALLOWED_ORIGINS environment variable with comma-separated frontend URLs.")
+else:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"✅ CORS configured with {len(CORS_ALLOWED_ORIGINS)} allowed origin(s): {', '.join(CORS_ALLOWED_ORIGINS)}")
+
+# Additional CORS settings
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Static files with whitenoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
