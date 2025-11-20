@@ -20,7 +20,7 @@ from retail.models import (
 )
 from hotel.models import RoomType, Room, Guest, Booking
 from salon.models import ServiceCategory, Service, Stylist, Appointment
-from restaurant.models import MenuCategory, MenuItem, Table, Order, OrderItem
+from restaurant.models import MenuCategory, MenuItem, Table, Order, OrderItem, ExternalAPIIntegration, MenuSyncLog
 
 # Education Serializers
 class ClassSerializer(serializers.ModelSerializer):
@@ -728,6 +728,51 @@ class OrderSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Order
 		fields = '__all__'
+
+class ExternalAPIIntegrationSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = ExternalAPIIntegration
+		fields = '__all__'
+		read_only_fields = ('last_synced_at', 'created_at', 'updated_at')
+
+class MenuSyncLogSerializer(serializers.ModelSerializer):
+	integration_name = serializers.CharField(source='integration.name', read_only=True)
+	class Meta:
+		model = MenuSyncLog
+		fields = '__all__'
+
+# Public API Serializers (for customer ordering)
+class PublicMenuItemSerializer(serializers.ModelSerializer):
+	"""Public serializer for menu items (no sensitive data)"""
+	category_name = serializers.CharField(source='category.name', read_only=True)
+	class Meta:
+		model = MenuItem
+		fields = ['id', 'name', 'category', 'category_name', 'price', 'is_available']
+
+class PublicMenuCategorySerializer(serializers.ModelSerializer):
+	"""Public serializer for menu categories with items"""
+	items = serializers.SerializerMethodField()
+	class Meta:
+		model = MenuCategory
+		fields = ['id', 'name', 'description', 'items']
+	
+	def get_items(self, obj):
+		# Filter only available items
+		available_items = obj.items.filter(is_available=True)
+		return PublicMenuItemSerializer(available_items, many=True).data
+
+class PublicOrderCreateSerializer(serializers.Serializer):
+	"""Serializer for public order creation (cloud kitchen)"""
+	customer_name = serializers.CharField(max_length=150, required=True)
+	customer_phone = serializers.CharField(max_length=20, required=True)
+	customer_email = serializers.EmailField(required=False, allow_blank=True)
+	delivery_address = serializers.CharField(required=True)
+	order_type = serializers.ChoiceField(choices=['delivery', 'takeaway', 'cloud_kitchen'], default='cloud_kitchen')
+	items = serializers.ListField(
+		child=serializers.DictField(child=serializers.CharField()),
+		required=True
+	)
+	notes = serializers.CharField(required=False, allow_blank=True)
 
 # Salon Serializers
 class ServiceCategorySerializer(serializers.ModelSerializer):

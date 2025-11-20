@@ -1,78 +1,50 @@
-# Production requirements for Linux deployment
-# Excludes Windows-specific packages
+# Production requirements for Linux deployment (Render/Supabase)
+# Only includes packages actually used in the codebase
 
-python-dotenv
-setuptools<81
-asgiref==3.9.1
-attrs==25.3.0
-blinker==1.9.0
-certifi==2025.6.15
-charset-normalizer==3.4.2
-click==8.2.1
-colorama==0.4.6
-coloredlogs==15.0.1
-Deprecated==1.2.18
+# Core Django
 Django==5.2.4
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.5.1
-docx2pdf==0.1.8
-fire==0.7.0
-Flask==3.1.1
-flask-cors==6.0.1
-flatbuffers==25.2.10
-fonttools==4.58.4
-fpdf==1.7.2
-humanfriendly==10.0
-idna==3.10
-imageio==2.37.0
-img2pdf==0.6.1
-itsdangerous==2.2.0
-Jinja2==3.1.6
-jsonschema==4.24.0
-jsonschema-specifications==2025.4.1
-lazy_loader==0.4
-llvmlite==0.44.0
-lxml==6.0.0
-MarkupSafe==3.0.2
-mpmath==1.3.0
-networkx==3.5
-numba==0.61.2
-numpy==2.2.6
-onnxruntime==1.22.0
-opencv-python-headless==4.11.0.86
-packaging==25.0
-pdf2docx==0.5.8
-pdf2image==1.17.0
-pikepdf==9.9.0
-pillow==11.3.0
-platformdirs==4.3.8
-pooch==1.8.2
-protobuf==6.31.1
-PyMatting==1.1.14
-PyMuPDF==1.26.3
-PyPDF2==3.0.1
-pytesseract==0.3.13
-python-docx==1.2.0
-referencing==0.36.2
-rembg==2.0.67
-requests==2.32.4
-rpds-py==0.26.0
-scikit-image==0.25.2
-scipy==1.16.0
-sqlparse==0.5.3
-sympy==1.14.0
-termcolor==3.1.0
-tifffile==2025.6.11
-tqdm==4.67.1
-typing_extensions==4.14.0
-tzdata==2025.2
-urllib3==2.5.0
-Werkzeug==3.1.3
-wrapt==1.17.2
 django-cors-headers==4.8.0
 drf-yasg==1.21.10
-razorpay==1.4.2
+
+# Database
 psycopg2-binary==2.9.10
-supabase==2.18.1
+dj-database-url==2.1.0
+
+# Environment
+python-dotenv==1.1.1
+
+# Setuptools (fixes pkg_resources issue with razorpay)
+setuptools==75.6.0
+
+# Image processing (used in PDF generation)
+Pillow==11.3.0
+
+# PDF generation (actually used in codebase)
+reportlab==4.0.7
+
+# Payment gateway
+razorpay==1.4.2
+
+# HTTP requests
+requests==2.32.4
+
+# Production server
 gunicorn==21.2.0
 whitenoise==6.6.0
+
+# Core dependencies
+asgiref==3.9.1
+sqlparse==0.5.3
+pytz==2025.2
+
+# JWT
+PyJWT==2.10.1
+
+# YAML (for API docs)
+PyYAML==6.0.2
+
+# CORS
+urllib3==2.5.0
+certifi==2025.6.15

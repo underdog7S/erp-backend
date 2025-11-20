@@ -29,7 +29,7 @@ if not SECRET_KEY:
     # For development, use a default but warn
     if os.getenv('DEBUG', 'True').lower() == 'true':
         SECRET_KEY = 'DEV-SECRET-KEY-CHANGE-IN-PRODUCTION-' + os.getenv('USER', 'dev')
-        print("⚠️  WARNING: Using default SECRET_KEY. Set SECRET_KEY environment variable for production!")
+        print("WARNING: Using default SECRET_KEY. Set SECRET_KEY environment variable for production!")
     else:
         raise ValueError(
             "SECRET_KEY environment variable must be set! "

@@ -282,26 +282,28 @@ class PaymentReceiptPDFView(APIView):
                 company_y = height - 25
                 p.drawString(text_x, company_y, company_name.upper())
                 
-                # Company contact info below name
-                info_y = company_y - 16
+                # Company contact info below name - IMPROVED: Better spacing and wrapping
+                info_y = company_y - 18  # Increased spacing
                 p.setFont('Helvetica', 9)
                 if company_address:
-                    # Truncate address if too long
                     max_addr_width = width - text_x - 25 * mm
-                    if p.stringWidth(company_address, 'Helvetica', 9) > max_addr_width:
-                        addr_lines = [company_address[i:i+50] for i in range(0, min(len(company_address), 100), 50)]
-                        for line in addr_lines[:2]:  # Max 2 lines
-                            p.drawString(text_x, info_y, line)
-                            info_y -= 11
-                    else:
-                        p.drawString(text_x, info_y, company_address)
-                        info_y -= 11
+                    # Import helper function from education_views
+                    from api.views.education_views import draw_text_safe, draw_string_safe
+                    info_y = draw_text_safe(p, company_address, text_x, info_y, max_addr_width, 
+                                           'Helvetica', 9, 'left', max_lines=2, line_spacing=11)
+                    info_y -= 3
                 if company_phone:
-                    p.drawString(text_x, info_y, f"Phone: {company_phone}")
-                    info_y -= 11
+                    phone_text = f"Phone: {company_phone}"
+                    max_phone_width = width - text_x - 25 * mm
+                    from api.views.education_views import draw_string_safe
+                    draw_string_safe(p, phone_text, text_x, info_y, max_phone_width, 'Helvetica', 9, 'left')
+                    info_y -= 13  # Increased spacing
                 if company_email:
-                    p.drawString(text_x, info_y, f"Email: {company_email}")
-                    info_y -= 11
+                    email_text = f"Email: {company_email}"
+                    max_email_width = width - text_x - 25 * mm
+                    from api.views.education_views import draw_string_safe
+                    draw_string_safe(p, email_text, text_x, info_y, max_email_width, 'Helvetica', 9, 'left')
+                    info_y -= 13  # Increased spacing
                 
                 # Document title below contact info
                 info_y -= 5
@@ -356,51 +358,41 @@ class PaymentReceiptPDFView(APIView):
             label_x2 = 140 * mm  # Increased spacing
             value_x2 = 175 * mm  # Increased spacing (reduced to prevent overflow)
             
-            # First row: Receipt Number and Payment Date
+            # First row: Receipt Number and Payment Date - IMPROVED: Use safe drawing
+            from api.views.education_views import draw_string_safe
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x, y, 'Receipt Number:')
             p.setFont('Helvetica', 11)
             receipt_text = receipt_number
             # Ensure receipt number doesn't exceed column boundary
             max_receipt_width = label_x2 - value_x - 10 * mm
-            if p.stringWidth(receipt_text, 'Helvetica', 11) > max_receipt_width:
-                receipt_text = receipt_text[:15] + '...'
-            p.drawString(value_x, y, receipt_text)
+            draw_string_safe(p, receipt_text, value_x, y, max_receipt_width, 'Helvetica', 11, 'left')
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x2, y, 'Payment Date:')
             p.setFont('Helvetica', 11)
             date_text = payment_date
             # Ensure date doesn't exceed page width
-            max_date_x = width - 25 * mm
-            if value_x2 + p.stringWidth(date_text, 'Helvetica', 11) > max_date_x:
-                value_x2_date = max_date_x - p.stringWidth(date_text, 'Helvetica', 11)
-            else:
-                value_x2_date = value_x2
-            p.drawString(value_x2_date, y, date_text)
-            y -= 20  # Increased line spacing
+            max_date_width = width - 25 * mm - value_x2
+            draw_string_safe(p, date_text, value_x2, y, max_date_width, 'Helvetica', 11, 'left')
+            y -= 22  # Increased line spacing to prevent overlapping
             
-            # Second row: Order ID and Payment ID
+            # Second row: Order ID and Payment ID - IMPROVED: Use safe drawing
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x, y, 'Order ID:')
             p.setFont('Helvetica', 10)
             order_text = transaction.order_id
             # Ensure order ID doesn't exceed column boundary
-            if p.stringWidth(order_text, 'Helvetica', 10) > max_receipt_width:
-                order_text = order_text[:20] + '...'
-            p.drawString(value_x, y, order_text)
+            draw_string_safe(p, order_text, value_x, y, max_receipt_width, 'Helvetica', 10, 'left')
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(label_x2, y, 'Payment ID:')
             p.setFont('Helvetica', 10)
-            payment_id_text = transaction.payment_id[:20] + '...' if len(transaction.payment_id) > 20 else transaction.payment_id
+            payment_id_text = transaction.payment_id
             # Ensure payment ID doesn't exceed page width
-            if value_x2 + p.stringWidth(payment_id_text, 'Helvetica', 10) > max_date_x:
-                value_x2_payment = max_date_x - p.stringWidth(payment_id_text, 'Helvetica', 10)
-            else:
-                value_x2_payment = value_x2
-            p.drawString(value_x2_payment, y, payment_id_text)
-            y -= 25  # Increased spacing after section
+            max_payment_id_width = width - 25 * mm - value_x2
+            draw_string_safe(p, payment_id_text, value_x2, y, max_payment_id_width, 'Helvetica', 10, 'left')
+            y -= 26  # Increased spacing after section
 
             # Customer information section
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -422,42 +414,31 @@ class PaymentReceiptPDFView(APIView):
             value_x2 = 175 * mm  # Increased spacing (reduced to prevent overflow)
             max_right_x = width - 25 * mm
             
-            # First row: Customer Name and Email
+            # First row: Customer Name and Email - IMPROVED: Use safe drawing
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Customer Name:')
             p.setFont('Helvetica', 10)
             name_text = customer_name.upper()
             # Truncate if too long
             max_name_width = label_x2 - value_x - 10 * mm
-            if p.stringWidth(name_text, 'Helvetica', 10) > max_name_width:
-                while p.stringWidth(name_text, 'Helvetica', 10) > max_name_width and len(name_text) > 1:
-                    name_text = name_text[:-1]
-                name_text = name_text.rstrip() + '...'
-            p.drawString(value_x, y, name_text)
+            draw_string_safe(p, name_text, value_x, y, max_name_width, 'Helvetica', 10, 'left')
             
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x2, y, 'Email:')
             p.setFont('Helvetica', 10)
             email_text = customer_email
             # Ensure email doesn't exceed page width
-            if value_x2 + p.stringWidth(email_text, 'Helvetica', 10) > max_right_x:
-                value_x2_email = max_right_x - p.stringWidth(email_text, 'Helvetica', 10)
-            else:
-                value_x2_email = value_x2
-            p.drawString(value_x2_email, y, email_text)
-            y -= 18  # Increased line spacing
+            max_email_width = max_right_x - value_x2
+            draw_string_safe(p, email_text, value_x2, y, max_email_width, 'Helvetica', 10, 'left')
+            y -= 20  # Increased line spacing to prevent overlapping
             
-            # Second row: Organization and Plan
+            # Second row: Organization and Plan - IMPROVED: Use safe drawing
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Organization:')
             p.setFont('Helvetica', 10)
             org_text = tenant_name
             # Ensure organization name doesn't exceed column boundary
-            if p.stringWidth(org_text, 'Helvetica', 10) > max_name_width:
-                while p.stringWidth(org_text, 'Helvetica', 10) > max_name_width and len(org_text) > 1:
-                    org_text = org_text[:-1]
-                org_text = org_text.rstrip() + '...'
-            p.drawString(value_x, y, org_text)
+            draw_string_safe(p, org_text, value_x, y, max_name_width, 'Helvetica', 10, 'left')
             
             plan_name = transaction.plan.name if transaction.plan else 'N/A'
             p.setFont('Helvetica-Bold', 10)
@@ -465,12 +446,9 @@ class PaymentReceiptPDFView(APIView):
             p.setFont('Helvetica', 10)
             plan_text = plan_name
             # Ensure plan name doesn't exceed page width
-            if value_x2 + p.stringWidth(plan_text, 'Helvetica', 10) > max_right_x:
-                value_x2_plan = max_right_x - p.stringWidth(plan_text, 'Helvetica', 10)
-            else:
-                value_x2_plan = value_x2
-            p.drawString(value_x2_plan, y, plan_text)
-            y -= 30  # Increased spacing after section
+            max_plan_width = max_right_x - value_x2
+            draw_string_safe(p, plan_text, value_x2, y, max_plan_width, 'Helvetica', 10, 'left')
+            y -= 32  # Increased spacing after section to prevent overlapping
 
             # Payment information section
             p.setStrokeColor(colors.HexColor('#000000'))

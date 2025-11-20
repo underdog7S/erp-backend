@@ -285,6 +285,7 @@ class Sale(models.Model):
         ('UPI', 'UPI'),
         ('CHEQUE', 'Cheque'),
         ('CREDIT', 'Credit'),
+        ('RAZORPAY', 'Razorpay'),
     ], default='CASH')
     payment_status = models.CharField(max_length=20, choices=[
         ('PENDING', 'Pending'),

@@ -501,6 +501,43 @@ class PharmacyAnalyticsView(APIView):
             total=Sum('total_amount')
         )
         
+        # Weekly revenue comparison (NEW)
+        seven_days_ago = today - timedelta(days=7)
+        this_week_revenue = Sale.objects.filter(
+            tenant=tenant,
+            sale_date__date__gte=seven_days_ago
+        ).aggregate(total=Sum('total_amount'))
+        last_week_revenue = Sale.objects.filter(
+            tenant=tenant,
+            sale_date__date__gte=seven_days_ago - timedelta(days=7),
+            sale_date__date__lt=seven_days_ago
+        ).aggregate(total=Sum('total_amount'))
+        week_growth = ((float(this_week_revenue['total'] or 0) - float(last_week_revenue['total'] or 0)) / float(last_week_revenue['total'] or 1) * 100) if last_week_revenue['total'] else 0
+        
+        # Daily revenue trend (last 7 days) (NEW)
+        daily_revenue = []
+        for i in range(7):
+            date = today - timedelta(days=i)
+            day_revenue = Sale.objects.filter(
+                tenant=tenant,
+                sale_date__date=date
+            ).aggregate(total=Sum('total_amount'))
+            daily_revenue.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'day': date.strftime('%a'),
+               'revenue': float(day_revenue['total'] or 0),
+                'transactions': Sale.objects.filter(tenant=tenant, sale_date__date=date).count()
+            })
+        daily_revenue.reverse()
+        
+        # Customer retention (NEW)
+        repeat_customers = Sale.objects.filter(
+            tenant=tenant,
+            sale_date__date__gte=thirty_days_ago
+        ).exclude(customer__isnull=True).values('customer__id').annotate(
+            purchase_count=Count('id')
+        ).filter(purchase_count__gt=1).count()
+        
         return Response({
             'overview': {
                 'daily_sales': daily_sales,
@@ -525,8 +562,17 @@ class PharmacyAnalyticsView(APIView):
                 'profit_percentage': round(profit_percentage, 2),
                 'total_items_sold': recent_sales_items['item_count'] or 0,
             },
+            'revenue': {
+                'this_week': float(this_week_revenue['total'] or 0),
+                'last_week': float(last_week_revenue['total'] or 0),
+                'week_growth_percent': round(week_growth, 2),
+            },
+            'daily_trends': daily_revenue,
             'top_medicines': list(top_medicines),
             'payment_methods': list(payment_methods),
+            'customers': {
+                'repeat_customers_30_days': repeat_customers,
+            },
         })
 
 # Check-in/Check-out Views

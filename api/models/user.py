@@ -86,7 +86,17 @@ class Tenant(models.Model):
         default='TERM_WISE',
         help_text="Whether to calculate percentage per term or across all terms"
     )
+    # Razorpay Payment Gateway Configuration
+    razorpay_key_id = models.CharField(max_length=255, blank=True, null=True, help_text="Razorpay Key ID from dashboard")
+    razorpay_key_secret = models.CharField(max_length=255, blank=True, null=True, help_text="Razorpay Key Secret from dashboard")
+    razorpay_webhook_secret = models.CharField(max_length=255, blank=True, null=True, help_text="Razorpay Webhook Secret for payment verification")
+    razorpay_enabled = models.BooleanField(default=False, help_text="Enable Razorpay payments for this tenant")
+    razorpay_setup_completed = models.BooleanField(default=False, help_text="Razorpay setup wizard completed")
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    def has_razorpay_configured(self):
+        """Check if Razorpay is fully configured"""
+        return bool(self.razorpay_key_id and self.razorpay_key_secret and self.razorpay_enabled)
     
     def is_subscription_active(self):
         """Check if subscription is currently active"""

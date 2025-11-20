@@ -657,6 +657,21 @@ class TenantAdmin(admin.ModelAdmin):
     list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'get_percentage_method')
     list_filter = ('industry', 'subscription_status', 'percentage_calculation_method')
     search_fields = ('name', 'slug')
+    
+    def get_razorpay_key_secret_display(self, obj):
+        """Mask Razorpay key secret in admin"""
+        if obj.razorpay_key_secret:
+            return f"{obj.razorpay_key_secret[:8]}...{obj.razorpay_key_secret[-4:]}" if len(obj.razorpay_key_secret) > 12 else "***"
+        return "Not set"
+    get_razorpay_key_secret_display.short_description = "Razorpay Key Secret"
+    
+    def get_razorpay_webhook_secret_display(self, obj):
+        """Mask webhook secret in admin"""
+        if obj.razorpay_webhook_secret:
+            return f"{obj.razorpay_webhook_secret[:8]}...{obj.razorpay_webhook_secret[-4:]}" if len(obj.razorpay_webhook_secret) > 12 else "***"
+        return "Not set"
+    get_razorpay_webhook_secret_display.short_description = "Webhook Secret"
+    
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'industry', 'slug', 'logo')
@@ -670,6 +685,22 @@ class TenantAdmin(admin.ModelAdmin):
         }),
         ('Module Access', {
             'fields': ('has_hotel', 'has_restaurant', 'has_salon'),
+            'classes': ('collapse',)
+        }),
+        ('Razorpay Payment Configuration', {
+            'fields': ('razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret', 'razorpay_enabled', 'razorpay_setup_completed'),
+            'description': '''
+                <div style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 10px; border-left: 4px solid #ffc107;">
+                    <strong style="color: #856404;">🔒 Security Warning:</strong>
+                    <p style="margin: 10px 0 0 0; color: #856404;">
+                        <strong>Razorpay Key Secret and Webhook Secret are sensitive credentials.</strong><br>
+                        • Never share these keys publicly<br>
+                        • Store them securely<br>
+                        • Rotate keys if compromised<br>
+                        • Key Secret is masked in display for security
+                    </p>
+                </div>
+            ''',
             'classes': ('collapse',)
         }),
         ('Education Module: Percentage Calculation Settings', {

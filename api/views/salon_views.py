@@ -274,18 +274,107 @@ class SalonAnalyticsView(APIView):
 			total_revenue=Sum('price')
 		).order_by('-count')[:5]
 		
-		# Stylist performance (top 5)
+		# Stylist performance (top 10)
 		stylist_performance = Appointment.objects.filter(
 			tenant=tenant,
 			created_at__date__gte=thirty_days_ago,
 			status='completed'
 		).values(
 			'stylist__first_name',
-			'stylist__last_name'
+			'stylist__last_name',
+			'stylist__id'
 		).annotate(
 			appointment_count=Count('id'),
-			total_revenue=Sum('price')
+			total_revenue=Sum('price'),
+			avg_revenue=Avg('price')
+		).order_by('-total_revenue')[:10]
+		
+		# Weekly revenue comparison (NEW)
+		seven_days_ago = today - timedelta(days=7)
+		this_week_revenue = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=seven_days_ago,
+			status='completed'
+		).aggregate(total=Sum('price'))
+		last_week_revenue = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=seven_days_ago - timedelta(days=7),
+			created_at__date__lt=seven_days_ago,
+			status='completed'
+		).aggregate(total=Sum('price'))
+		week_growth = ((float(this_week_revenue['total'] or 0) - float(last_week_revenue['total'] or 0)) / float(last_week_revenue['total'] or 1) * 100) if last_week_revenue['total'] else 0
+		
+		# Daily revenue trend (last 7 days) (NEW)
+		daily_revenue = []
+		for i in range(7):
+			date = today - timedelta(days=i)
+			day_revenue = Appointment.objects.filter(
+				tenant=tenant,
+				created_at__date=date,
+				status='completed'
+			).aggregate(total=Sum('price'))
+			daily_revenue.append({
+				'date': date.strftime('%Y-%m-%d'),
+				'day': date.strftime('%a'),
+				'revenue': float(day_revenue['total'] or 0),
+				'appointments': Appointment.objects.filter(tenant=tenant, created_at__date=date, status='completed').count()
+			})
+		daily_revenue.reverse()
+		
+		# Peak hours analysis (NEW)
+		from django.db.models.functions import ExtractHour
+		peak_hours = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago,
+			status='completed'
+		).annotate(
+			hour=ExtractHour('start_time')
+		).values('hour').annotate(
+			appointment_count=Count('id'),
+			revenue=Sum('price')
+		).order_by('-appointment_count')[:5]
+		
+		# Category performance (NEW)
+		category_performance = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago,
+			status='completed'
+		).values(
+			'service__category__name'
+		).annotate(
+			total_revenue=Sum('price'),
+			appointment_count=Count('id'),
+			avg_revenue=Avg('price')
 		).order_by('-total_revenue')[:5]
+		
+		# Customer analytics (NEW)
+		unique_customers = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago
+		).exclude(customer_name='').values('customer_name').distinct().count()
+		
+		repeat_customers = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date__gte=thirty_days_ago
+		).exclude(customer_name='').values('customer_name').annotate(
+			appointment_count=Count('id')
+		).filter(appointment_count__gt=1).count()
+		
+		# Cancellation rate (NEW)
+		cancelled_appointments = Appointment.objects.filter(tenant=tenant, status='cancelled').count()
+		cancellation_rate = (cancelled_appointments / total_appointments * 100) if total_appointments > 0 else 0
+		
+		# Today's stats (NEW)
+		today_revenue = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date=today,
+			status='completed'
+		).aggregate(total=Sum('price'))
+		today_appointments = Appointment.objects.filter(
+			tenant=tenant,
+			created_at__date=today,
+			status='completed'
+		).count()
 		
 		return Response({
 			'services': {
@@ -302,15 +391,30 @@ class SalonAnalyticsView(APIView):
 				'scheduled': scheduled_appointments,
 				'in_progress': in_progress_appointments,
 				'completed': completed_appointments,
-				'recent_30_days': recent_appointments
+				'cancelled': cancelled_appointments,
+				'cancellation_rate': round(cancellation_rate, 2),
+				'recent_30_days': recent_appointments,
+				'today': today_appointments
 			},
 			'revenue': {
 				'total_30_days': float(revenue_stats['total_revenue'] or 0),
+				'today': float(today_revenue['total'] or 0),
+				'this_week': float(this_week_revenue['total'] or 0),
+				'last_week': float(last_week_revenue['total'] or 0),
+				'week_growth_percent': round(week_growth, 2),
 				'average_appointment_value': float(revenue_stats['avg_appointment_value'] or 0),
 				'appointment_count': revenue_stats['appointment_count'] or 0
 			},
+			'daily_trends': daily_revenue,
+			'peak_hours': list(peak_hours),
 			'popular_services': list(popular_services),
-			'stylist_performance': list(stylist_performance)
+			'category_performance': list(category_performance),
+			'stylist_performance': list(stylist_performance),
+			'customers': {
+				'unique_customers_30_days': unique_customers,
+				'repeat_customers': repeat_customers,
+				'retention_rate': round((repeat_customers / unique_customers * 100) if unique_customers > 0 else 0, 2)
+			}
 		})
 
 

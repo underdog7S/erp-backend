@@ -62,6 +62,18 @@ class Appointment(models.Model):
 	end_time = models.DateTimeField()
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
 	price = models.DecimalField(max_digits=10, decimal_places=2)
+	payment_status = models.CharField(max_length=20, choices=[
+		('pending', 'Pending'),
+		('paid', 'Paid'),
+		('failed', 'Failed'),
+		('refunded', 'Refunded'),
+	], default='pending')
+	payment_method = models.CharField(max_length=50, choices=[
+		('CASH', 'Cash'),
+		('CARD', 'Card'),
+		('UPI', 'UPI'),
+		('RAZORPAY', 'Razorpay'),
+	], default='CASH', blank=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 
 	class Meta:

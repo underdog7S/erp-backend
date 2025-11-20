@@ -249,6 +249,7 @@ class FeePayment(models.Model):
         ('ONLINE', 'Online Transfer'),
         ('CARD', 'Card Payment'),
         ('UPI', 'UPI'),
+        ('RAZORPAY', 'Razorpay'),
     ], default='CASH')
     receipt_number = models.CharField(max_length=50, unique=True)
     collected_by = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True)

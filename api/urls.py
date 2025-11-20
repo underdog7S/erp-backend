@@ -4,7 +4,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
-    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views
+    google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
+    razorpay_views
 )
 from .views.timetable_views import (
     PeriodListCreateView, PeriodDetailView, RoomListCreateView, RoomDetailView,
@@ -369,6 +370,17 @@ urlpatterns += [
     path('restaurant/order-items/<int:pk>/', restaurant_views.OrderItemDetailView.as_view(), name='restaurant-order-item-detail'),
     path('restaurant/analytics/', restaurant_views.RestaurantAnalyticsView.as_view(), name='restaurant-analytics'),
     
+    # External API Integration endpoints
+    path('restaurant/api-integrations/', restaurant_views.ExternalAPIIntegrationListCreateView.as_view(), name='restaurant-api-integrations'),
+    path('restaurant/api-integrations/<int:pk>/', restaurant_views.ExternalAPIIntegrationDetailView.as_view(), name='restaurant-api-integration-detail'),
+    path('restaurant/api-integrations/<int:integration_id>/sync/', restaurant_views.MenuSyncView.as_view(), name='restaurant-menu-sync'),
+    path('restaurant/sync-logs/', restaurant_views.MenuSyncLogListView.as_view(), name='restaurant-sync-logs'),
+    
+    # Public API endpoints (Cloud Kitchen)
+    path('public/restaurant/menu/', restaurant_views.PublicMenuView.as_view(), name='public-restaurant-menu'),
+    path('public/restaurant/orders/', restaurant_views.PublicOrderCreateView.as_view(), name='public-restaurant-order-create'),
+    path('public/restaurant/orders/<int:order_id>/status/', restaurant_views.PublicOrderStatusView.as_view(), name='public-restaurant-order-status'),
+    
     # Salon API endpoints
     path('salon/service-categories/', salon_views.ServiceCategoryListCreateView.as_view(), name='salon-service-categories'),
     path('salon/service-categories/<int:pk>/', salon_views.ServiceCategoryDetailView.as_view(), name='salon-service-category-detail'),
@@ -494,4 +506,20 @@ urlpatterns += [
     path('custom-service-requests/', custom_service_views.CustomServiceRequestCreateView.as_view(), name='custom-service-request-create'),
     path('custom-service-requests/list/', custom_service_views.CustomServiceRequestListView.as_view(), name='custom-service-request-list'),
     path('custom-service-requests/<int:pk>/', custom_service_views.CustomServiceRequestDetailView.as_view(), name='custom-service-request-detail'),
+    
+    # Razorpay Integration
+    path('razorpay/setup/status/', razorpay_views.RazorpaySetupStatusView.as_view(), name='razorpay-setup-status'),
+    path('razorpay/setup/', razorpay_views.RazorpaySetupView.as_view(), name='razorpay-setup'),
+    path('razorpay/setup/guide/', razorpay_views.RazorpaySetupGuideView.as_view(), name='razorpay-setup-guide'),
+    path('razorpay/create-order/', razorpay_views.RazorpayCreateOrderView.as_view(), name='razorpay-create-order'),
+    path('razorpay/verify-payment/', razorpay_views.RazorpayVerifyPaymentView.as_view(), name='razorpay-verify-payment'),
+    path('razorpay/webhook/<int:tenant_id>/', razorpay_views.RazorpayWebhookView.as_view(), name='razorpay-webhook'),
+    
+    # Sector-specific Razorpay Payment Endpoints
+    path('education/fee-payments/<int:payment_id>/razorpay/', razorpay_views.EducationFeePaymentView.as_view(), name='education-fee-razorpay'),
+    path('restaurant/orders/<int:order_id>/razorpay/', razorpay_views.RestaurantOrderPaymentView.as_view(), name='restaurant-order-razorpay'),
+    path('salon/appointments/<int:appointment_id>/razorpay/', razorpay_views.SalonAppointmentPaymentView.as_view(), name='salon-appointment-razorpay'),
+    path('pharmacy/sales/<int:sale_id>/razorpay/', razorpay_views.PharmacySalePaymentView.as_view(), name='pharmacy-sale-razorpay'),
+    path('retail/sales/<int:sale_id>/razorpay/', razorpay_views.RetailSalePaymentView.as_view(), name='retail-sale-razorpay'),
+    path('hotel/bookings/<int:booking_id>/razorpay/', razorpay_views.HotelBookingPaymentView.as_view(), name='hotel-booking-razorpay'),
 ]

@@ -2,7 +2,7 @@ services:
   - type: web
     name: erp-backend
     env: python
-    buildCommand: pip install -r requirements-production.txt && python manage.py migrate
+    buildCommand: pip install -r requirements-production.txt && python manage.py migrate --settings=erp.settings_production
     startCommand: gunicorn erp.wsgi:application --bind 0.0.0.0:$PORT
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -15,6 +15,9 @@ services:
         value: https://your-frontend.vercel.app
       - key: SECRET_KEY
         value: your-secret-key-here
+      # Supabase Database (use Transaction Pooler for Render)
+      - key: DATABASE_URL
+        value: postgresql://postgres.xbemjxfunalbebxwoffz:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
       - key: RAZORPAY_KEY_ID
         value: your-razorpay-key-id
       - key: RAZORPAY_KEY_SECRET
@@ -27,8 +30,3 @@ services:
         value: your-email@gmail.com
       - key: EMAIL_HOST_PASSWORD
         value: your-app-password
-
-databases:
-  - name: erp-db
-    databaseName: erp
-    user: erp_user

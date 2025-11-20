@@ -1,12 +1,37 @@
 """
-Production Settings Override
+Production Settings for Render + Supabase
 Import this in wsgi.py or use with --settings flag for production
 """
 from .settings import *
 import os
+import dj_database_url
 
 # Force production settings
-DEBUG = False
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+SECRET_KEY = os.getenv('SECRET_KEY', 'replace-this-with-a-secure-key')
+
+# Allowed hosts
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+
+# Database Configuration - Supports Supabase DATABASE_URL
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    # Parse DATABASE_URL (Supabase format)
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    }
+else:
+    # Fallback to individual database settings
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'postgres'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
 
 # Security Settings (Production)
 SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
@@ -32,7 +57,14 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 # CORS - Must be configured for production
 CORS_ALLOW_ALL_ORIGINS = False  # Never allow all in production!
-# Set CORS_ALLOWED_ORIGINS in environment variable
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+
+# Static files with whitenoise
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Media files (if using cloud storage, configure here)
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
 
 # Disable development-specific features
 # The runserver command should not be used in production
