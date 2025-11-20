@@ -323,7 +323,7 @@ class TransferCertificateSerializer(serializers.ModelSerializer):
         model = TransferCertificate
         fields = [
             'id', 'student', 'student_name', 'student_roll_number', 'class_name',
-            'tc_number', 'issue_date', 'reason', 'remarks', 'issued_by', 'issued_by_name', 'created_at'
+            'tc_number', 'issue_date', 'reason_for_leaving', 'remarks', 'issued_by', 'issued_by_name', 'created_at'
         ]
         read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'issued_by_name', 'created_at']
     
