@@ -27,7 +27,7 @@ from .views.exam_views import (
 )
 from .views import notification_views
 from .views import enhanced_analytics_views
-from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, FeeStructureListView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
+from api.views.education_views import ExportClassStatsCSVView, ExportMonthlyReportCSVView, StaffAttendanceCheckInView, ClassAttendanceStatusView, StaffAttendanceCheckOutView
 from api.views.users_views import UserProfileViewSet
 from api.views.payments_views import PaymentTransactionViewSet
 from .views.support_views import SupportTicketViewSet, TicketResponseViewSet, TicketSLAViewSet
@@ -216,7 +216,7 @@ urlpatterns = [
     path('education/fee-discounts/<int:pk>/', education_views.FeeDiscountViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='education-fee-discount-detail'),
     path('education/departments/', education_views.DepartmentViewSet.as_view({'get': 'list', 'post': 'create'}), name='education-departments'),
     path('education/departments/<int:pk>/', education_views.DepartmentViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='education-department-detail'),
-    path('education/fees/', FeeStructureListView.as_view(), name='fee-structure-list'),
+    # Note: education/fees/ is already defined above (line 152) - removed duplicate
     path('education/class-attendance-status/', education_views.ClassAttendanceStatusView.as_view(), name='education-class-attendance-status'),
     
     # Plans

@@ -3065,66 +3065,80 @@ class FeeStructureListView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
-        if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
-            return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
-        fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
-        serializer = FeeStructureSerializer(fee_structures, many=True)
-        return Response(serializer.data) 
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
+            if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
+                return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+            fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
+            serializer = FeeStructureSerializer(fee_structures, many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in FeeStructureListView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 class ClassAttendanceStatusView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        tenant = profile.tenant
-        class_id = request.query_params.get('class_id')
-        date_str = request.query_params.get('date')
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            tenant = profile.tenant
+            class_id = request.query_params.get('class_id')
+            date_str = request.query_params.get('date')
 
-        # If class_id provided, return per-student status for that class/date
-        if class_id:
-            try:
-                class_obj = Class._default_manager.get(id=class_id, tenant=tenant)  # type: ignore
-            except Class.DoesNotExist:  # type: ignore
-                return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
+            # If class_id provided, return per-student status for that class/date
+            if class_id:
+                try:
+                    class_obj = Class._default_manager.get(id=class_id, tenant=tenant)  # type: ignore
+                except Class.DoesNotExist:  # type: ignore
+                    return Response({'error': 'Class not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            try:
-                query_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.now().date()
-            except Exception:
-                query_date = timezone.now().date()
+                try:
+                    query_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.now().date()
+                except Exception:
+                    query_date = timezone.now().date()
 
-            students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj)  # type: ignore
-            result = []
-            for s in students:
-                att = Attendance._default_manager.filter(tenant=tenant, student=s, date=query_date).first()  # type: ignore
-                result.append({
-                    'student': {
-                        'id': s.id,
-                        'name': s.name,
-                    },
-                    'present': bool(att.present) if att is not None else False,
+                students = Student._default_manager.filter(tenant=tenant, assigned_class=class_obj)  # type: ignore
+                result = []
+                for s in students:
+                    att = Attendance._default_manager.filter(tenant=tenant, student=s, date=query_date).first()  # type: ignore
+                    result.append({
+                        'student': {
+                            'id': s.id,
+                            'name': s.name,
+                        },
+                        'present': bool(att.present) if att is not None else False,
+                    })
+                return Response(result)
+
+            # Default: return class summary for today
+            classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
+            data = []
+            today = timezone.now().date()
+            for c in classes:
+                total_students = Student._default_manager.filter(tenant=tenant, assigned_class=c).count()  # type: ignore
+                present_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=True).count()  # type: ignore
+                absent_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=False).count()  # type: ignore
+                data.append({
+                    'class_id': c.id,
+                    'class_name': c.name,
+                    'total_students': total_students,
+                    'present_today': present_today,
+                    'absent_today': absent_today,
+                    'attendance_percentage': round((present_today / total_students * 100) if total_students > 0 else 0, 2)
                 })
-            return Response(result)
-
-        # Default: return class summary for today
-        classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
-        data = []
-        today = timezone.now().date()
-        for c in classes:
-            total_students = Student._default_manager.filter(tenant=tenant, assigned_class=c).count()  # type: ignore
-            present_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=True).count()  # type: ignore
-            absent_today = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c, date=today, present=False).count()  # type: ignore
-            data.append({
-                'class_id': c.id,
-                'class_name': c.name,
-                'total_students': total_students,
-                'present_today': present_today,
-                'absent_today': absent_today,
-                'attendance_percentage': round((present_today / total_students * 100) if total_students > 0 else 0, 2)
-            })
-        return Response(data)
+            return Response(data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in ClassAttendanceStatusView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Missing analytics endpoints
 class AttendanceTrendsView(APIView):
@@ -4649,64 +4663,78 @@ class TransferCertificateListCreateView(APIView):
     @role_required('admin', 'principal', 'accountant')
     def get(self, request):
         """List all TCs with filtering"""
-        profile = UserProfile._default_manager.get(user=request.user)
-        tcs = TransferCertificate._default_manager.filter(tenant=profile.tenant)
-        
-        # Filtering
-        student_id = request.query_params.get('student_id')
-        class_id = request.query_params.get('class_id')
-        academic_year_id = request.query_params.get('academic_year_id')
-        tc_number = request.query_params.get('tc_number')
-        
-        if student_id:
-            tcs = tcs.filter(student_id=student_id)
-        if class_id:
-            tcs = tcs.filter(class_obj_id=class_id)
-        if academic_year_id:
-            tcs = tcs.filter(academic_year_id=academic_year_id)
-        if tc_number:
-            tcs = tcs.filter(tc_number__icontains=tc_number)
-        
-        serializer = TransferCertificateSerializer(tcs.order_by('-issue_date', '-created_at'), many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            tcs = TransferCertificate._default_manager.filter(tenant=profile.tenant)
+            
+            # Filtering
+            student_id = request.query_params.get('student_id')
+            class_id = request.query_params.get('class_id')
+            academic_year_id = request.query_params.get('academic_year_id')
+            tc_number = request.query_params.get('tc_number')
+            
+            if student_id:
+                tcs = tcs.filter(student_id=student_id)
+            if class_id:
+                tcs = tcs.filter(class_obj_id=class_id)
+            if academic_year_id:
+                tcs = tcs.filter(academic_year_id=academic_year_id)
+            if tc_number:
+                tcs = tcs.filter(tc_number__icontains=tc_number)
+            
+            serializer = TransferCertificateSerializer(tcs.order_by('-issue_date', '-created_at'), many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @role_required('admin', 'principal')
     def post(self, request):
         """Create a new Transfer Certificate"""
-        profile = UserProfile._default_manager.get(user=request.user)
-        data = request.data.copy()
-        data['tenant'] = profile.tenant.id
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            data = request.data.copy()
+            data['tenant'] = profile.tenant.id
         
-        # Auto-populate student details if student_id or student provided
-        student_id = data.get('student_id') or data.get('student')
-        # Also handle class_obj_id vs class_obj
-        if 'class_obj_id' in data and 'class_obj' not in data:
-            data['class_obj'] = data['class_obj_id']
-        if student_id:
-            try:
-                student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
-                if not data.get('student_name'):
-                    data['student_name'] = student.name
-                if not data.get('date_of_birth'):
-                    data['date_of_birth'] = student.date_of_birth
-                if not data.get('admission_number'):
-                    data['admission_number'] = student.upper_id or str(student.id)
-                if not data.get('admission_date'):
-                    data['admission_date'] = student.admission_date
-                if not data.get('class_obj') and not data.get('class_obj_id'):
-                    data['class_obj_id'] = student.assigned_class_id
-            except Student.DoesNotExist:
-                return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Set issuer if not provided
-        if not data.get('issued_by') and not data.get('issued_by_id'):
-            data['issued_by_id'] = profile.id
-        
-        serializer = TransferCertificateSerializer(data=data, context={'request': request})
-        if serializer.is_valid():
-            tc = serializer.save(tenant=profile.tenant)
-            return Response(TransferCertificateSerializer(tc).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Auto-populate student details if student_id or student provided
+            student_id = data.get('student_id') or data.get('student')
+            # Also handle class_obj_id vs class_obj
+            if 'class_obj_id' in data and 'class_obj' not in data:
+                data['class_obj'] = data['class_obj_id']
+            if student_id:
+                try:
+                    student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
+                    if not data.get('student_name'):
+                        data['student_name'] = student.name
+                    if not data.get('date_of_birth'):
+                        data['date_of_birth'] = student.date_of_birth
+                    if not data.get('admission_number'):
+                        data['admission_number'] = student.upper_id or str(student.id)
+                    if not data.get('admission_date'):
+                        data['admission_date'] = student.admission_date
+                    if not data.get('class_obj') and not data.get('class_obj_id'):
+                        data['class_obj_id'] = student.assigned_class_id
+                except Student.DoesNotExist:
+                    return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Set issuer if not provided
+            if not data.get('issued_by') and not data.get('issued_by_id'):
+                data['issued_by_id'] = profile.id
+            
+            serializer = TransferCertificateSerializer(data=data, context={'request': request})
+            if serializer.is_valid():
+                tc = serializer.save(tenant=profile.tenant)
+                return Response(TransferCertificateSerializer(tc).data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateListCreateView.post: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TransferCertificateDetailView(APIView):
@@ -4717,52 +4745,80 @@ class TransferCertificateDetailView(APIView):
     @role_required('admin', 'principal', 'accountant', 'teacher')
     def get(self, request, pk):
         """Get a specific TC"""
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
-            serializer = TransferCertificateSerializer(tc)
-            return Response(serializer.data)
-        except TransferCertificate.DoesNotExist:
-            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+                serializer = TransferCertificateSerializer(tc)
+                return Response(serializer.data)
+            except TransferCertificate.DoesNotExist:
+                return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateDetailView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @role_required('admin', 'principal')
     def put(self, request, pk):
         """Update a TC"""
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
-            serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except TransferCertificate.DoesNotExist:
-            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+                serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            except TransferCertificate.DoesNotExist:
+                return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateDetailView.put: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @role_required('admin', 'principal')
     def patch(self, request, pk):
         """Update a TC (partial update)"""
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
-            serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except TransferCertificate.DoesNotExist:
-            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+                serializer = TransferCertificateSerializer(tc, data=request.data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data)
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            except TransferCertificate.DoesNotExist:
+                return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateDetailView.patch: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @role_required('admin', 'principal')
     def delete(self, request, pk):
         """Delete a TC"""
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
-            tc.delete()
-            return Response({'message': 'Transfer Certificate deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
-        except TransferCertificate.DoesNotExist:
-            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+                tc.delete()
+                return Response({'message': 'Transfer Certificate deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+            except TransferCertificate.DoesNotExist:
+                return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificateDetailView.delete: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TransferCertificatePDFView(APIView):
@@ -4773,11 +4829,18 @@ class TransferCertificatePDFView(APIView):
     @role_required('admin', 'principal', 'accountant')
     def get(self, request, pk):
         """Generate standard TC PDF"""
-        profile = UserProfile._default_manager.get(user=request.user)
         try:
-            tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
-        except TransferCertificate.DoesNotExist:
-            return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+            profile = UserProfile._default_manager.get(user=request.user)
+            try:
+                tc = TransferCertificate._default_manager.get(id=pk, tenant=profile.tenant)
+            except TransferCertificate.DoesNotExist:
+                return Response({'error': 'Transfer Certificate not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in TransferCertificatePDFView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         try:
             from reportlab.lib.pagesizes import A4
