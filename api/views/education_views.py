@@ -769,21 +769,31 @@ class MarksEntryListCreateView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        student_id = request.query_params.get('student')
-        assessment_id = request.query_params.get('assessment')
-        term_id = request.query_params.get('term')
-        
-        marks_entries = MarksEntry._default_manager.filter(tenant=profile.tenant)
-        if student_id:
-            marks_entries = marks_entries.filter(student_id=student_id)
-        if assessment_id:
-            marks_entries = marks_entries.filter(assessment_id=assessment_id)
-        if term_id:
-            marks_entries = marks_entries.filter(assessment__term_id=term_id)
-        
-        serializer = MarksEntrySerializer(marks_entries, many=True)
-        return Response(serializer.data)
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            student_id = request.query_params.get('student')
+            assessment_id = request.query_params.get('assessment')
+            term_id = request.query_params.get('term')
+            
+            marks_entries = MarksEntry._default_manager.filter(tenant=profile.tenant)
+            if student_id:
+                marks_entries = marks_entries.filter(student_id=student_id)
+            if assessment_id:
+                marks_entries = marks_entries.filter(assessment_id=assessment_id)
+            if term_id:
+                marks_entries = marks_entries.filter(assessment__term_id=term_id)
+            
+            serializer = MarksEntrySerializer(marks_entries.order_by('-entered_at'), many=True)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in MarksEntryListCreateView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @role_required('admin', 'principal', 'teacher')
     def post(self, request):

@@ -227,9 +227,9 @@ class MarksEntrySerializer(serializers.ModelSerializer):
         model = MarksEntry
         fields = [
             'id', 'student', 'student_name', 'student_roll_number', 'assessment', 'assessment_name',
-            'subject_name', 'marks_obtained', 'remarks', 'created_at'
+            'subject_name', 'marks_obtained', 'max_marks', 'remarks', 'entered_by', 'entered_at', 'updated_at'
         ]
-        read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'created_at']
+        read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'entered_at', 'updated_at']
 
 class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
     """Serializer for FeeInstallmentPlan model."""
