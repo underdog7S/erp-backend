@@ -350,7 +350,7 @@ class AttendanceListCreateView(APIView):
             else:
                 # Staff: only attendance for students in their assigned classes
                 attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())  # type: ignore
-            serializer = AttendanceSerializer(attendance.order_by('-date', '-created_at'), many=True)
+            serializer = AttendanceSerializer(attendance.order_by('-date'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
@@ -2167,7 +2167,7 @@ class FeePaymentListCreateView(APIView):
                 # Staff/teachers can only see payments for their assigned classes
                 payments = FeePayment._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())
             
-            serializer = FeePaymentSerializer(payments.order_by('-payment_date', '-created_at'), many=True)
+            serializer = FeePaymentSerializer(payments.order_by('-payment_date'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")

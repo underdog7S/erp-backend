@@ -52,7 +52,7 @@ class FeeStructureSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = FeeStructure
-        fields = ['id', 'class_obj', 'class_name', 'fee_type', 'amount', 'due_date', 'is_active']
+        fields = ['id', 'class_obj', 'class_name', 'fee_type', 'amount', 'description', 'is_optional', 'due_date', 'academic_year', 'installments_enabled']
         read_only_fields = ['class_name']
 
 class FeePaymentSerializer(serializers.ModelSerializer):
@@ -73,9 +73,9 @@ class FeePaymentSerializer(serializers.ModelSerializer):
             'fee_structure', 'fee_structure_class', 'fee_structure_amount',
             'amount_paid', 'discount_amount', 'discount_reason',
             'payment_date', 'payment_method', 'payment_method_display', 'fee_type', 'fee_type_display',
-            'receipt_number', 'notes', 'installment', 'split_installments', 'created_at'
+            'receipt_number', 'notes', 'installment', 'split_installments', 'academic_year', 'collected_by'
         ]
-        read_only_fields = ['fee_structure_class', 'fee_structure_amount', 'payment_method_display', 'fee_type', 'fee_type_display', 'receipt_number', 'created_at']
+        read_only_fields = ['fee_structure_class', 'fee_structure_amount', 'payment_method_display', 'fee_type', 'fee_type_display', 'receipt_number']
 
 class FeeDiscountSerializer(serializers.ModelSerializer):
     """Serializer for FeeDiscount model."""
@@ -92,13 +92,12 @@ class AttendanceSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.name', read_only=True)
     student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
     class_name = serializers.CharField(source='student.assigned_class.name', read_only=True, allow_null=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = Attendance
         fields = ['id', 'student', 'student_name', 'student_roll_number', 'class_name',
-                 'date', 'status', 'status_display', 'remarks']
-        read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'status_display']
+                 'date', 'present']
+        read_only_fields = ['student_name', 'student_roll_number', 'class_name']
 
 class ReportCardSerializer(serializers.ModelSerializer):
     """Serializer for ReportCard model."""
