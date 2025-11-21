@@ -2141,13 +2141,17 @@ class FeePaymentListCreateView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
             if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
                 # Admin/Accountant/Principal can see all fee payments
                 payments = FeePayment._default_manager.filter(tenant=profile.tenant)
             else:
                 # Staff/teachers can only see payments for their assigned classes
                 payments = FeePayment._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())
-            serializer = FeePaymentSerializer(payments, many=True)
+            
+            serializer = FeePaymentSerializer(payments.order_by('-payment_date', '-created_at'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
@@ -3067,11 +3071,15 @@ class FeeStructureListView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
             # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
             if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
                 return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
+            
             fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
-            serializer = FeeStructureSerializer(fee_structures, many=True)
+            serializer = FeeStructureSerializer(fee_structures.order_by('-academic_year__start_date', 'class_obj__name'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
@@ -3087,6 +3095,9 @@ class ClassAttendanceStatusView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             class_id = request.query_params.get('class_id')
             date_str = request.query_params.get('date')
