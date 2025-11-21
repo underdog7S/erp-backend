@@ -136,16 +136,14 @@ class ReportCardSerializer(serializers.ModelSerializer):
 class StaffAttendanceSerializer(serializers.ModelSerializer):
     """Serializer for StaffAttendance model."""
     staff_name = serializers.SerializerMethodField()
-    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
     
     class Meta:
         model = StaffAttendance
         fields = [
-            'id', 'staff', 'staff_name', 'department', 'department_name',
-            'date', 'check_in_time', 'check_out_time', 'status', 'status_display', 'remarks'
+            'id', 'staff', 'staff_name',
+            'date', 'check_in_time', 'check_out_time'
         ]
-        read_only_fields = ['staff_name', 'department_name', 'status_display']
+        read_only_fields = ['staff_name']
     
     def get_staff_name(self, obj):
         if obj.staff and obj.staff.user:
