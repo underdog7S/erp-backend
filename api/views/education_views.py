@@ -342,12 +342,15 @@ class AttendanceListCreateView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
             if profile.role and profile.role.name == 'admin':
                 attendance = Attendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
             else:
                 # Staff: only attendance for students in their assigned classes
                 attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())  # type: ignore
-            serializer = AttendanceSerializer(attendance, many=True)
+            serializer = AttendanceSerializer(attendance.order_by('-date', '-created_at'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
@@ -1769,6 +1772,9 @@ class StaffAttendanceListCreateView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
+            if not profile.tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+            
             if profile.role and profile.role.name == 'admin':
                 # Admin can filter by staff, class, date
                 staff_id = request.query_params.get('staff')
@@ -1785,7 +1791,7 @@ class StaffAttendanceListCreateView(APIView):
             else:
                 # Staff can only see their own
                 qs = StaffAttendance._default_manager.filter(tenant=profile.tenant, staff=profile)  # type: ignore
-            serializer = StaffAttendanceSerializer(qs, many=True)
+            serializer = StaffAttendanceSerializer(qs.order_by('-date', '-check_in_time'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
