@@ -125,7 +125,9 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 	serializer_class = AppointmentSerializer
 	
 	def get_queryset(self):
-		queryset = Appointment.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = Appointment.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'service', 'stylist', 'service__category'
+		)
 		status_param = self.request.query_params.get('status')
 		stylist = self.request.query_params.get('stylist')
 		service = self.request.query_params.get('service')
@@ -178,7 +180,9 @@ class AppointmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = AppointmentSerializer
 	
 	def get_queryset(self):
-		return Appointment.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return Appointment.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'service', 'stylist', 'service__category'
+		)
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -191,7 +195,7 @@ class AppointmentCheckInView(APIView):
 
 	def post(self, request, pk):
 		try:
-			appt = Appointment.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			appt = Appointment.objects.select_related('service', 'stylist').get(id=pk, tenant=request.user.userprofile.tenant)
 			appt.status = 'in_progress'
 			appt.save()
 			return Response({'message': 'Appointment checked in', 'status': appt.status})
@@ -204,7 +208,7 @@ class AppointmentCompleteView(APIView):
 
 	def post(self, request, pk):
 		try:
-			appt = Appointment.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			appt = Appointment.objects.select_related('service', 'stylist').get(id=pk, tenant=request.user.userprofile.tenant)
 			appt.status = 'completed'
 			if not appt.end_time:
 				appt.end_time = timezone.now()
@@ -219,7 +223,7 @@ class AppointmentCancelView(APIView):
 
 	def post(self, request, pk):
 		try:
-			appt = Appointment.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			appt = Appointment.objects.select_related('service', 'stylist').get(id=pk, tenant=request.user.userprofile.tenant)
 			appt.status = 'cancelled'
 			appt.save()
 			return Response({'message': 'Appointment cancelled', 'status': appt.status})

@@ -97,7 +97,9 @@ class OrderListCreateView(generics.ListCreateAPIView):
 	serializer_class = OrderSerializer
 	
 	def get_queryset(self):
-		queryset = Order.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = Order.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'table', 'tenant'
+		).prefetch_related('items', 'items__menu_item', 'items__menu_item__category')
 		status_param = self.request.query_params.get('status')
 		search = self.request.query_params.get('search')
 		date_from = self.request.query_params.get('date_from')
@@ -127,6 +129,11 @@ class OrderListCreateView(generics.ListCreateAPIView):
 				pass
 		return queryset
 	
+	def get_serializer_context(self):
+		context = super().get_serializer_context()
+		context['items'] = self.request.data.get('items', [])
+		return context
+	
 	def perform_create(self, serializer):
 		serializer.save(tenant=self.request.user.userprofile.tenant)
 
@@ -136,7 +143,9 @@ class OrderDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = OrderSerializer
 	
 	def get_queryset(self):
-		return Order.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return Order.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'table', 'tenant'
+		).prefetch_related('items', 'items__menu_item', 'items__menu_item__category')
 
 
 class OrderItemListCreateView(generics.ListCreateAPIView):
@@ -144,7 +153,9 @@ class OrderItemListCreateView(generics.ListCreateAPIView):
 	serializer_class = OrderItemSerializer
 	
 	def get_queryset(self):
-		return OrderItem.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return OrderItem.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'order', 'menu_item', 'menu_item__category'
+		)
 	
 	def perform_create(self, serializer):
 		serializer.save(tenant=self.request.user.userprofile.tenant)
@@ -155,7 +166,9 @@ class OrderItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = OrderItemSerializer
 	
 	def get_queryset(self):
-		return OrderItem.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return OrderItem.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'order', 'menu_item', 'menu_item__category'
+		)
 
 
 class OrderServeView(APIView):
@@ -163,7 +176,7 @@ class OrderServeView(APIView):
 
 	def post(self, request, pk):
 		try:
-			order = Order.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			order = Order.objects.select_related('table', 'tenant').get(id=pk, tenant=request.user.userprofile.tenant)
 			order.status = 'served'
 			order.save()
 			return Response({'message': 'Order marked as served', 'status': order.status})
@@ -176,7 +189,7 @@ class OrderMarkPaidView(APIView):
 
 	def post(self, request, pk):
 		try:
-			order = Order.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			order = Order.objects.select_related('table', 'tenant').get(id=pk, tenant=request.user.userprofile.tenant)
 			order.status = 'paid'
 			order.save()
 			return Response({'message': 'Order marked as paid', 'status': order.status})
@@ -573,7 +586,7 @@ class PublicOrderCreateView(APIView):
 		total_amount = Decimal('0.00')
 		for item_data in data['items']:
 			try:
-				menu_item = MenuItem.objects.get(
+				menu_item = MenuItem.objects.select_related('category').get(
 					id=item_data.get('menu_item_id'),
 					tenant=tenant,
 					is_available=True

@@ -2174,10 +2174,17 @@ class FeePaymentListCreateView(APIView):
             
             if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
                 # Admin/Accountant/Principal can see all fee payments
-                payments = FeePayment._default_manager.filter(tenant=profile.tenant)
+                payments = FeePayment._default_manager.filter(tenant=profile.tenant).select_related(
+                    'student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj'
+                )
             else:
                 # Staff/teachers can only see payments for their assigned classes
-                payments = FeePayment._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())
+                payments = FeePayment._default_manager.filter(
+                    tenant=profile.tenant, 
+                    student__assigned_class__in=profile.assigned_classes.all()
+                ).select_related(
+                    'student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj'
+                )
             
             serializer = FeePaymentSerializer(payments.order_by('-payment_date'), many=True)
             return Response(serializer.data)
@@ -2207,7 +2214,9 @@ class FeePaymentDetailView(APIView):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
             try:
-                payment = FeePayment._default_manager.get(id=pk, tenant=profile.tenant)
+                payment = FeePayment._default_manager.select_related(
+                    'student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj'
+                ).get(id=pk, tenant=profile.tenant)
             except FeePayment.DoesNotExist:
                 return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
             serializer = FeePaymentSerializer(payment)

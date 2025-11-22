@@ -591,7 +591,7 @@ class RazorpayVerifyPaymentView(APIView):
             if sector == 'education' and reference_id:
                 # Update fee payment
                 from education.models import FeePayment
-                fee_payment = FeePayment.objects.filter(id=reference_id, tenant=tenant).first()
+                fee_payment = FeePayment.objects.select_related('student', 'fee_structure', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if fee_payment:
                     fee_payment.payment_method = 'RAZORPAY'
                     fee_payment.save()
@@ -601,7 +601,7 @@ class RazorpayVerifyPaymentView(APIView):
             elif sector == 'restaurant' and reference_id:
                 # Update restaurant order
                 from restaurant.models import Order
-                order = Order.objects.filter(id=reference_id, tenant=tenant).first()
+                order = Order.objects.select_related('table', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if order:
                     order.status = 'paid'
                     order.save()
@@ -611,7 +611,7 @@ class RazorpayVerifyPaymentView(APIView):
             elif sector == 'salon' and reference_id:
                 # Update salon appointment
                 from salon.models import Appointment
-                appointment = Appointment.objects.filter(id=reference_id, tenant=tenant).first()
+                appointment = Appointment.objects.select_related('service', 'stylist', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if appointment:
                     appointment.status = 'completed'
                     appointment.payment_status = 'paid'
@@ -623,7 +623,7 @@ class RazorpayVerifyPaymentView(APIView):
             elif sector == 'pharmacy' and reference_id:
                 # Update pharmacy sale
                 from pharmacy.models import Sale
-                sale = Sale.objects.filter(id=reference_id, tenant=tenant).first()
+                sale = Sale.objects.select_related('customer', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if sale:
                     sale.payment_method = 'RAZORPAY'
                     sale.payment_status = 'PAID'
@@ -634,7 +634,7 @@ class RazorpayVerifyPaymentView(APIView):
             elif sector == 'retail' and reference_id:
                 # Update retail sale
                 from retail.models import Sale
-                sale = Sale.objects.filter(id=reference_id, tenant=tenant).first()
+                sale = Sale.objects.select_related('customer', 'warehouse', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if sale:
                     sale.payment_method = 'RAZORPAY'
                     sale.payment_status = 'PAID'
@@ -645,7 +645,7 @@ class RazorpayVerifyPaymentView(APIView):
             elif sector == 'hotel' and reference_id:
                 # Update hotel booking
                 from hotel.models import Booking
-                booking = Booking.objects.filter(id=reference_id, tenant=tenant).first()
+                booking = Booking.objects.select_related('room', 'guest', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if booking:
                     booking.status = 'reserved'
                     booking.save()
@@ -820,21 +820,23 @@ class RazorpayWebhookView(APIView):
             
             elif sector == 'pharmacy' and reference_id:
                 from pharmacy.models import Sale
-                sale = Sale.objects.filter(id=reference_id, tenant=tenant).first()
+                sale = Sale.objects.select_related('customer', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if sale:
                     sale.payment_method = 'RAZORPAY' if status == 'paid' else sale.payment_method
+                    sale.payment_status = 'PAID' if status == 'paid' else sale.payment_status
                     sale.save()
             
             elif sector == 'retail' and reference_id:
                 from retail.models import Sale
-                sale = Sale.objects.filter(id=reference_id, tenant=tenant).first()
+                sale = Sale.objects.select_related('customer', 'warehouse', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if sale:
                     sale.payment_method = 'RAZORPAY' if status == 'paid' else sale.payment_method
+                    sale.payment_status = 'PAID' if status == 'paid' else sale.payment_status
                     sale.save()
             
             elif sector == 'hotel' and reference_id:
                 from hotel.models import Booking
-                booking = Booking.objects.filter(id=reference_id, tenant=tenant).first()
+                booking = Booking.objects.select_related('room', 'guest', 'tenant').filter(id=reference_id, tenant=tenant).first()
                 if booking:
                     booking.status = 'reserved' if status == 'paid' else booking.status
                     booking.save()
@@ -862,7 +864,7 @@ class EducationFeePaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from education.models import FeePayment
-            fee_payment = FeePayment.objects.get(id=payment_id, tenant=tenant)
+            fee_payment = FeePayment.objects.select_related('student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj').get(id=payment_id, tenant=tenant)
             
             # Create Razorpay order
             if razorpay is None:
@@ -929,7 +931,7 @@ class RestaurantOrderPaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from restaurant.models import Order
-            order = Order.objects.get(id=order_id, tenant=tenant)
+            order = Order.objects.select_related('table', 'tenant').prefetch_related('items', 'items__menu_item').get(id=order_id, tenant=tenant)
             
             if razorpay is None:
                 return Response({
@@ -994,7 +996,7 @@ class SalonAppointmentPaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from salon.models import Appointment
-            appointment = Appointment.objects.get(id=appointment_id, tenant=tenant)
+            appointment = Appointment.objects.select_related('service', 'stylist').get(id=appointment_id, tenant=tenant)
             
             if razorpay is None:
                 return Response({
@@ -1060,7 +1062,7 @@ class PharmacySalePaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from pharmacy.models import Sale
-            sale = Sale.objects.get(id=sale_id, tenant=tenant)
+            sale = Sale.objects.select_related('customer', 'tenant', 'sold_by', 'sold_by__user').prefetch_related('items', 'items__medicine_batch', 'items__medicine_batch__medicine').get(id=sale_id, tenant=tenant)
             
             if razorpay is None:
                 return Response({
@@ -1123,7 +1125,7 @@ class RetailSalePaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from retail.models import Sale
-            sale = Sale.objects.get(id=sale_id, tenant=tenant)
+            sale = Sale.objects.select_related('customer', 'warehouse', 'tenant', 'sold_by', 'sold_by__user').prefetch_related('items', 'items__product').get(id=sale_id, tenant=tenant)
             
             if razorpay is None:
                 return Response({
@@ -1186,7 +1188,7 @@ class HotelBookingPaymentView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             from hotel.models import Booking
-            booking = Booking.objects.get(id=booking_id, tenant=tenant)
+            booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(id=booking_id, tenant=tenant)
             
             if razorpay is None:
                 return Response({

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from decimal import Decimal
 from api.models.user import Tenant, UserProfile
 from api.models.custom_service import CustomServiceRequest
 from education.models import Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, StaffAttendance as EducationStaffAttendance, Department
@@ -725,9 +726,116 @@ class OrderSerializer(serializers.ModelSerializer):
 	items = OrderItemSerializer(many=True, read_only=True)
 	table = TableSerializer(read_only=True)
 	table_number = serializers.CharField(source='table.number', read_only=True, allow_null=True)
+	
 	class Meta:
 		model = Order
 		fields = '__all__'
+	
+	def validate(self, data):
+		"""Validate order data, especially for cloud kitchen/delivery orders"""
+		order_type = data.get('order_type', 'dine_in')
+		
+		# For cloud kitchen and delivery orders, customer information is required
+		if order_type in ['cloud_kitchen', 'delivery', 'takeaway']:
+			if not data.get('customer_name'):
+				raise serializers.ValidationError({
+					'customer_name': 'Customer name is required for cloud kitchen/delivery orders.'
+				})
+			if not data.get('customer_phone'):
+				raise serializers.ValidationError({
+					'customer_phone': 'Customer phone number is required for cloud kitchen/delivery orders.'
+				})
+			if order_type in ['cloud_kitchen', 'delivery'] and not data.get('delivery_address'):
+				raise serializers.ValidationError({
+					'delivery_address': 'Delivery address is required for cloud kitchen/delivery orders.'
+				})
+		
+		return data
+	
+	def create(self, validated_data):
+		"""Create order and calculate total_amount from items"""
+		items_data = self.context.get('items', [])
+		
+		# Create the order first
+		order = Order.objects.create(**validated_data)
+		
+		# Create order items and calculate total
+		total_amount = Decimal('0.00')
+		for item_data in items_data:
+			menu_item_id = item_data.get('menu_item_id') or item_data.get('menu_item')
+			quantity = int(item_data.get('quantity', 1))
+			
+			try:
+				menu_item = MenuItem.objects.get(id=menu_item_id, tenant=order.tenant)
+				price = menu_item.price
+				
+				OrderItem.objects.create(
+					tenant=order.tenant,
+					order=order,
+					menu_item=menu_item,
+					quantity=quantity,
+					price=price
+				)
+				
+				total_amount += price * quantity
+			except MenuItem.DoesNotExist:
+				order.delete()  # Rollback order creation
+				raise serializers.ValidationError({
+					'items': f"Menu item {menu_item_id} not found or unavailable."
+				})
+			except (ValueError, KeyError) as e:
+				order.delete()  # Rollback order creation
+				raise serializers.ValidationError({
+					'items': f"Invalid item data: {str(e)}"
+				})
+		
+		# Update order with calculated total
+		order.total_amount = total_amount
+		order.save()
+		
+		return order
+	
+	def update(self, instance, validated_data):
+		"""Update order and recalculate total_amount if items changed"""
+		items_data = self.context.get('items')
+		
+		# Update order fields
+		for attr, value in validated_data.items():
+			setattr(instance, attr, value)
+		
+		# If items are provided, recalculate total
+		if items_data is not None:
+			# Delete existing items
+			instance.items.all().delete()
+			
+			# Create new items and calculate total
+			total_amount = Decimal('0.00')
+			for item_data in items_data:
+				menu_item_id = item_data.get('menu_item_id') or item_data.get('menu_item')
+				quantity = int(item_data.get('quantity', 1))
+				
+				try:
+					menu_item = MenuItem.objects.get(id=menu_item_id, tenant=instance.tenant)
+					price = menu_item.price
+					
+					OrderItem.objects.create(
+						tenant=instance.tenant,
+						order=instance,
+						menu_item=menu_item,
+						quantity=quantity,
+						price=price
+					)
+					
+					total_amount += price * quantity
+				except MenuItem.DoesNotExist:
+					raise serializers.ValidationError({
+						'items': f"Menu item {menu_item_id} not found or unavailable."
+					})
+			
+			instance.total_amount = total_amount
+		
+		instance.save()
+		return instance
 
 class ExternalAPIIntegrationSerializer(serializers.ModelSerializer):
 	class Meta:
