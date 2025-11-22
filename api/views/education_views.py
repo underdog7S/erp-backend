@@ -3293,48 +3293,70 @@ class ClassPerformanceView(APIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education'), HasFeaturePermissionFactory('analytics')]
 
     def get(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-        tenant = profile.tenant
-        classes = Class._default_manager.filter(tenant=tenant)  # type: ignore
-        
-        performance_data = []
-        for c in classes:
-            # Get student count
-            student_count = Student._default_manager.filter(tenant=tenant, assigned_class=c).count()  # type: ignore
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            tenant = profile.tenant
+            if not tenant:
+                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
             
-            # Get average attendance for this class
-            attendance_records = Attendance._default_manager.filter(tenant=tenant, assigned_class=c)  # type: ignore
-            total_attendance = attendance_records.count()
-            present_attendance = attendance_records.filter(present=True).count()
-            attendance_percentage = round((present_attendance / total_attendance * 100) if total_attendance > 0 else 0, 2)
+            classes = Class._default_manager.filter(tenant=tenant)
             
-            # Get fee collection for this class
-            fees_collected = FeePayment._default_manager.filter(tenant=tenant, student__assigned_class=c).aggregate(total=Sum('amount_paid'))['total'] or 0  # type: ignore
+            performance_data = []
+            for c in classes:
+                try:
+                    # Get student count
+                    student_count = Student._default_manager.filter(tenant=tenant, assigned_class=c).count()
+                    
+                    # Get average attendance for this class
+                    attendance_records = Attendance._default_manager.filter(tenant=tenant, student__assigned_class=c)
+                    total_attendance = attendance_records.count()
+                    present_attendance = attendance_records.filter(present=True).count()
+                    attendance_percentage = round((present_attendance / total_attendance * 100) if total_attendance > 0 else 0, 2)
+                    
+                    # Get fee collection for this class
+                    fees_collected = FeePayment._default_manager.filter(tenant=tenant, student__assigned_class=c).aggregate(total=Sum('amount_paid'))['total'] or 0
+                    
+                    # Get report card performance (average grades)
+                    report_cards = ReportCard._default_manager.filter(tenant=tenant, class_obj=c).select_related(
+                        'student', 'class_obj', 'academic_year', 'term'
+                    )
+                    total_grades = 0
+                    grade_count = 0
+                    
+                    for rc in report_cards:
+                        try:
+                            if rc.total_marks and rc.max_total_marks and float(rc.max_total_marks) > 0:
+                                total_grades += (float(rc.total_marks) / float(rc.max_total_marks)) * 100
+                                grade_count += 1
+                            elif rc.percentage:
+                                total_grades += float(rc.percentage)
+                                grade_count += 1
+                        except (ValueError, TypeError, ZeroDivisionError) as e:
+                            logger.warning(f"Error calculating grade for report card {rc.id}: {str(e)}")
+                            continue
+                    
+                    average_performance = round(total_grades / grade_count, 2) if grade_count > 0 else 0
+                    
+                    performance_data.append({
+                        'class_id': c.id,
+                        'class_name': c.name,
+                        'student_count': student_count,
+                        'attendance_percentage': attendance_percentage,
+                        'fees_collected': float(fees_collected),
+                        'average_performance': average_performance
+                    })
+                except Exception as e:
+                    logger.error(f"Error processing class {c.id} ({c.name}): {str(e)}", exc_info=True)
+                    # Continue with next class instead of failing completely
+                    continue
             
-            # Get report card performance (average grades)
-            report_cards = ReportCard._default_manager.filter(tenant=tenant, student__assigned_class=c).select_related(
-                'student', 'class_obj', 'academic_year', 'term'
-            )  # type: ignore
-            total_grades = 0
-            grade_count = 0
-            
-            for rc in report_cards:
-                if rc.total_marks and rc.obtained_marks:
-                    total_grades += (rc.obtained_marks / rc.total_marks) * 100
-                    grade_count += 1
-            
-            average_performance = round(total_grades / grade_count, 2) if grade_count > 0 else 0
-            
-            performance_data.append({
-                'class_id': c.id,
-                'class_name': c.name,
-                'student_count': student_count,
-                'attendance_percentage': attendance_percentage,
-                'fees_collected': fees_collected,
-                'average_performance': average_performance
-            })
-        
-        return Response(performance_data) 
+            return Response(performance_data)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error in ClassPerformanceView.get: {str(e)}", exc_info=True)
+            return Response({'error': f'An error occurred while fetching class performance data: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 class FeeStructureExportView(APIView):
     authentication_classes = [JWTAuthentication]
