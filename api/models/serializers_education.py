@@ -219,14 +219,16 @@ class MarksEntrySerializer(serializers.ModelSerializer):
     student_roll_number = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
     assessment_name = serializers.CharField(source='assessment.name', read_only=True)
     subject_name = serializers.CharField(source='assessment.subject.name', read_only=True)
+    percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    grade = serializers.CharField(read_only=True)
     
     class Meta:
         model = MarksEntry
         fields = [
             'id', 'student', 'student_name', 'student_roll_number', 'assessment', 'assessment_name',
-            'subject_name', 'marks_obtained', 'max_marks', 'remarks', 'entered_by', 'entered_at', 'updated_at'
+            'subject_name', 'marks_obtained', 'max_marks', 'percentage', 'grade', 'remarks', 'entered_by', 'entered_at', 'updated_at'
         ]
-        read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'entered_at', 'updated_at']
+        read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'percentage', 'grade', 'entered_at', 'updated_at']
 
 class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
     """Serializer for FeeInstallmentPlan model."""

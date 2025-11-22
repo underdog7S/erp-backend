@@ -413,8 +413,10 @@ class ReportCardListCreateView(APIView):
     def get(self, request):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
-            reportcards = ReportCard._default_manager.filter(tenant=profile.tenant)
-            serializer = ReportCardSerializer(reportcards, many=True)
+            reportcards = ReportCard._default_manager.filter(tenant=profile.tenant).select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            )
+            serializer = ReportCardSerializer(reportcards.order_by('-generated_at'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
             logger.error(f"UserProfile not found for user: {request.user.username}")
@@ -475,7 +477,9 @@ class ReportCardDetailView(APIView):
     def get(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
         try:
-            r = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)  # type: ignore
+            r = ReportCard._default_manager.select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            ).get(id=pk, tenant=profile.tenant)  # type: ignore
             serializer = ReportCardSerializer(r)
             return Response(serializer.data)
         except ReportCard.DoesNotExist:  # type: ignore
@@ -485,7 +489,9 @@ class ReportCardDetailView(APIView):
     def put(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)
         try:
-            r = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)  # type: ignore
+            r = ReportCard._default_manager.select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            ).get(id=pk, tenant=profile.tenant)  # type: ignore
             serializer = ReportCardSerializer(r, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -498,7 +504,9 @@ class ReportCardDetailView(APIView):
     def delete(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)
         try:
-            r = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)  # type: ignore
+            r = ReportCard._default_manager.select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            ).get(id=pk, tenant=profile.tenant)  # type: ignore
             r.delete()
             return Response({'message': 'Report card deleted.'})
         except ReportCard.DoesNotExist:  # type: ignore
@@ -778,7 +786,9 @@ class MarksEntryListCreateView(APIView):
             assessment_id = request.query_params.get('assessment')
             term_id = request.query_params.get('term')
             
-            marks_entries = MarksEntry._default_manager.filter(tenant=profile.tenant)
+            marks_entries = MarksEntry._default_manager.filter(tenant=profile.tenant).select_related(
+                'student', 'assessment', 'assessment__subject', 'assessment__term'
+            )
             if student_id:
                 marks_entries = marks_entries.filter(student_id=student_id)
             if assessment_id:
@@ -950,7 +960,9 @@ class ReportCardPDFView(APIView):
     def get(self, request, pk):
         profile = UserProfile._default_manager.get(user=request.user)
         try:
-            report_card = ReportCard._default_manager.get(id=pk, tenant=profile.tenant)
+            report_card = ReportCard._default_manager.select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            ).get(id=pk, tenant=profile.tenant)
         except ReportCard.DoesNotExist:
             return Response({'error': 'Report card not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
@@ -3300,7 +3312,9 @@ class ClassPerformanceView(APIView):
             fees_collected = FeePayment._default_manager.filter(tenant=tenant, student__assigned_class=c).aggregate(total=Sum('amount_paid'))['total'] or 0  # type: ignore
             
             # Get report card performance (average grades)
-            report_cards = ReportCard._default_manager.filter(tenant=tenant, student__assigned_class=c)  # type: ignore
+            report_cards = ReportCard._default_manager.filter(tenant=tenant, student__assigned_class=c).select_related(
+                'student', 'class_obj', 'academic_year', 'term'
+            )  # type: ignore
             total_grades = 0
             grade_count = 0
             
