@@ -19,6 +19,9 @@ except ImportError:
     pass
 
 from api.models.user import Tenant, UserProfile
+import logging
+
+logger = logging.getLogger(__name__)
 from pharmacy.models import (
     MedicineCategory, Supplier, Medicine, MedicineBatch, Customer,
     Prescription, PrescriptionItem, Sale, SaleItem, PurchaseOrder,
@@ -276,7 +279,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
             return queryset.order_by('-sale_date')
         except Exception as e:
             # If there's an error with tenant filtering, return empty queryset
-            print(f"Error in SaleListCreateView.get_queryset: {e}")
+            logger.error(f"Error in SaleListCreateView.get_queryset: {e}", exc_info=True)
             return Sale.objects.none()
     
     def perform_create(self, serializer):
@@ -309,10 +312,14 @@ class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         try:
-            return Sale.objects.filter(tenant=self.request.user.userprofile.tenant)
+            return Sale.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+                'customer', 'sold_by', 'sold_by__user', 'tenant'
+            ).prefetch_related('items', 'items__medicine_batch', 'items__medicine_batch__medicine')
         except Exception as e:
             # If there's an error with tenant filtering, return empty queryset
-            print(f"Error in SaleDetailView.get_queryset: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in SaleDetailView.get_queryset: {e}", exc_info=True)
             return Sale.objects.none()
 
 # Purchase Order Views

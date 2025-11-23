@@ -77,6 +77,19 @@ class FeePaymentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['fee_structure_class', 'fee_structure_amount', 'payment_method_display', 'fee_type', 'fee_type_display', 'receipt_number']
 
+
+# Public API Serializers (for parents to pay fees from external websites)
+class PublicFeePaymentCreateSerializer(serializers.Serializer):
+    """Serializer for public fee payment creation (parents from external websites)"""
+    tenant_id = serializers.IntegerField(required=True, help_text="School/Tenant ID")
+    student_roll_number = serializers.CharField(max_length=50, required=True, help_text="Student Roll Number (Upper ID)")
+    parent_phone = serializers.CharField(max_length=20, required=True, help_text="Parent phone number for verification")
+    fee_structure_id = serializers.IntegerField(required=True, help_text="Fee Structure ID to pay")
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, help_text="Amount to pay")
+    parent_name = serializers.CharField(max_length=150, required=False, allow_blank=True, help_text="Parent name (optional)")
+    parent_email = serializers.EmailField(required=False, allow_blank=True, help_text="Parent email (optional)")
+    notes = serializers.CharField(required=False, allow_blank=True, help_text="Additional notes (optional)")
+
 class FeeDiscountSerializer(serializers.ModelSerializer):
     """Serializer for FeeDiscount model."""
     student_name = serializers.CharField(source='student.name', read_only=True)

@@ -28,57 +28,68 @@ class ClassSerializer(serializers.ModelSerializer):
     class Meta:
         model = Class
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class FeeStructureSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeeStructure
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class FeePaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeePayment
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class FeeDiscountSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeeDiscount
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class ReportCardSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReportCard
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class EducationStaffAttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = EducationStaffAttendance
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 # Pharmacy Serializers
 class MedicineCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = MedicineCategory
         fields = ['id', 'name', 'description']
+        read_only_fields = ('tenant',)
 
 class PharmacySupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacySupplier
         fields = ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'gst_number', 'payment_terms']
+        read_only_fields = ('tenant',)
 
 class MedicineSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -86,6 +97,7 @@ class MedicineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Medicine
         fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name']
+        read_only_fields = ('tenant',)
 
 class MedicineBatchSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine.name', read_only=True)
@@ -94,13 +106,14 @@ class MedicineBatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = MedicineBatch
         fields = ['id', 'medicine', 'batch_number', 'supplier', 'manufacturing_date', 'expiry_date', 'cost_price', 'selling_price', 'mrp', 'quantity_received', 'quantity_available', 'location', 'medicine_name', 'supplier_name']
+        read_only_fields = ('tenant',)
 
 class PharmacyCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyCustomer
         fields = ['id', 'name', 'phone', 'email', 'address', 'date_of_birth', 'allergies', 'medical_history', 
                  'loyalty_points', 'total_points_earned', 'total_points_redeemed', 'loyalty_enrolled', 'created_at']
-        read_only_fields = ['loyalty_points', 'total_points_earned', 'total_points_redeemed']
+        read_only_fields = ('tenant', 'loyalty_points', 'total_points_earned', 'total_points_redeemed')
 
 class PrescriptionItemSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine.name', read_only=True)
@@ -108,6 +121,7 @@ class PrescriptionItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrescriptionItem
         fields = ['id', 'prescription', 'medicine', 'dosage', 'frequency', 'duration', 'quantity', 'notes', 'medicine_name']
+        read_only_fields = ('tenant',)
 
 class PrescriptionSerializer(serializers.ModelSerializer):
     items = PrescriptionItemSerializer(many=True, read_only=True)
@@ -116,6 +130,7 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Prescription
         fields = ['id', 'customer', 'doctor_name', 'prescription_date', 'diagnosis', 'notes', 'created_at', 'items', 'customer_name']
+        read_only_fields = ('tenant',)
 
 class PharmacySaleItemSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine_batch.medicine.name', read_only=True, allow_null=True)
@@ -123,6 +138,7 @@ class PharmacySaleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacySaleItem
         fields = ['id', 'sale', 'medicine_batch', 'quantity', 'unit_price', 'total_price', 'medicine_name']
+        read_only_fields = ('tenant',)
     
     def to_representation(self, instance):
         """Custom representation to handle null values safely"""
@@ -144,7 +160,7 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacySale
         fields = ['id', 'invoice_number', 'customer', 'prescription', 'sale_date', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'sold_by_name', 'customer_name_input', 'phone']
-        read_only_fields = ['invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date']
+        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date')
     
     # Add fields for customer creation (write-only)
     customer_name_input = serializers.CharField(write_only=True, required=False)
@@ -271,6 +287,7 @@ class PharmacyPurchaseOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyPurchaseOrderItem
         fields = ['id', 'purchase_order', 'medicine', 'quantity', 'unit_cost', 'total_cost', 'medicine_name']
+        read_only_fields = ('tenant',)
 
 class PharmacyPurchaseOrderSerializer(serializers.ModelSerializer):
     items = PharmacyPurchaseOrderItemSerializer(many=True, read_only=True)
@@ -280,6 +297,7 @@ class PharmacyPurchaseOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyPurchaseOrder
         fields = ['id', 'supplier', 'po_number', 'order_date', 'expected_delivery', 'status', 'total_amount', 'notes', 'created_by', 'items', 'supplier_name', 'created_by_name']
+        read_only_fields = ('tenant',)
 
 class PharmacyStockAdjustmentSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine_batch.medicine.name', read_only=True)
@@ -288,7 +306,7 @@ class PharmacyStockAdjustmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyStockAdjustment
         fields = ['id', 'medicine_batch', 'adjustment_type', 'quantity', 'reason', 'adjustment_date', 'adjusted_by', 'medicine_name', 'adjusted_by_name']
-        read_only_fields = ['adjustment_date', 'adjusted_by']
+        read_only_fields = ('tenant', 'adjustment_date', 'adjusted_by')
 
 class PharmacyStaffAttendanceSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source='staff.user.username', read_only=True)
@@ -296,7 +314,7 @@ class PharmacyStaffAttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyStaffAttendance
         fields = ['id', 'staff', 'date', 'check_in_time', 'check_out_time', 'staff_name']
-        read_only_fields = ['check_in_time', 'check_out_time']
+        read_only_fields = ('tenant', 'check_in_time', 'check_out_time')
 
 class PharmacySaleReturnItemSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine_batch.medicine.name', read_only=True, allow_null=True)
@@ -305,6 +323,7 @@ class PharmacySaleReturnItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacySaleReturnItem
         fields = ['id', 'sale_return', 'sale_item', 'medicine_batch', 'quantity', 'unit_price', 'total_price', 'reason', 'medicine_name', 'batch_number']
+        read_only_fields = ('tenant',)
 
 class PharmacySaleReturnSerializer(serializers.ModelSerializer):
     items = PharmacySaleReturnItemSerializer(many=True, read_only=True)
@@ -317,14 +336,14 @@ class PharmacySaleReturnSerializer(serializers.ModelSerializer):
         fields = ['id', 'return_number', 'sale', 'customer', 'return_date', 'return_type', 'return_reason', 'reason_details', 
                  'subtotal', 'refund_amount', 'refund_method', 'status', 'processed_by', 'processed_at', 'notes', 
                  'items', 'customer_name', 'sale_invoice_number', 'processed_by_name']
-        read_only_fields = ['return_number', 'return_date', 'processed_at']
+        read_only_fields = ('tenant', 'return_number', 'return_date', 'processed_at')
 
 class PharmacyLoyaltyRewardSerializer(serializers.ModelSerializer):
     class Meta:
         model = PharmacyLoyaltyReward
         fields = ['id', 'name', 'description', 'points_required', 'discount_percentage', 'discount_amount', 
                  'reward_type', 'is_active', 'valid_from', 'valid_until', 'created_at']
-        read_only_fields = ['created_at']
+        read_only_fields = ('tenant', 'created_at')
 
 class PharmacyLoyaltyTransactionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
@@ -336,23 +355,26 @@ class PharmacyLoyaltyTransactionSerializer(serializers.ModelSerializer):
         model = PharmacyLoyaltyTransaction
         fields = ['id', 'customer', 'customer_name', 'transaction_type', 'points', 'sale', 'sale_invoice_number', 
                  'reward', 'reward_name', 'description', 'expiry_date', 'transaction_date', 'created_by', 'created_by_name']
-        read_only_fields = ['transaction_date']
+        read_only_fields = ('tenant', 'transaction_date')
 
 # Retail Serializers
 class ProductCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductCategory
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailSupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailSupplier
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class WarehouseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Warehouse
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -361,6 +383,7 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+        read_only_fields = ('tenant',)
     
     def get_image_url(self, obj):
         if obj.image:
@@ -377,6 +400,7 @@ class InventorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Inventory
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailPriceListItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -385,7 +409,7 @@ class RetailPriceListItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailPriceListItem
         fields = ['id', 'price_list', 'product', 'product_name', 'product_sku', 'price', 'min_quantity', 'max_quantity', 'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
 
 class RetailPriceListSerializer(serializers.ModelSerializer):
     items = RetailPriceListItemSerializer(many=True, read_only=True)
@@ -394,7 +418,7 @@ class RetailPriceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailPriceList
         fields = ['id', 'name', 'customer_type', 'is_default', 'is_active', 'valid_from', 'valid_to', 'notes', 'created_at', 'updated_at', 'items', 'items_count']
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
     
     def get_items_count(self, obj):
         return obj.items.count()
@@ -405,6 +429,7 @@ class RetailCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailCustomer
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailPurchaseOrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -412,6 +437,7 @@ class RetailPurchaseOrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailPurchaseOrderItem
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailPurchaseOrderSerializer(serializers.ModelSerializer):
     items = RetailPurchaseOrderItemSerializer(many=True, read_only=True)
@@ -421,6 +447,7 @@ class RetailPurchaseOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailPurchaseOrder
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class GoodsReceiptItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='purchase_order_item.product.name', read_only=True)
@@ -428,6 +455,7 @@ class GoodsReceiptItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoodsReceiptItem
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class GoodsReceiptSerializer(serializers.ModelSerializer):
     items = GoodsReceiptItemSerializer(many=True, read_only=True)
@@ -438,6 +466,7 @@ class GoodsReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoodsReceipt
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailSaleItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -445,6 +474,7 @@ class RetailSaleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailSaleItem
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailSaleSerializer(serializers.ModelSerializer):
     items = RetailSaleItemSerializer(many=True, read_only=True)
@@ -455,7 +485,7 @@ class RetailSaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailSale
         fields = ['id', 'invoice_number', 'customer', 'warehouse', 'sale_date', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'warehouse_name', 'sold_by_name', 'customer_name_input', 'phone']
-        read_only_fields = ['invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date']
+        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date')
     
     # Add fields for customer creation (write-only)
     customer_name_input = serializers.CharField(write_only=True, required=False)
@@ -580,6 +610,7 @@ class StockTransferItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockTransferItem
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class StockTransferSerializer(serializers.ModelSerializer):
     items = StockTransferItemSerializer(many=True, read_only=True)
@@ -590,6 +621,7 @@ class StockTransferSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockTransfer
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class StockAdjustmentItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -597,6 +629,7 @@ class StockAdjustmentItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = StockAdjustmentItem
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailStockAdjustmentSerializer(serializers.ModelSerializer):
     items = StockAdjustmentItemSerializer(many=True, read_only=True)
@@ -606,6 +639,7 @@ class RetailStockAdjustmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailStockAdjustment
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailStaffAttendanceSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source='staff.user.username', read_only=True)
@@ -613,6 +647,7 @@ class RetailStaffAttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailStaffAttendance
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 class RetailSaleReturnItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -621,7 +656,7 @@ class RetailSaleReturnItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailSaleReturnItem
         fields = ['id', 'sale_return', 'sale_item', 'product', 'product_name', 'inventory', 'inventory_warehouse', 'quantity', 'unit_price', 'total_price', 'reason']
-        read_only_fields = ['id', 'total_price']
+        read_only_fields = ('tenant', 'id', 'total_price')
 
 class RetailSaleReturnSerializer(serializers.ModelSerializer):
     items = RetailSaleReturnItemSerializer(many=True, read_only=True)
@@ -632,7 +667,7 @@ class RetailSaleReturnSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailSaleReturn
         fields = ['id', 'return_number', 'sale', 'sale_invoice_number', 'customer', 'customer_name', 'return_date', 'return_type', 'return_reason', 'reason_details', 'subtotal', 'refund_amount', 'refund_method', 'status', 'processed_by', 'processed_by_name', 'processed_at', 'notes', 'items']
-        read_only_fields = ['return_number', 'return_date', 'processed_at']
+        read_only_fields = ('tenant', 'return_number', 'return_date', 'processed_at')
 
 class RetailQuotationItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -641,7 +676,7 @@ class RetailQuotationItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = RetailQuotationItem
         fields = ['id', 'quotation', 'product', 'product_name', 'product_sku', 'quantity', 'unit_price', 'total_price', 'notes']
-        read_only_fields = ['total_price']
+        read_only_fields = ('tenant', 'total_price')
 
 class RetailQuotationSerializer(serializers.ModelSerializer):
     items = RetailQuotationItemSerializer(many=True, read_only=True)
@@ -658,7 +693,7 @@ class RetailQuotationSerializer(serializers.ModelSerializer):
                  'status', 'subtotal', 'tax_amount', 'discount_amount', 'discount_percentage', 'total_amount', 
                  'notes', 'created_by', 'created_by_name', 'converted_to_sale', 'converted_to_sale_invoice', 
                  'conversion_date', 'items', 'is_expired', 'can_convert']
-        read_only_fields = ['quotation_number', 'quotation_date', 'conversion_date', 'converted_to_sale']
+        read_only_fields = ('tenant', 'quotation_number', 'quotation_date', 'conversion_date', 'converted_to_sale')
     
     def get_is_expired(self, obj):
         return obj.is_expired()
@@ -671,17 +706,20 @@ class RoomTypeSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = RoomType
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class RoomSerializer(serializers.ModelSerializer):
 	room_type_name = serializers.CharField(source='room_type.name', read_only=True)
 	class Meta:
 		model = Room
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class GuestSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Guest
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class BookingSerializer(serializers.ModelSerializer):
 	room_number = serializers.CharField(source='room.room_number', read_only=True)
@@ -692,6 +730,7 @@ class BookingSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Booking
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 	def get_guest_name(self, obj):
 		if obj.guest:
@@ -704,23 +743,27 @@ class MenuCategorySerializer(serializers.ModelSerializer):
 	class Meta:
 		model = MenuCategory
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class MenuItemSerializer(serializers.ModelSerializer):
 	category_name = serializers.CharField(source='category.name', read_only=True)
 	class Meta:
 		model = MenuItem
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class TableSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Table
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class OrderItemSerializer(serializers.ModelSerializer):
 	menu_item_name = serializers.CharField(source='menu_item.name', read_only=True)
 	class Meta:
 		model = OrderItem
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 class OrderSerializer(serializers.ModelSerializer):
 	items = OrderItemSerializer(many=True, read_only=True)
@@ -730,6 +773,7 @@ class OrderSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Order
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 	
 	def validate(self, data):
 		"""Validate order data, especially for cloud kitchen/delivery orders"""
@@ -841,13 +885,14 @@ class ExternalAPIIntegrationSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = ExternalAPIIntegration
 		fields = '__all__'
-		read_only_fields = ('last_synced_at', 'created_at', 'updated_at')
+		read_only_fields = ('tenant', 'last_synced_at', 'created_at', 'updated_at')
 
 class MenuSyncLogSerializer(serializers.ModelSerializer):
 	integration_name = serializers.CharField(source='integration.name', read_only=True)
 	class Meta:
 		model = MenuSyncLog
 		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 # Public API Serializers (for customer ordering)
 class PublicMenuItemSerializer(serializers.ModelSerializer):

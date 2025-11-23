@@ -60,9 +60,16 @@ class AdminExportDataView(APIView):
 		"""Export all system data as a ZIP file"""
 		try:
 			# Check if user is admin
-			user_profile = UserProfile.objects.get(user=request.user)
-			if user_profile.role.name != 'admin':
+			try:
+				user_profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
+			
+			if not user_profile.role or user_profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+			
+			if not user_profile.tenant:
+				return Response({'error': 'Tenant not found for user'}, status=status.HTTP_404_NOT_FOUND)
 			
 			tenant = user_profile.tenant
 			
@@ -247,8 +254,12 @@ class AdminImportDataView(APIView):
 		"""Import system data from a ZIP file"""
 		try:
 			# Check if user is admin
-			user_profile = UserProfile.objects.get(user=request.user)
-			if user_profile.role.name != 'admin':
+			try:
+				user_profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
+			
+			if not user_profile.role or user_profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
 			
 			# Check if file was uploaded
@@ -326,7 +337,10 @@ class TenantPublicSettingsView(APIView):
 
 	def get(self, request):
 		try:
-			profile = UserProfile.objects.get(user=request.user)
+			try:
+				profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			
@@ -369,7 +383,10 @@ class TenantPublicSettingsView(APIView):
 
 	def post(self, request):
 		try:
-			profile = UserProfile.objects.get(user=request.user)
+			try:
+				profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			
@@ -499,7 +516,10 @@ class TenantLogoView(APIView):
 	def get(self, request):
 		"""Get current logo URL"""
 		try:
-			profile = UserProfile.objects.get(user=request.user)
+			try:
+				profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			tenant = profile.tenant
@@ -514,7 +534,10 @@ class TenantLogoView(APIView):
 	def post(self, request):
 		"""Upload logo"""
 		try:
-			profile = UserProfile.objects.get(user=request.user)
+			try:
+				profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			
@@ -542,7 +565,10 @@ class TenantLogoView(APIView):
 	def delete(self, request):
 		"""Delete logo"""
 		try:
-			profile = UserProfile.objects.get(user=request.user)
+			try:
+				profile = UserProfile.objects.get(user=request.user)
+			except UserProfile.DoesNotExist:
+				return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			

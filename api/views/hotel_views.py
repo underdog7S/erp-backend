@@ -5,6 +5,9 @@ from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg
+import logging
+
+logger = logging.getLogger(__name__)
 from django.utils import timezone
 from datetime import datetime, timedelta
 from api.models.user import Tenant
@@ -65,7 +68,11 @@ class GuestListCreateView(generics.ListCreateAPIView):
 		queryset = Guest.objects.filter(tenant=self.request.user.userprofile.tenant)
 		search = self.request.query_params.get('search')
 		if search:
-			queryset = queryset.filter(first_name__icontains=search) | queryset.filter(last_name__icontains=search) | queryset.filter(phone__icontains=search)
+			queryset = queryset.filter(
+				Q(first_name__icontains=search) | 
+				Q(last_name__icontains=search) | 
+				Q(phone__icontains=search)
+			)
 		return queryset
 	
 	def perform_create(self, serializer):
@@ -124,7 +131,9 @@ class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
 	serializer_class = BookingSerializer
 	
 	def get_queryset(self):
-		return Booking.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return Booking.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+			'room', 'room__room_type', 'guest', 'tenant'
+		)
 
 
 class BookingCheckInView(APIView):
@@ -132,7 +141,9 @@ class BookingCheckInView(APIView):
 
 	def post(self, request, pk):
 		try:
-			booking = Booking.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
+				id=pk, tenant=request.user.userprofile.tenant
+			)
 			booking.status = 'checked_in'
 			booking.save()
 			# Update room status
@@ -148,7 +159,9 @@ class BookingCheckOutView(APIView):
 
 	def post(self, request, pk):
 		try:
-			booking = Booking.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
+				id=pk, tenant=request.user.userprofile.tenant
+			)
 			booking.status = 'checked_out'
 			booking.save()
 			# Update room status

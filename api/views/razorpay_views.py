@@ -855,6 +855,11 @@ class EducationFeePaymentView(APIView):
     def post(self, request, payment_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -863,54 +868,98 @@ class EducationFeePaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate payment_id
+            try:
+                payment_id = int(payment_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid payment ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from education.models import FeePayment
-            fee_payment = FeePayment.objects.select_related('student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj').get(id=payment_id, tenant=tenant)
+            try:
+                fee_payment = FeePayment.objects.select_related(
+                    'student', 'fee_structure', 'student__assigned_class', 'fee_structure__class_obj'
+                ).get(id=payment_id, tenant=tenant)
+            except FeePayment.DoesNotExist:
+                return Response({
+                    'error': 'Fee payment not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(fee_payment.amount_paid)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid payment amount.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid payment amount format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Create Razorpay order
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(fee_payment.amount_paid)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"FEE-{fee_payment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'education',
-                    'reference_id': str(fee_payment.id),
-                    'student_id': str(fee_payment.student.id),
-                    'student_name': fee_payment.student.name,
-                    'fee_type': fee_payment.fee_structure.fee_type,
-                    'tenant_id': str(tenant.id)
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"FEE-{fee_payment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'education',
+                        'reference_id': str(fee_payment.id),
+                        'student_id': str(fee_payment.student.id),
+                        'student_name': fee_payment.student.name,
+                        'fee_type': fee_payment.fee_structure.fee_type,
+                        'tenant_id': str(tenant.id)
+                    }
                 }
-            }
+                
+                order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': order['id'],
+                    'amount': order['amount'],
+                    'currency': order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': order.get('receipt'),
+                    'fee_payment_id': fee_payment.id,
+                    'student_name': fee_payment.student.name,
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for fee payment {payment_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the payment details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for fee payment {payment_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating fee payment order {payment_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': order['id'],
-                'amount': order['amount'],
-                'currency': order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': order.get('receipt'),
-                'fee_payment_id': fee_payment.id,
-                'student_name': fee_payment.student.name,
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except FeePayment.DoesNotExist:
-            return Response({
-                'error': 'Fee payment not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating fee payment order: {str(e)}")
+            logger.error(f"Unexpected error in EducationFeePaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -922,6 +971,11 @@ class RestaurantOrderPaymentView(APIView):
     def post(self, request, order_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -930,52 +984,96 @@ class RestaurantOrderPaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate order_id
+            try:
+                order_id = int(order_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid order ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from restaurant.models import Order
-            order = Order.objects.select_related('table', 'tenant').prefetch_related('items', 'items__menu_item').get(id=order_id, tenant=tenant)
+            try:
+                order = Order.objects.select_related('table', 'tenant').prefetch_related(
+                    'items', 'items__menu_item', 'items__menu_item__category'
+                ).get(id=order_id, tenant=tenant)
+            except Order.DoesNotExist:
+                return Response({
+                    'error': 'Order not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(order.total_amount)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid order amount.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError, AttributeError):
+                return Response({
+                    'error': 'Invalid order amount format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(order.total_amount)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"ORD-{order.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'restaurant',
-                    'reference_id': str(order.id),
-                    'customer_name': order.customer_name,
-                    'order_type': order.order_type,
-                    'tenant_id': str(tenant.id)
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"ORD-{order.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'restaurant',
+                        'reference_id': str(order.id),
+                        'customer_name': order.customer_name,
+                        'order_type': order.order_type,
+                        'tenant_id': str(tenant.id)
+                    }
                 }
-            }
+                
+                razorpay_order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': razorpay_order['id'],
+                    'amount': razorpay_order['amount'],
+                    'currency': razorpay_order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': razorpay_order.get('receipt'),
+                    'restaurant_order_id': order.id,
+                    'customer_name': order.customer_name,
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for restaurant order {order_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the order details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for restaurant order {order_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating restaurant order payment {order_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            razorpay_order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': razorpay_order['id'],
-                'amount': razorpay_order['amount'],
-                'currency': razorpay_order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': razorpay_order.get('receipt'),
-                'restaurant_order_id': order.id,
-                'customer_name': order.customer_name,
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except Order.DoesNotExist:
-            return Response({
-                'error': 'Order not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating restaurant order payment: {str(e)}")
+            logger.error(f"Unexpected error in RestaurantOrderPaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -987,6 +1085,11 @@ class SalonAppointmentPaymentView(APIView):
     def post(self, request, appointment_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -995,53 +1098,97 @@ class SalonAppointmentPaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate appointment_id
+            try:
+                appointment_id = int(appointment_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid appointment ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from salon.models import Appointment
-            appointment = Appointment.objects.select_related('service', 'stylist').get(id=appointment_id, tenant=tenant)
+            try:
+                appointment = Appointment.objects.select_related('service', 'stylist', 'tenant').get(
+                    id=appointment_id, tenant=tenant
+                )
+            except Appointment.DoesNotExist:
+                return Response({
+                    'error': 'Appointment not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(appointment.price)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid appointment price.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError, AttributeError):
+                return Response({
+                    'error': 'Invalid appointment price format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(appointment.price)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"APT-{appointment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'salon',
-                    'reference_id': str(appointment.id),
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"APT-{appointment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'salon',
+                        'reference_id': str(appointment.id),
+                        'customer_name': appointment.customer_name,
+                        'service_name': appointment.service.name if appointment.service else '',
+                        'tenant_id': str(tenant.id)
+                    }
+                }
+                
+                razorpay_order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': razorpay_order['id'],
+                    'amount': razorpay_order['amount'],
+                    'currency': razorpay_order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': razorpay_order.get('receipt'),
+                    'appointment_id': appointment.id,
                     'customer_name': appointment.customer_name,
                     'service_name': appointment.service.name if appointment.service else '',
-                    'tenant_id': str(tenant.id)
-                }
-            }
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for salon appointment {appointment_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the appointment details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for salon appointment {appointment_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating salon appointment payment {appointment_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            razorpay_order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': razorpay_order['id'],
-                'amount': razorpay_order['amount'],
-                'currency': razorpay_order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': razorpay_order.get('receipt'),
-                'appointment_id': appointment.id,
-                'customer_name': appointment.customer_name,
-                'service_name': appointment.service.name if appointment.service else '',
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except Appointment.DoesNotExist:
-            return Response({
-                'error': 'Appointment not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating salon appointment payment: {str(e)}")
+            logger.error(f"Unexpected error in SalonAppointmentPaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1053,6 +1200,11 @@ class PharmacySalePaymentView(APIView):
     def post(self, request, sale_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -1061,50 +1213,96 @@ class PharmacySalePaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate sale_id
+            try:
+                sale_id = int(sale_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid sale ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from pharmacy.models import Sale
-            sale = Sale.objects.select_related('customer', 'tenant', 'sold_by', 'sold_by__user').prefetch_related('items', 'items__medicine_batch', 'items__medicine_batch__medicine').get(id=sale_id, tenant=tenant)
+            try:
+                sale = Sale.objects.select_related(
+                    'customer', 'tenant', 'sold_by', 'sold_by__user'
+                ).prefetch_related(
+                    'items', 'items__medicine_batch', 'items__medicine_batch__medicine'
+                ).get(id=sale_id, tenant=tenant)
+            except Sale.DoesNotExist:
+                return Response({
+                    'error': 'Sale not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(sale.total_amount)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid sale amount.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError, AttributeError):
+                return Response({
+                    'error': 'Invalid sale amount format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(sale.total_amount)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"PHARM-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'pharmacy',
-                    'reference_id': str(sale.id),
-                    'customer_name': sale.customer.name if sale.customer else '',
-                    'tenant_id': str(tenant.id)
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"PHARM-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'pharmacy',
+                        'reference_id': str(sale.id),
+                        'customer_name': sale.customer.name if sale.customer else '',
+                        'tenant_id': str(tenant.id)
+                    }
                 }
-            }
+                
+                razorpay_order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': razorpay_order['id'],
+                    'amount': razorpay_order['amount'],
+                    'currency': razorpay_order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': razorpay_order.get('receipt'),
+                    'sale_id': sale.id,
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for pharmacy sale {sale_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the sale details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for pharmacy sale {sale_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating pharmacy sale payment {sale_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            razorpay_order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': razorpay_order['id'],
-                'amount': razorpay_order['amount'],
-                'currency': razorpay_order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': razorpay_order.get('receipt'),
-                'sale_id': sale.id,
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except Sale.DoesNotExist:
-            return Response({
-                'error': 'Sale not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating pharmacy sale payment: {str(e)}")
+            logger.error(f"Unexpected error in PharmacySalePaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1116,6 +1314,11 @@ class RetailSalePaymentView(APIView):
     def post(self, request, sale_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -1124,50 +1327,94 @@ class RetailSalePaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate sale_id
+            try:
+                sale_id = int(sale_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid sale ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from retail.models import Sale
-            sale = Sale.objects.select_related('customer', 'warehouse', 'tenant', 'sold_by', 'sold_by__user').prefetch_related('items', 'items__product').get(id=sale_id, tenant=tenant)
+            try:
+                sale = Sale.objects.select_related(
+                    'customer', 'warehouse', 'tenant', 'sold_by', 'sold_by__user'
+                ).prefetch_related('items', 'items__product').get(id=sale_id, tenant=tenant)
+            except Sale.DoesNotExist:
+                return Response({
+                    'error': 'Sale not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(sale.total_amount)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid sale amount.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError, AttributeError):
+                return Response({
+                    'error': 'Invalid sale amount format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(sale.total_amount)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"RETAIL-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'retail',
-                    'reference_id': str(sale.id),
-                    'customer_name': sale.customer.name if sale.customer else '',
-                    'tenant_id': str(tenant.id)
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"RETAIL-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'retail',
+                        'reference_id': str(sale.id),
+                        'customer_name': sale.customer.name if sale.customer else '',
+                        'tenant_id': str(tenant.id)
+                    }
                 }
-            }
+                
+                razorpay_order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': razorpay_order['id'],
+                    'amount': razorpay_order['amount'],
+                    'currency': razorpay_order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': razorpay_order.get('receipt'),
+                    'sale_id': sale.id,
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for retail sale {sale_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the sale details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for retail sale {sale_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating retail sale payment {sale_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            razorpay_order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': razorpay_order['id'],
-                'amount': razorpay_order['amount'],
-                'currency': razorpay_order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': razorpay_order.get('receipt'),
-                'sale_id': sale.id,
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except Sale.DoesNotExist:
-            return Response({
-                'error': 'Sale not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating retail sale payment: {str(e)}")
+            logger.error(f"Unexpected error in RetailSalePaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -1179,6 +1426,11 @@ class HotelBookingPaymentView(APIView):
     def post(self, request, booking_id):
         try:
             profile = UserProfile._default_manager.get(user=request.user)
+            if not profile or not profile.tenant:
+                return Response({
+                    'error': 'User profile or tenant not found. Please contact support.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
             tenant = profile.tenant
             
             if not tenant.has_razorpay_configured():
@@ -1187,52 +1439,96 @@ class HotelBookingPaymentView(APIView):
                     'setup_required': True
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            # Validate booking_id
+            try:
+                booking_id = int(booking_id)
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid booking ID format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
             from hotel.models import Booking
-            booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(id=booking_id, tenant=tenant)
+            try:
+                booking = Booking.objects.select_related(
+                    'room', 'room__room_type', 'guest', 'tenant'
+                ).get(id=booking_id, tenant=tenant)
+            except Booking.DoesNotExist:
+                return Response({
+                    'error': 'Booking not found or does not belong to your organization.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate amount
+            try:
+                amount = float(booking.total_amount)
+                if amount <= 0:
+                    return Response({
+                        'error': 'Invalid booking amount.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except (ValueError, TypeError, AttributeError):
+                return Response({
+                    'error': 'Invalid booking amount format.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             if razorpay is None:
                 return Response({
-                    'error': 'Razorpay is not available.'
+                    'error': 'Razorpay payment service is currently unavailable. Please contact support.'
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
-            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
-            
-            amount = float(booking.total_amount)
-            order_data = {
-                'amount': int(amount * 100),
-                'currency': 'INR',
-                'payment_capture': 1,
-                'receipt': f"HOTEL-{booking.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
-                'notes': {
-                    'sector': 'hotel',
-                    'reference_id': str(booking.id),
-                    'guest_name': booking.guest.name if booking.guest else '',
-                    'room_number': booking.room.room_number if booking.room else '',
-                    'tenant_id': str(tenant.id)
+            try:
+                client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                
+                order_data = {
+                    'amount': int(amount * 100),
+                    'currency': 'INR',
+                    'payment_capture': 1,
+                    'receipt': f"HOTEL-{booking.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    'notes': {
+                        'sector': 'hotel',
+                        'reference_id': str(booking.id),
+                        'guest_name': booking.guest.name if booking.guest else '',
+                        'room_number': booking.room.room_number if booking.room else '',
+                        'tenant_id': str(tenant.id)
+                    }
                 }
-            }
+                
+                razorpay_order = client.order.create(data=order_data)
+                
+                return Response({
+                    'order_id': razorpay_order['id'],
+                    'amount': razorpay_order['amount'],
+                    'currency': razorpay_order['currency'],
+                    'key_id': tenant.razorpay_key_id,
+                    'receipt': razorpay_order.get('receipt'),
+                    'booking_id': booking.id,
+                    'guest_name': booking.guest.name if booking.guest else '',
+                    'amount_display': f"₹{amount:.2f}"
+                }, status=status.HTTP_201_CREATED)
+                
+            except razorpay.errors.BadRequestError as e:
+                logger.error(f"Razorpay BadRequestError for hotel booking {booking_id}: {str(e)}")
+                return Response({
+                    'error': 'Invalid payment request. Please verify the booking details.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            except razorpay.errors.ServerError as e:
+                logger.error(f"Razorpay ServerError for hotel booking {booking_id}: {str(e)}")
+                return Response({
+                    'error': 'Payment gateway error. Please try again later.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as e:
+                logger.error(f"Razorpay error creating hotel booking payment {booking_id}: {str(e)}", exc_info=True)
+                return Response({
+                    'error': 'Failed to create payment order. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            razorpay_order = client.order.create(data=order_data)
-            
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
             return Response({
-                'order_id': razorpay_order['id'],
-                'amount': razorpay_order['amount'],
-                'currency': razorpay_order['currency'],
-                'key_id': tenant.razorpay_key_id,
-                'receipt': razorpay_order.get('receipt'),
-                'booking_id': booking.id,
-                'guest_name': booking.guest.name if booking.guest else '',
-                'amount_display': f"₹{amount:.2f}"
-            }, status=status.HTTP_201_CREATED)
-            
-        except Booking.DoesNotExist:
-            return Response({
-                'error': 'Booking not found.'
+                'error': 'User profile not found. Please contact support.'
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            logger.error(f"Error creating hotel booking payment: {str(e)}")
+            logger.error(f"Unexpected error in HotelBookingPaymentView: {str(e)}", exc_info=True)
             return Response({
-                'error': str(e)
+                'error': 'An unexpected error occurred. Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

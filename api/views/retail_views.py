@@ -602,12 +602,9 @@ class SaleListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         try:
-            queryset = Sale.objects.filter(tenant=self.request.user.userprofile.tenant).prefetch_related(
-                'items__product',
-                'customer',
-                'warehouse',
-                'sold_by__user'
-            )
+            queryset = Sale.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+                'customer', 'warehouse', 'sold_by', 'sold_by__user', 'tenant'
+            ).prefetch_related('items', 'items__product')
             customer = self.request.query_params.get('customer', None)
             warehouse = self.request.query_params.get('warehouse', None)
             search = self.request.query_params.get('search', None)
@@ -657,7 +654,9 @@ class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SaleSerializer
     
     def get_queryset(self):
-        return Sale.objects.filter(tenant=self.request.user.userprofile.tenant)
+        return Sale.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
+            'customer', 'warehouse', 'sold_by', 'sold_by__user', 'tenant'
+        ).prefetch_related('items', 'items__product')
 
 # Stock Transfer Views
 class StockTransferListCreateView(generics.ListCreateAPIView):

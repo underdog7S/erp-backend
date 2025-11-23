@@ -2,9 +2,9 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from api.models.user import UserProfile
+from api.models.user import UserProfile, Tenant
 from education.models import (
     Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, 
     ReportCard, StaffAttendance, Department, AcademicYear, Term, Subject, 
@@ -23,7 +23,7 @@ from api.models.serializers_education import (
     FeeInstallmentSerializer, OldBalanceSerializer, BalanceAdjustmentSerializer,
     TransferCertificateSerializer,
     PeriodSerializer, RoomSerializer, TimetableSerializer, TimetableDetailSerializer,
-    HolidaySerializer, SubstituteTeacherSerializer
+    HolidaySerializer, SubstituteTeacherSerializer, PublicFeePaymentCreateSerializer
 )
 from django.http import HttpResponse
 import csv
@@ -5432,4 +5432,285 @@ class AdmissionApplicationRejectView(APIView):
                 'application': serializer.data
             }, status=status.HTTP_200_OK)
         except AdmissionApplication.DoesNotExist:
-            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND) 
+            return Response({'error': 'Admission Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# ==================== Public API Views (For Parents to Pay Fees from External Websites) ====================
+
+class PublicStudentFeeStatusView(APIView):
+    """Public endpoint for parents to check student fee status (no authentication required)"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get student fee status by roll number and parent phone"""
+        tenant_id = request.query_params.get('tenant_id')
+        student_roll_number = request.query_params.get('student_roll_number')
+        parent_phone = request.query_params.get('parent_phone')
+        
+        # Input validation
+        if not tenant_id or not student_roll_number or not parent_phone:
+            return Response({
+                'error': 'tenant_id, student_roll_number, and parent_phone are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate tenant_id is integer
+        try:
+            tenant_id = int(tenant_id)
+        except (ValueError, TypeError):
+            return Response({
+                'error': 'Invalid tenant_id. Must be a valid integer.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Sanitize inputs
+        student_roll_number = student_roll_number.strip().upper()
+        parent_phone = parent_phone.strip()
+        
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return Response({'error': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            student = Student.objects.select_related('assigned_class').get(
+                upper_id=student_roll_number,
+                tenant=tenant,
+                parent_phone=parent_phone
+            )
+        except Student.DoesNotExist:
+            return Response({
+                'error': 'Student not found. Please verify roll number and parent phone number.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error fetching student in PublicStudentFeeStatusView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An error occurred while fetching student information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Get all fee structures for student's class
+        try:
+            fee_structures = FeeStructure.objects.filter(
+                tenant=tenant,
+                class_obj=student.assigned_class
+            ).select_related('class_obj')
+            
+            # Get all payments made by student
+            payments = FeePayment.objects.filter(
+                tenant=tenant,
+                student=student
+            ).select_related('fee_structure', 'fee_structure__class_obj')
+            
+            # Calculate fee status
+            fee_status = []
+            for fee_structure in fee_structures:
+                total_paid = payments.filter(fee_structure=fee_structure).aggregate(
+                    total=Sum('amount_paid')
+                )['total'] or 0
+                
+                remaining = float(fee_structure.amount) - float(total_paid)
+                
+                fee_status.append({
+                    'fee_structure_id': fee_structure.id,
+                    'fee_type': fee_structure.fee_type,
+                    'fee_type_display': fee_structure.get_fee_type_display(),
+                    'total_amount': str(fee_structure.amount),
+                    'amount_paid': str(total_paid),
+                    'remaining_amount': str(remaining),
+                    'due_date': fee_structure.due_date.strftime('%Y-%m-%d') if fee_structure.due_date else None,
+                    'academic_year': fee_structure.academic_year,
+                    'is_paid': remaining <= 0
+                })
+            
+            return Response({
+                'student_name': student.name,
+                'student_roll_number': student.upper_id,
+                'class_name': student.assigned_class.name if student.assigned_class else None,
+                'fee_status': fee_status,
+                'total_due': str(sum(float(fs['remaining_amount']) for fs in fee_status if float(fs['remaining_amount']) > 0)),
+                'total_paid': str(sum(float(fs['amount_paid']) for fs in fee_status))
+            })
+        except Exception as e:
+            logger.error(f"Error calculating fee status in PublicStudentFeeStatusView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An error occurred while calculating fee status.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicFeePaymentCreateView(APIView):
+    """Public endpoint for parents to pay fees (no authentication required)"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """Create a fee payment from public API"""
+        from decimal import Decimal, InvalidOperation
+        from django.utils import timezone
+        from django.db import transaction
+        import razorpay
+        
+        serializer = PublicFeePaymentCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        tenant_id = data['tenant_id']
+        student_roll_number = data['student_roll_number'].upper().strip()
+        parent_phone = data['parent_phone'].strip()
+        fee_structure_id = data['fee_structure_id']
+        
+        # Validate amount
+        try:
+            amount = Decimal(str(data['amount']))
+            if amount <= 0:
+                return Response({
+                    'error': 'Amount must be greater than zero'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, InvalidOperation, TypeError):
+            return Response({
+                'error': 'Invalid amount format'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return Response({'error': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify student and parent phone
+        try:
+            student = Student.objects.select_related('assigned_class').get(
+                upper_id=student_roll_number,
+                tenant=tenant,
+                parent_phone=parent_phone
+            )
+        except Student.DoesNotExist:
+            return Response({
+                'error': 'Student not found. Please verify roll number and parent phone number.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error fetching student in PublicFeePaymentCreateView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An error occurred while verifying student information.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Verify fee structure
+        try:
+            fee_structure = FeeStructure.objects.select_related('class_obj').get(
+                id=fee_structure_id,
+                tenant=tenant,
+                class_obj=student.assigned_class
+            )
+        except FeeStructure.DoesNotExist:
+            return Response({
+                'error': 'Fee structure not found or not applicable for this student.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error fetching fee structure in PublicFeePaymentCreateView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An error occurred while verifying fee structure.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Validate amount against remaining due
+        try:
+            total_paid = FeePayment.objects.filter(
+                tenant=tenant,
+                student=student,
+                fee_structure=fee_structure
+            ).aggregate(total=Sum('amount_paid'))['total'] or 0
+            
+            remaining = float(fee_structure.amount) - float(total_paid)
+            
+            if amount > Decimal(str(remaining)):
+                return Response({
+                    'error': f'Amount exceeds remaining due amount of ₹{remaining:.2f}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error calculating remaining amount in PublicFeePaymentCreateView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'An error occurred while calculating remaining amount.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Create fee payment record (pending - will be updated after Razorpay payment)
+        try:
+            with transaction.atomic():
+                fee_payment = FeePayment.objects.create(
+                    tenant=tenant,
+                    student=student,
+                    fee_structure=fee_structure,
+                    amount_paid=amount,
+                    payment_method='CASH',  # Will be updated to RAZORPAY after payment
+                    payment_date=timezone.now().date(),
+                    notes=data.get('notes', '') or f"Payment from parent: {data.get('parent_name', 'N/A')}",
+                    academic_year=fee_structure.academic_year
+                )
+        except Exception as e:
+            logger.error(f"Error creating fee payment in PublicFeePaymentCreateView: {str(e)}", exc_info=True)
+            return Response({
+                'error': 'Failed to create payment record. Please try again.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Generate payment link if Razorpay is configured
+        payment_data = None
+        if tenant.has_razorpay_configured():
+            try:
+                if razorpay is None:
+                    logger.warning(f"Razorpay library not available for tenant {tenant.id}")
+                else:
+                    client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+                    amount_float = float(amount)
+                    order_data = {
+                        'amount': int(amount_float * 100),
+                        'currency': 'INR',
+                        'payment_capture': 1,
+                        'receipt': f"FEE-{fee_payment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        'notes': {
+                            'sector': 'education',
+                            'reference_id': str(fee_payment.id),
+                            'student_id': str(student.id),
+                            'student_name': student.name,
+                            'student_roll_number': student.upper_id,
+                            'fee_type': fee_structure.fee_type,
+                            'parent_phone': parent_phone,
+                            'tenant_id': str(tenant.id)
+                        }
+                    }
+                    razorpay_order = client.order.create(data=order_data)
+                    
+                    payment_data = {
+                        'order_id': razorpay_order['id'],
+                        'amount': razorpay_order['amount'],
+                        'currency': razorpay_order['currency'],
+                        'key_id': tenant.razorpay_key_id,
+                        'receipt': razorpay_order.get('receipt'),
+                        'payment_url': f"https://checkout.razorpay.com/v1/checkout.js?key={tenant.razorpay_key_id}&order_id={razorpay_order['id']}",
+                        'checkout_data': {
+                            'key': tenant.razorpay_key_id,
+                            'amount': razorpay_order['amount'],
+                            'currency': razorpay_order['currency'],
+                            'order_id': razorpay_order['id'],
+                            'name': tenant.name,
+                            'description': f"Fee Payment - {fee_structure.get_fee_type_display()} - {student.name}",
+                            'prefill': {
+                                'name': data.get('parent_name') or student.name,
+                                'email': data.get('parent_email') or student.email,
+                                'contact': parent_phone
+                            }
+                        }
+                    }
+            except Exception as e:
+                logger.error(f"Failed to generate payment link for fee payment {fee_payment.id}: {str(e)}", exc_info=True)
+                # Continue without payment link - payment can be recorded manually
+        
+        response_data = {
+            'message': 'Fee payment record created successfully',
+            'fee_payment_id': fee_payment.id,
+            'student_name': student.name,
+            'student_roll_number': student.upper_id,
+            'fee_type': fee_structure.fee_type,
+            'amount': str(amount),
+            'receipt_number': fee_payment.receipt_number,
+            'status': 'pending_payment' if payment_data else 'recorded'
+        }
+        
+        if payment_data:
+            response_data['payment'] = payment_data
+            response_data['payment_link'] = payment_data['payment_url']
+        
+        return Response(response_data, status=status.HTTP_201_CREATED) 

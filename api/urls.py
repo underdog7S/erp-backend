@@ -155,6 +155,10 @@ urlpatterns = [
     path('education/fee-payments/<int:pk>/', education_views.FeePaymentDetailView.as_view(), name='education-fee-payment-detail'),
     path('education/fee-payments/<int:pk>/receipt/', education_views.FeePaymentReceiptPDFView.as_view(), name='education-fee-payment-receipt'),
     
+    # Public API for parents to pay fees from external websites
+    path('education/public/fee-status/', education_views.PublicStudentFeeStatusView.as_view(), name='education-public-fee-status'),
+    path('education/public/fee-payment/', education_views.PublicFeePaymentCreateView.as_view(), name='education-public-fee-payment'),
+    
     # Installment Management endpoints
     path('education/installment-plans/', education_views.FeeInstallmentPlanListCreateView.as_view(), name='education-installment-plans'),
     path('education/installment-plans/<int:pk>/', education_views.FeeInstallmentPlanDetailView.as_view(), name='education-installment-plan-detail'),
