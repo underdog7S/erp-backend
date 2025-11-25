@@ -113,6 +113,53 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
             serializer.save(user=self.request.user, tenant=profile.tenant)
         except Exception as e:
             raise serializers.ValidationError(f"Failed to create ticket: {str(e)}")
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get ticket statistics"""
+        from api.models.user import UserProfile
+        from django.db.models import Count, Avg
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            tenant = profile.tenant
+            
+            tickets = SupportTicket.objects.filter(tenant=tenant)
+            
+            # Overall stats
+            total = tickets.count()
+            by_status = tickets.values('status').annotate(count=Count('id'))
+            by_priority = tickets.values('priority').annotate(count=Count('id'))
+            by_category = tickets.values('category').annotate(count=Count('id'))
+            
+            # Time-based stats
+            last_30_days = timezone.now() - timedelta(days=30)
+            recent = tickets.filter(created_at__gte=last_30_days).count()
+            resolved_recent = tickets.filter(status='RESOLVED', resolved_at__gte=last_30_days).count()
+            
+            # SLA stats
+            overdue = tickets.filter(due_date__lt=timezone.now(), status__in=['OPEN', 'IN_PROGRESS']).count()
+            
+            # Average resolution time
+            resolved_tickets = tickets.filter(status='RESOLVED', resolution_time__isnull=False)
+            avg_resolution_hours = resolved_tickets.aggregate(avg=Avg('resolution_time'))['avg']
+            if avg_resolution_hours:
+                avg_resolution_hours = avg_resolution_hours.total_seconds() / 3600
+            
+            return Response({
+                'total': total,
+                'by_status': list(by_status),
+                'by_priority': list(by_priority),
+                'by_category': list(by_category),
+                'recent_30_days': recent,
+                'resolved_30_days': resolved_recent,
+                'overdue': overdue,
+                'average_resolution_hours': round(avg_resolution_hours, 2) if avg_resolution_hours else None,
+            })
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found'}, status=400)
 
 
 class TicketResponseViewSet(viewsets.ModelViewSet):

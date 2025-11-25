@@ -139,6 +139,44 @@ class TicketSLA(models.Model):
     def __str__(self):
         return f"{self.category} - {self.priority}: {self.first_response_hours}h response, {self.resolution_hours}h resolution"
 
+
+class TicketCategory(models.Model):
+    """Custom ticket categories (enhanced from basic choices)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ticket_categories')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=7, default='#1976d2')  # Hex color
+    icon = models.CharField(max_length=50, blank=True, help_text="Material icon name")
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    
+    class Meta:
+        unique_together = ['tenant', 'name']
+        ordering = ['order', 'name']
+        verbose_name_plural = 'Ticket Categories'
+    
+    def __str__(self):
+        return f"{self.name} ({self.tenant.name})"
+
+
+class TicketPriority(models.Model):
+    """Custom ticket priorities (enhanced from basic choices)"""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ticket_priorities')
+    name = models.CharField(max_length=50)
+    level = models.IntegerField(help_text="Priority level (1=Lowest, 5=Highest)")
+    color = models.CharField(max_length=7, default='#1976d2')
+    response_time_hours = models.IntegerField(help_text="Expected first response time in hours")
+    resolution_time_hours = models.IntegerField(help_text="Expected resolution time in hours")
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ['tenant', 'name']
+        ordering = ['-level']
+        verbose_name_plural = 'Ticket Priorities'
+    
+    def __str__(self):
+        return f"{self.name} (Level {self.level}) ({self.tenant.name})"
+
 class TawkToIntegration(models.Model):
     """Tawk.to integration settings"""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tawk_integration')

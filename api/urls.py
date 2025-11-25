@@ -32,6 +32,18 @@ from api.views.users_views import UserProfileViewSet
 from api.views.payments_views import PaymentTransactionViewSet
 from .views.support_views import SupportTicketViewSet, TicketResponseViewSet, TicketSLAViewSet
 from .views.invoice_views import InvoiceViewSet, InvoiceItemViewSet, InvoicePaymentViewSet
+from .views.crm_views import (
+    ContactViewSet, CompanyViewSet, ContactTagViewSet,
+    ActivityViewSet, DealViewSet, DealStageViewSet
+)
+from .views.email_marketing_views import (
+    EmailTemplateViewSet, ContactListViewSet, EmailCampaignViewSet,
+    EmailActivityViewSet, EmailSequenceViewSet, EmailSequenceStepViewSet
+)
+from .views.crm_analytics_views import (
+    CRMAnalyticsView, ContactAnalyticsView, DealPipelineAnalyticsView,
+    EmailMarketingAnalyticsView
+)
 # from .views.audit_views import AuditLogViewSet
 
 router = DefaultRouter()
@@ -47,6 +59,22 @@ router.register(r'paymenttransactions', PaymentTransactionViewSet, basename='pay
 router.register(r'support/tickets', SupportTicketViewSet, basename='support-ticket')
 router.register(r'support/responses', TicketResponseViewSet, basename='ticket-response')
 router.register(r'ticketsla', TicketSLAViewSet, basename='ticket-sla')
+
+# CRM (Contact Relationship Management)
+router.register(r'crm/contacts', ContactViewSet, basename='contact')
+router.register(r'crm/companies', CompanyViewSet, basename='company')
+router.register(r'crm/contact-tags', ContactTagViewSet, basename='contact-tag')
+router.register(r'crm/activities', ActivityViewSet, basename='activity')
+router.register(r'crm/deals', DealViewSet, basename='deal')
+router.register(r'crm/deal-stages', DealStageViewSet, basename='deal-stage')
+
+# Email Marketing
+router.register(r'email/templates', EmailTemplateViewSet, basename='email-template')
+router.register(r'email/contact-lists', ContactListViewSet, basename='contact-list')
+router.register(r'email/campaigns', EmailCampaignViewSet, basename='email-campaign')
+router.register(r'email/activities', EmailActivityViewSet, basename='email-activity')
+router.register(r'email/sequences', EmailSequenceViewSet, basename='email-sequence')
+router.register(r'email/sequence-steps', EmailSequenceStepViewSet, basename='email-sequence-step')
 
 # Invoices
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
@@ -237,6 +265,12 @@ urlpatterns = [
     path('analytics/trends/', enhanced_analytics_views.TimeSeriesTrendsView.as_view(), name='analytics-trends'),
     path('analytics/comparison/', enhanced_analytics_views.ComparisonAnalyticsView.as_view(), name='analytics-comparison'),
     path('analytics/forecast/', enhanced_analytics_views.RevenueForecastingView.as_view(), name='analytics-forecast'),
+    
+    # CRM Analytics
+    path('crm/analytics/', CRMAnalyticsView.as_view(), name='crm-analytics'),
+    path('crm/analytics/contacts/', ContactAnalyticsView.as_view(), name='crm-contact-analytics'),
+    path('crm/analytics/deals/pipeline/', DealPipelineAnalyticsView.as_view(), name='crm-deal-pipeline-analytics'),
+    path('crm/analytics/email-marketing/', EmailMarketingAnalyticsView.as_view(), name='crm-email-marketing-analytics'),
     
     # Alert Management
     path('alerts/list/', alerts_views.AlertListView.as_view(), name='alert-list'),

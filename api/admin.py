@@ -2,6 +2,11 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from api.models.user import UserProfile, Role, Tenant
+from api.models.crm import Contact, Company, ContactTag, Activity, Deal, DealStage
+from api.models.email_marketing import (
+    EmailTemplate, ContactList, EmailCampaign, EmailActivity,
+    EmailSequence, EmailSequenceStep
+)
 from api.models.audit import AuditLog
 from api.models.custom_service import CustomServiceRequest
 from .models.payments import PaymentTransaction
@@ -777,3 +782,99 @@ class TenantAdmin(admin.ModelAdmin):
         return form
 
 secure_admin_site.register(Tenant, TenantAdmin)
+
+# CRM Models
+@admin.register(ContactTag)
+class ContactTagAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'color', 'created_at']
+    list_filter = ['tenant', 'created_at']
+    search_fields = ['name', 'tenant__name']
+
+@admin.register(Contact)
+class ContactAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'email', 'phone', 'contact_type', 'lifecycle_stage', 'tenant', 'created_at']
+    list_filter = ['tenant', 'contact_type', 'lifecycle_stage', 'created_at']
+    search_fields = ['first_name', 'last_name', 'email', 'phone']
+    readonly_fields = ['created_at', 'updated_at']
+    filter_horizontal = ['tags']
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'industry', 'tenant', 'contact_count', 'created_at']
+    list_filter = ['tenant', 'industry', 'created_at']
+    search_fields = ['name', 'industry', 'email', 'phone']
+    readonly_fields = ['created_at', 'updated_at']
+    filter_horizontal = ['tags']
+    
+    def contact_count(self, obj):
+        return obj.contacts.count()
+    contact_count.short_description = 'Contacts'
+
+@admin.register(Activity)
+class ActivityAdmin(admin.ModelAdmin):
+    list_display = ['activity_type', 'subject', 'contact', 'company', 'activity_date', 'status', 'tenant']
+    list_filter = ['tenant', 'activity_type', 'status', 'activity_date']
+    search_fields = ['subject', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(Deal)
+class DealAdmin(admin.ModelAdmin):
+    list_display = ['name', 'amount', 'currency', 'stage', 'probability', 'contact', 'company', 'tenant', 'created_at']
+    list_filter = ['tenant', 'stage', 'won', 'lost', 'created_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(DealStage)
+class DealStageAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'order', 'probability', 'is_closed', 'color']
+    list_filter = ['tenant', 'is_closed']
+    search_fields = ['name']
+
+# Email Marketing Models
+@admin.register(EmailTemplate)
+class EmailTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'subject', 'tenant', 'is_active', 'created_at']
+    list_filter = ['tenant', 'is_active', 'created_at']
+    search_fields = ['name', 'subject']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(ContactList)
+class ContactListAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'contact_count', 'created_at']
+    list_filter = ['tenant', 'created_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at', 'contact_count']
+    filter_horizontal = ['contacts']
+    
+    def contact_count(self, obj):
+        return obj.contact_count
+    contact_count.short_description = 'Contacts'
+
+@admin.register(EmailCampaign)
+class EmailCampaignAdmin(admin.ModelAdmin):
+    list_display = ['name', 'subject', 'status', 'tenant', 'total_recipients', 'sent_count', 'open_rate', 'created_at']
+    list_filter = ['tenant', 'status', 'created_at']
+    search_fields = ['name', 'subject']
+    readonly_fields = ['created_at', 'updated_at', 'sent_at', 'total_recipients', 'sent_count', 'opened_count', 'clicked_count', 'open_rate', 'click_rate']
+    filter_horizontal = ['recipients']
+
+@admin.register(EmailActivity)
+class EmailActivityAdmin(admin.ModelAdmin):
+    list_display = ['campaign', 'contact', 'status', 'sent_at', 'opened_at', 'clicked_at']
+    list_filter = ['status', 'sent_at']
+    search_fields = ['contact__first_name', 'contact__last_name', 'contact__email']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(EmailSequence)
+class EmailSequenceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'trigger_event', 'is_active', 'created_at']
+    list_filter = ['tenant', 'trigger_event', 'is_active']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(EmailSequenceStep)
+class EmailSequenceStepAdmin(admin.ModelAdmin):
+    list_display = ['sequence', 'order', 'subject', 'delay_days', 'delay_hours']
+    list_filter = ['sequence__tenant']
+    search_fields = ['subject']
+    ordering = ['sequence', 'order']
