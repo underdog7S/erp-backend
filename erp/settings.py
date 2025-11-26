@@ -239,8 +239,13 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # Your Gmail address
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # Your Gmail app password
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'noreply@zenitherp.com')
 
-# Frontend URL for email verification links
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://erp-frontend-lyart.vercel.app')
+# Frontend URL for email verification links and OAuth redirects
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://zenitherp.online')
+
+# Google OAuth Configuration
+GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', '')
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv('GOOGLE_OAUTH_REDIRECT_URI', '')
 
 # ============================================
 # SECURITY SETTINGS - Production Configuration
