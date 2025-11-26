@@ -22,12 +22,31 @@ from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 DEBUG = getattr(settings, 'DEBUG', False)
+BLOCKED_EMAILS = [item.strip().lower() for item in os.getenv('BLOCKED_EMAILS', '').split(',') if item.strip()]
+BLOCKED_EMAIL_DOMAINS = [item.strip().lower() for item in os.getenv('BLOCKED_EMAIL_DOMAINS', '').split(',') if item.strip()]
+
+def is_email_blocked(email):
+    if not email:
+        return False
+    normalized = email.strip().lower()
+    if normalized in BLOCKED_EMAILS:
+        return True
+    if '@' in normalized:
+        domain = normalized.split('@')[-1]
+        if domain in BLOCKED_EMAIL_DOMAINS:
+            return True
+    return False
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     
     def post(self, request, *args, **kwargs):
         """Override to check subscription status before allowing login"""
+        email_candidate = request.data.get('email') or request.data.get('username')
+        if email_candidate and is_email_blocked(email_candidate):
+            return Response({
+                'error': 'This account is restricted. Please contact support.'
+            }, status=status.HTTP_403_FORBIDDEN)
         response = None
         try:
             # First, get the tokens (this validates credentials)
@@ -177,6 +196,9 @@ class RegisterView(APIView):
             
             if User.objects.filter(username=data["username"]).exists():
                 return Response({"error": "Username already taken."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if is_email_blocked(data.get("email")):
+                return Response({"error": "Registration with this email or domain is restricted."}, status=status.HTTP_403_FORBIDDEN)
             
             # Always assign the free plan to new tenants, regardless of frontend input
             plan = Plan.objects.get(name__iexact="Free")

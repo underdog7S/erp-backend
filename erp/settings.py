@@ -242,6 +242,10 @@ DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'noreply@zenitherp.com')
 # Frontend URL for email verification links and OAuth redirects
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://zenitherp.online')
 
+# Block lists for self-service registration/login
+BLOCKED_EMAILS = [email.strip().lower() for email in os.getenv('BLOCKED_EMAILS', '').split(',') if email.strip()]
+BLOCKED_EMAIL_DOMAINS = [domain.strip().lower() for domain in os.getenv('BLOCKED_EMAIL_DOMAINS', '').split(',') if domain.strip()]
+
 # Google OAuth Configuration
 GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', '')
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', '')
