@@ -10,6 +10,12 @@ import logging
 logger = logging.getLogger(__name__)
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.http import HttpResponse
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib import colors
 from api.models.user import Tenant
 from hotel.models import RoomType, Room, Guest, Booking
 from api.serializers import RoomTypeSerializer, RoomSerializer, GuestSerializer, BookingSerializer
@@ -240,6 +246,10 @@ class HotelAnalyticsView(APIView):
 				'revenue': float(day_revenue['total'] or 0)
 			})
 		
+		pending_bookings_qs = Booking.objects.filter(tenant=tenant, status__in=['reserved', 'checked_in'])
+		pending_bookings_count = pending_bookings_qs.count()
+		pending_bookings_total = pending_bookings_qs.aggregate(total_due=Sum('total_amount'))['total_due'] or 0
+
 		# Guest statistics
 		total_guests = Guest.objects.filter(tenant=tenant).count()
 		recent_guests = Guest.objects.filter(tenant=tenant, bookings__created_at__date__gte=thirty_days_ago).distinct().count()
@@ -261,6 +271,10 @@ class HotelAnalyticsView(APIView):
 				'cancelled': Booking.objects.filter(tenant=tenant, status='cancelled').count(),
 				'recent_30_days': recent_bookings
 			},
+			'pending_payments': {
+				'count': pending_bookings_count,
+				'total_due': float(pending_bookings_total),
+			},
 			'revenue': {
 				'total_30_days': float(revenue_stats['total_revenue'] or 0),
 				'today': float(today_revenue['total'] or 0),
@@ -274,6 +288,89 @@ class HotelAnalyticsView(APIView):
 				'recent_30_days': recent_guests
 			}
 		})
+
+
+class HotelBookingFolioView(APIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+
+    def get(self, request, pk):
+        try:
+            tenant = request.user.userprofile.tenant
+            booking = Booking.objects.select_related('guest', 'room', 'room__room_type').get(id=pk, tenant=tenant)
+        except Booking.DoesNotExist:
+            return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        margin = 25 * mm
+        y = height - margin
+
+        p.setFont('Helvetica-Bold', 18)
+        p.drawString(margin, y, 'Zenith Hotel Guest Folio')
+        p.setFont('Helvetica', 10)
+        p.drawRightString(width - margin, y, f"Folio #: HTL-{booking.id:06d}")
+
+        y -= 20
+        p.setFont('Helvetica-Bold', 12)
+        p.drawString(margin, y, 'Guest & Booking Details')
+        y -= 14
+        p.setFont('Helvetica', 10)
+        guest_name = f"{booking.guest.first_name} {booking.guest.last_name}".strip()
+        p.drawString(margin, y, f"Guest: {guest_name or 'Guest'}")
+        y -= 12
+        p.drawString(margin, y, f"Phone: {booking.guest.phone or '-'}")
+        y -= 12
+        p.drawString(margin, y, f"Email: {booking.guest.email or '-'}")
+        y -= 12
+        p.drawString(margin, y, f"Room: {booking.room.room_number} ({booking.room.room_type.name})")
+        y -= 12
+        p.drawString(margin, y, f"Check In: {booking.check_in.strftime('%d-%m-%Y %I:%M %p')}")
+        y -= 12
+        p.drawString(margin, y, f"Check Out: {booking.check_out.strftime('%d-%m-%Y %I:%M %p')}")
+        y -= 12
+        p.drawString(margin, y, f"Status: {booking.status}")
+        y -= 12
+        p.drawString(margin, y, f"Guests: {booking.num_guests}")
+
+        y -= 24
+        p.setFont('Helvetica-Bold', 12)
+        p.drawString(margin, y, 'Charges')
+        y -= 14
+        p.setFont('Helvetica', 10)
+        nights = ((booking.check_out - booking.check_in).days) or 1
+        room_rate = float(booking.room.room_type.base_rate or 0)
+        room_total = room_rate * nights
+        p.drawString(margin, y, f"Room Rate ({nights} nights @ ₹{room_rate:.2f})")
+        y -= 12
+        p.drawRightString(width - margin, y, f"₹{room_total:.2f}")
+        y -= 12
+
+        p.drawString(margin, y, 'Other Charges')
+        y -= 12
+        other_charges = float(booking.total_amount or 0) - room_total
+        if other_charges < 0:
+            other_charges = 0
+        p.drawRightString(width - margin, y, f"₹{other_charges:.2f}")
+        y -= 12
+
+        total_amount = float(booking.total_amount or 0)
+        p.setFont('Helvetica-Bold', 12)
+        p.drawString(margin, y, 'Total Amount')
+        p.drawRightString(width - margin, y, f"₹{total_amount:.2f}")
+        y -= 24
+
+        p.setFont('Helvetica', 9)
+        p.drawString(margin, y, 'Thank you for staying with Zenith Hotel.')
+        p.drawRightString(width - margin, y, f"Generated on {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="hotel_folio_{booking.id}.pdf"'
+        return response
 
 
 class BookingBulkDeleteView(APIView):

@@ -1175,7 +1175,7 @@ class ReportCardPDFView(APIView):
             
             y -= 20
 
-            # Classic styled marks table - with formal borders (FIXED COLUMNS TO PREVENT OVERFLOW)
+            # Classic styled marks table - with formal borders (single page, limited rows)
             y -= 5
             # Get marks entries first to calculate table height
             from education.models import MarksEntry
@@ -1184,175 +1184,121 @@ class ReportCardPDFView(APIView):
                 student=report_card.student,
                 assessment__term=report_card.term
             ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
-            
-            # Table outer border - calculate height based on entries
-            table_height = len(marks_entries) * 14 + 15
-            if table_height > y - 80:
-                table_height = y - 80
+
+            # Table dimensions
+            row_height = 16
+            header_height = 15
+            calculated_height = len(marks_entries) * row_height + header_height
+            max_available_height = max(header_height + row_height, y - 80)
+            table_height = min(calculated_height, max_available_height)
+            if table_height < header_height + row_height:
+                table_height = header_height + row_height
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
             # Ensure table fits within page margins
             table_left = 22 * mm
             table_right = width - 22 * mm
             table_width = table_right - table_left
-            p.rect(table_left, y - table_height, table_width, table_height, stroke=1, fill=0)
-            
-            # Table header - no background color
+            table_bottom = y - table_height
+            p.rect(table_left, table_bottom, table_width, table_height, stroke=1, fill=0)
+
+            # Table header
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.line(table_left, y - 12, table_right, y - 12)
-            
+            p.line(table_left, y - header_height, table_right, y - header_height)
+
             p.setFillColor(colors.black)
-            p.setFont('Helvetica-Bold', 10)  # Slightly smaller font to fit better
+            p.setFont('Helvetica-Bold', 10)
             headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
-            # FIXED column positions - properly calculated to fit within page margins
-            # Page width margins: 22mm left, 22mm right = 44mm total margin
-            # Available width = width - 44mm
             available_width = width - 44 * mm
-            table_left = 22 * mm
-            table_right = width - 22 * mm
-            
-            # Column positions - IMPROVED: Better calculation to prevent overflow
-            # SUBJECT: flexible width (takes remaining space after fixed columns)
-            # MARKS OBTAINED: 24mm (fixed)
-            # MAX MARKS: 24mm (fixed)
-            # PERCENTAGE: 24mm (fixed)
-            # Total fixed columns = 72mm
-            # Column spacing = 3mm between columns
             fixed_cols_width = 72 * mm
             col_spacing = 3 * mm
-            subject_col_width = available_width - fixed_cols_width - (col_spacing * 3)  # Reserve space for 3 gaps
-            
-            # Ensure minimum subject column width
+            subject_col_width = available_width - fixed_cols_width - (col_spacing * 3)
             if subject_col_width < 30 * mm:
                 subject_col_width = 30 * mm
-            
-            # Calculate exact column positions from left edge
-            # All columns aligned within table boundaries
             col_x = [
-                table_left + 3 * mm,                           # SUBJECT (left-aligned, 3mm padding from left edge)
-                table_left + subject_col_width + col_spacing,   # MARKS OBTAINED (starts after subject + gap)
-                table_left + subject_col_width + 24 * mm + (col_spacing * 2),  # MAX MARKS
-                table_left + subject_col_width + 48 * mm + (col_spacing * 3)   # PERCENTAGE
+                table_left + 3 * mm,
+                table_left + subject_col_width + col_spacing,
+                table_left + subject_col_width + 24 * mm + (col_spacing * 2),
+                table_left + subject_col_width + 48 * mm + (col_spacing * 3)
             ]
-            
-            # Validate rightmost column doesn't exceed table boundary
             if col_x[3] + 24 * mm > table_right - 3 * mm:
-                # Adjust: reduce subject width to fit
                 excess = (col_x[3] + 24 * mm) - (table_right - 3 * mm)
                 subject_col_width = max(30 * mm, subject_col_width - excess - col_spacing)
-                # Recalculate positions
                 col_x = [
                     table_left + 3 * mm,
                     table_left + subject_col_width + col_spacing,
                     table_left + subject_col_width + 24 * mm + (col_spacing * 2),
                     table_left + subject_col_width + 48 * mm + (col_spacing * 3)
                 ]
-            
-            col_widths = [
-                subject_col_width,      # SUBJECT width (adjusted to fit)
-                24 * mm,                # MARKS OBTAINED width
-                24 * mm,                # MAX MARKS width
-                24 * mm                 # PERCENTAGE width
-            ]
-            
+            col_widths = [subject_col_width, 24 * mm, 24 * mm, 24 * mm]
+
             for i, htxt in enumerate(headers):
                 if i == 0:
-                    # Left align subject column header (truncate if too long)
                     max_subject_width = col_widths[0] - 3 * mm
                     if p.stringWidth(htxt, 'Helvetica-Bold', 10) > max_subject_width:
                         htxt = htxt[:15] + '...'
                     p.drawString(col_x[i], y - 8, htxt)
                 else:
-                    # Right align number column headers
                     p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
             p.setFillColor(colors.black)
-            y -= 15
-            
-            # Vertical column separators (fixed positions - match column boundaries)
+            y -= header_height
+
+            # Column separators
             p.setStrokeColor(colors.HexColor('#cccccc'))
             p.setLineWidth(0.3)
-            # Separators at column boundaries (between SUBJECT/MARKS, MARKS/MAX, MAX/PERCENTAGE)
             sep_positions = [
-                col_x[1] - 1 * mm,  # Between SUBJECT and MARKS OBTAINED
-                col_x[2] - 1 * mm,  # Between MARKS OBTAINED and MAX MARKS
-                col_x[3] - 1 * mm   # Between MAX MARKS and PERCENTAGE
+                col_x[1] - 1 * mm,
+                col_x[2] - 1 * mm,
+                col_x[3] - 1 * mm
             ]
             for sep_x in sep_positions:
-                p.line(sep_x, y, sep_x, y - table_height + 12)
+                p.line(sep_x, y, sep_x, table_bottom)
 
-            # Table rows - properly aligned within fixed columns
-            p.setFont('Helvetica', 9)  # Slightly smaller font to prevent overflow
-            row_num = 0
-            for entry in marks_entries:
-                if y < 80:
-                    # New page - reset and redraw
-                    p.showPage()
-                    p.setStrokeColor(colors.HexColor('#1a237e'))
-                    p.setLineWidth(2)
-                    p.rect(15 * mm, 15 * mm, width - 30 * mm, height - 30 * mm, stroke=1, fill=0)
-                    p.setStrokeColor(colors.HexColor('#666666'))
-                    p.setLineWidth(0.5)
-                    p.rect(18 * mm, 18 * mm, width - 36 * mm, height - 36 * mm, stroke=1, fill=0)
-                    
-                    # Redraw table header on new page
-                    p.setStrokeColor(colors.HexColor('#000000'))
-                    p.setLineWidth(1)
-                    p.line(table_left, height - 40 - 12, table_right, height - 40 - 12)
-                    p.setFillColor(colors.black)
-                    p.setFont('Helvetica-Bold', 10)
-                    for i, htxt in enumerate(headers):
-                        if i == 0:
-                            max_subject_width = col_widths[0] - 3 * mm
-                            display_htxt = htxt[:15] + '...' if p.stringWidth(htxt, 'Helvetica-Bold', 10) > max_subject_width else htxt
-                            p.drawString(col_x[i], height - 40 - 8, display_htxt)
-                        else:
-                            p.drawRightString(col_x[i] + col_widths[i], height - 40 - 8, htxt)
-                    p.setFont('Helvetica', 9)
-                    y = height - 40 - 15
-                    row_num = 0
-                
-                subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
+            # Limit rows to available space
+            available_row_space = table_height - header_height
+            max_rows = max(1, int(available_row_space / row_height))
+            display_entries = marks_entries[:max_rows]
+            truncated = len(marks_entries) > max_rows
+
+            # Table rows
+            p.setFont('Helvetica', 9)
+            for entry in display_entries:
                 percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
-                
-                # Row separator line
                 p.setStrokeColor(colors.HexColor('#d0d0d0'))
                 p.setLineWidth(0.5)
-                p.line(table_left, y - 12, table_right, y - 12)
+                p.line(table_left, y - row_height, table_right, y - row_height)
                 p.setFillColor(colors.black)
-                
-                # IMPROVED: Use safe string drawing to prevent overlapping
-                # Calculate available width more precisely (column width minus padding)
-                max_subject_width = col_widths[0] - 6 * mm  # 3mm padding on each side
-                subject_x = col_x[0] + 3 * mm  # 3mm padding from left edge
-                
-                # Use safe string drawing function
-                draw_string_safe(p, subject_name, subject_x, y, max_subject_width, 
-                               'Helvetica', 9, 'left')
-                
-                # Right align numbers - IMPROVED: Use safe drawing to prevent overlapping
-                # Marks Obtained
+
+                max_subject_width = col_widths[0] - 6 * mm
+                subject_x = col_x[0] + 3 * mm
+                subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
+                draw_string_safe(p, subject_name, subject_x, y, max_subject_width, 'Helvetica', 9, 'left')
+
                 marks_str = str(int(float(entry.marks_obtained)))
-                marks_col_right = col_x[1] + col_widths[1] - 3 * mm  # Right boundary with padding
+                marks_col_right = col_x[1] + col_widths[1] - 3 * mm
                 marks_max_width = col_widths[1] - 6 * mm
-                draw_string_safe(p, marks_str, marks_col_right, y, marks_max_width, 
-                               'Helvetica', 9, 'right')
-                
-                # Max Marks
+                draw_string_safe(p, marks_str, marks_col_right, y, marks_max_width, 'Helvetica', 9, 'right')
+
                 max_marks_str = str(int(float(entry.max_marks)))
                 max_marks_col_right = col_x[2] + col_widths[2] - 3 * mm
                 max_marks_max_width = col_widths[2] - 6 * mm
-                draw_string_safe(p, max_marks_str, max_marks_col_right, y, max_marks_max_width, 
-                               'Helvetica', 9, 'right')
-                
-                # Percentage - IMPROVED: Use safe drawing
+                draw_string_safe(p, max_marks_str, max_marks_col_right, y, max_marks_max_width, 'Helvetica', 9, 'right')
+
                 percent_str = f"{percent:.1f}%"
                 percent_col_right = col_x[3] + col_widths[3] - 3 * mm
                 percent_max_width = col_widths[3] - 6 * mm
-                draw_string_safe(p, percent_str, percent_col_right, y, percent_max_width, 
-                               'Helvetica', 9, 'right')
-                y -= 16  # Increased row spacing to prevent overlapping
-                row_num += 1
+                draw_string_safe(p, percent_str, percent_col_right, y, percent_max_width, 'Helvetica', 9, 'right')
+                y -= row_height
+
+            # Truncated note
+            if truncated:
+                note_y = table_bottom + 5 * mm
+                p.setFont('Helvetica-Oblique', 8)
+                p.drawString(table_left + 3 * mm, note_y, 'Additional marks entries are available in the portal dashboard.')
+
+            # Move cursor below table
+            y = table_bottom - 20
 
             # Academic summary section - no background colors
             y -= 8
@@ -5205,20 +5151,35 @@ class TransferCertificatePDFView(APIView):
                 p.drawString(25 * mm, y, 'Additional Remarks:')
                 y -= 12
                 p.setFont('Helvetica', 9)
-                remarks_lines = [tc.remarks[i:i+85] for i in range(0, min(len(tc.remarks), 255), 85)]
-                for line in remarks_lines[:4]:
-                    if y < content_height + 15:
-                        break
+                def wrap_text(text, max_width_mm, max_lines=4):
+                    words = text.split()
+                    lines = []
+                    current = ''
+                    max_width = max_width_mm
+                    for word in words:
+                        test = current + (' ' if current else '') + word
+                        if p.stringWidth(test, 'Helvetica', 9) <= max_width:
+                            current = test
+                        else:
+                            if current:
+                                lines.append(current)
+                            current = word
+                    if current:
+                        lines.append(current)
+                    return lines[:max_lines]
+
+                remarks_lines = wrap_text(tc.remarks, (width - 50 * mm), max_lines=4)
+                for line in remarks_lines:
                     p.drawString(25 * mm, y, line)
                     y -= 11
+                y -= 5
             
             # Authority signatures section (bottom)
-            p.showPage()
-            y = height - 60
-            
+            sig_y_start = 45 * mm
+            sig_height = 40 * mm
             p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, y, 'AUTHORITY SIGNATURES')
-            y -= 25
+            p.drawString(25 * mm, sig_y_start + sig_height + 5 * mm, 'AUTHORITY SIGNATURES')
+            y = sig_y_start + sig_height - 15
             
             # Issued by
             if tc.issued_by:

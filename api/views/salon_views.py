@@ -8,9 +8,15 @@ from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg
 from django.utils import timezone
 from datetime import datetime, timedelta
-from api.models.user import Tenant
+from api.models.user import Tenant, UserProfile
 from salon.models import ServiceCategory, Service, Stylist, Appointment
 from api.serializers import ServiceCategorySerializer, ServiceSerializer, StylistSerializer, AppointmentSerializer
+from django.http import HttpResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from io import BytesIO
 
 
 class ServiceCategoryListCreateView(generics.ListCreateAPIView):
@@ -452,3 +458,78 @@ class AppointmentBulkStatusUpdateView(APIView):
 		tenant = request.user.userprofile.tenant
 		updated_count = Appointment.objects.filter(id__in=appointment_ids, tenant=tenant).update(status=new_status)
 		return Response({'message': f'{updated_count} appointment(s) updated successfully'})
+
+
+class SalonAppointmentInvoiceView(APIView):
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('salon')]
+
+	def get(self, request, pk):
+		try:
+			profile = UserProfile._default_manager.get(user=request.user)
+			tenant = profile.tenant
+			appointment = Appointment.objects.select_related('service', 'stylist').get(id=pk, tenant=tenant)
+		except UserProfile.DoesNotExist:
+			return Response({'error': 'User profile not found.'}, status=status.HTTP_403_FORBIDDEN)
+		except Appointment.DoesNotExist:
+			return Response({'error': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		buffer = BytesIO()
+		p = canvas.Canvas(buffer, pagesize=A4)
+		width, height = A4
+		margin = 25 * mm
+
+		p.setFont('Helvetica-Bold', 18)
+		p.drawString(margin, height - margin, 'Zenith Salon Invoice')
+		p.setFont('Helvetica', 10)
+		p.drawRightString(width - margin, height - margin + 4, f"Invoice #: SAL-{appointment.id:06d}")
+
+		y = height - margin - 25
+		p.setFont('Helvetica-Bold', 13)
+		p.drawString(margin, y, 'Customer & Service')
+		y -= 14
+		p.setFont('Helvetica', 10)
+		p.drawString(margin, y, f"Customer: {appointment.customer_name or 'Guest'}")
+		y -= 12
+		p.drawString(margin, y, f"Phone: {appointment.customer_phone or 'N/A'}")
+		y -= 12
+		p.drawString(margin, y, f"Service: {appointment.service_name or 'Salon Service'}")
+		y -= 12
+		p.drawString(margin, y, f"Stylist: {appointment.stylist_name or 'N/A'}")
+		y -= 12
+		start = appointment.start_time.strftime('%d-%m-%Y %I:%M %p') if appointment.start_time else 'N/A'
+		p.drawString(margin, y, f"Start: {start}")
+		y -= 12
+		duration = appointment.duration_minutes or appointment.service.duration_minutes if appointment.service else 0
+		p.drawString(margin, y, f"Duration: {duration} mins")
+		y -= 20
+
+		p.setFont('Helvetica-Bold', 13)
+		p.drawString(margin, y, 'Financial Summary')
+		y -= 16
+		p.setFont('Helvetica', 11)
+		amount = float(appointment.price or 0)
+		p.drawString(margin, y, f"Subtotal: ₹{amount:.2f}")
+		y -= 14
+		tax = amount * 0.18
+		p.drawString(margin, y, f"GST (18%): ₹{tax:.2f}")
+		y -= 14
+		total = amount
+		p.setFont('Helvetica-Bold', 12)
+		p.drawString(margin, y, f"Total: ₹{total:.2f}")
+		y -= 24
+
+		p.setFont('Helvetica', 9)
+		p.setFillColor(colors.black)
+		p.drawString(margin, y, f"Status: {appointment.status.capitalize() if appointment.status else 'Unknown'}")
+		y -= 12
+		p.drawString(margin, y, 'Thank you for booking with Zenith Salon. Contact us for any changes.')
+		y -= 12
+		p.drawString(margin, y, f"Generated on {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
+
+		p.showPage()
+		p.save()
+		buffer.seek(0)
+
+		response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+		response['Content-Disposition'] = f'attachment; filename="salon_invoice_{appointment.id}.pdf"'
+		return response

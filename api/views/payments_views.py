@@ -520,17 +520,25 @@ class PaymentReceiptPDFView(APIView):
             p.drawString(25 * mm, y, 'IMPORTANT: CHARGE BREAKDOWN')
             y -= 15
             p.setFont('Helvetica', 9)
-            notice_lines = [
-                "• This payment is for PRODUCT SUBSCRIPTION charges only.",
-                "• Training services are NOT included and require separate payment.",
-                "• Customization services (PC apps, PLC programming, etc.) have different pricing.",
-                "• API-based integrations and web creation services are charged separately.",
-                "• All additional services require separate quotes and agreements."
-            ]
-            for line in notice_lines:
-                p.drawString(30 * mm, y, line)
-                y -= 12
-            y -= 15
+            notice_text = (
+                "• This payment is for PRODUCT SUBSCRIPTION charges only. "
+                "• Training services are NOT included and require separate payment. "
+                "• Customization services (PC apps, PLC programming, etc.) have different pricing. "
+                "• API-based integrations and web creation services are charged separately."
+            )
+            y = draw_text_safe(
+                p,
+                notice_text,
+                30 * mm,
+                y,
+                width - 55 * mm,
+                'Helvetica',
+                9,
+                'left',
+                max_lines=4,
+                line_spacing=12
+            )
+            y -= 10
 
             # Total amount section
             p.setStrokeColor(colors.HexColor('#000000'))
@@ -546,53 +554,58 @@ class PaymentReceiptPDFView(APIView):
             # Additional services and policies section
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            p.rect(20 * mm, y - 120, width - 40 * mm, 120, stroke=1, fill=0)
+            bottom_margin = 25 * mm
+            available_height = y - bottom_margin - 30 * mm
+            policy_box_height = min(110 * mm, max(60 * mm, available_height))
+            p.rect(20 * mm, y - policy_box_height, width - 40 * mm, policy_box_height, stroke=1, fill=0)
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 11)
             p.drawString(25 * mm, y - 8, 'ADDITIONAL SERVICES & POLICIES')
             y -= 18
-            
-            p.setFont('Helvetica-Bold', 9)
-            p.drawString(25 * mm, y, 'Training Services:')
-            y -= 12
-            p.setFont('Helvetica', 8)
-            training_text = [
-                "Training is a separate service with dedicated pricing. Training charges are not included",
-                "in this subscription. Please contact support for training packages and pricing."
-            ]
-            for line in training_text:
-                p.drawString(30 * mm, y, line)
-                y -= 11
-            
+            paragraph_width = width - 50 * mm
+            y = draw_text_safe(
+                p,
+                "Training is a separate service with dedicated pricing. Training charges are not included "
+                "in this subscription. Please contact support for training packages and pricing.",
+                30 * mm,
+                y,
+                paragraph_width,
+                'Helvetica',
+                8,
+                'left',
+                max_lines=3,
+                line_spacing=11
+            )
             y -= 5
-            p.setFont('Helvetica-Bold', 9)
-            p.drawString(25 * mm, y, 'Customization Services:')
-            y -= 12
-            p.setFont('Helvetica', 8)
-            custom_text = [
-                "Custom development services (PC applications, PLC programming, TCP/IP & Ethernet PLC",
-                "connections, custom workflows) are available at additional costs. Each customization",
-                "project is quoted separately based on requirements and complexity."
-            ]
-            for line in custom_text:
-                p.drawString(30 * mm, y, line)
-                y -= 11
-            
+            y = draw_text_safe(
+                p,
+                "Custom development services (PC applications, PLC programming, TCP/IP & Ethernet PLC connections, "
+                "custom workflows) are available at additional costs. Each customization project is quoted separately "
+                "based on requirements and complexity.",
+                30 * mm,
+                y,
+                paragraph_width,
+                'Helvetica',
+                8,
+                'left',
+                max_lines=3,
+                line_spacing=11
+            )
             y -= 5
-            p.setFont('Helvetica-Bold', 9)
-            p.drawString(25 * mm, y, 'API & Web Development:')
-            y -= 12
-            p.setFont('Helvetica', 8)
-            api_text = [
-                "API-based integrations and custom web application development are separate services",
-                "with different pricing structures. Contact our sales team for API integration and",
-                "web development service quotes."
-            ]
-            for line in api_text:
-                p.drawString(30 * mm, y, line)
-                y -= 11
-            
-            y -= 25
+            y = draw_text_safe(
+                p,
+                "API-based integrations and custom web application development are separate services with different pricing "
+                "structures. Contact our sales team for API integration and web development service quotes.",
+                30 * mm,
+                y,
+                paragraph_width,
+                'Helvetica',
+                8,
+                'left',
+                max_lines=3,
+                line_spacing=11
+            )
+            y -= 15
 
             # Footer with policies
             p.setFont('Helvetica', 8)
@@ -604,8 +617,6 @@ class PaymentReceiptPDFView(APIView):
             policy_line2 = "This is a computer-generated receipt and does not require a physical signature."
             p.drawCentredString(width / 2, 18 * mm, policy_line1)
             p.drawCentredString(width / 2, 12 * mm, policy_line2)
-
-            p.showPage()
             p.save()
             buffer.seek(0)
             response = HttpResponse(buffer.getvalue(), content_type='application/pdf')

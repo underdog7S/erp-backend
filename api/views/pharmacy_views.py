@@ -12,6 +12,7 @@ import json
 import csv
 from django.http import HttpResponse
 from io import BytesIO
+import requests
 try:
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
@@ -169,6 +170,51 @@ class MedicineSearchView(APIView):
             return Response({
                 'error': 'An error occurred while processing the request'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PharmacyDrugLookupView(APIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+
+    def get(self, request):
+        query = (request.query_params.get('q') or '').strip()
+        if not query:
+            return Response({'error': 'q (search term) is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        search_value = f'openfda.generic_name:"{query}" openfda.brand_name:"{query}"'
+        try:
+            response = requests.get(
+                'https://api.fda.gov/drug/label.json',
+                params={'search': search_value, 'limit': 5},
+                timeout=10
+            )
+            if response.status_code != 200:
+                logger.warning(f"Drug lookup returned {response.status_code} for query {query}")
+                return Response({'error': 'No results found from the drug knowledge source'}, status=status.HTTP_200_OK)
+
+            data = response.json()
+            results = []
+            for entry in data.get('results', []):
+                openfda = entry.get('openfda', {}) or {}
+                brand_names = openfda.get('brand_name') or []
+                generic_names = openfda.get('generic_name') or []
+                manufacturer = openfda.get('manufacturer_name')
+                display_name = brand_names[0] if brand_names else generic_names[0] if generic_names else query
+
+                results.append({
+                    'display_name': display_name,
+                    'brandNames': brand_names,
+                    'genericNames': generic_names,
+                    'manufacturer': manufacturer or entry.get('manufacturer_name'),
+                    'purpose': entry.get('purpose', [])[:2],
+                    'usage': entry.get('indications_and_usage', [])[:2],
+                    'dosage': entry.get('dosage_and_administration', [])[:2],
+                    'warnings': entry.get('warnings', [])[:1]
+                })
+
+            return Response({'results': results})
+        except requests.RequestException as exc:
+            logger.error(f"Drug lookup failed: {exc}", exc_info=True)
+            return Response({'error': 'Drug lookup service is currently unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 # Medicine Batch Views
 class MedicineBatchListCreateView(generics.ListCreateAPIView):
@@ -507,6 +553,12 @@ class PharmacyAnalyticsView(APIView):
             count=Count('id'),
             total=Sum('total_amount')
         )
+
+        pending_sales_qs = Sale.objects.filter(tenant=tenant).exclude(payment_status='PAID')
+        pending_payments_count = pending_sales_qs.count()
+        pending_payments_total = pending_sales_qs.aggregate(
+            total_due=Sum('total_amount')
+        )['total_due'] or 0
         
         # Weekly revenue comparison (NEW)
         seven_days_ago = today - timedelta(days=7)
@@ -577,6 +629,10 @@ class PharmacyAnalyticsView(APIView):
             'daily_trends': daily_revenue,
             'top_medicines': list(top_medicines),
             'payment_methods': list(payment_methods),
+            'pending_payments': {
+                'count': pending_payments_count,
+                'total_due': float(pending_payments_total),
+            },
             'customers': {
                 'repeat_customers_30_days': repeat_customers,
             },

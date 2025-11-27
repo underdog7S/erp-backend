@@ -7,7 +7,7 @@ from rest_framework import status
 from django.db.models import Q, Count, Sum, Avg, F
 from django.utils import timezone
 from datetime import datetime, timedelta
-from api.models.user import Tenant
+from api.models.user import Tenant, UserProfile
 from restaurant.models import MenuCategory, MenuItem, Table, Order, OrderItem, ExternalAPIIntegration, MenuSyncLog
 from api.serializers import (
 	MenuCategorySerializer, MenuItemSerializer, TableSerializer, OrderSerializer, OrderItemSerializer,
@@ -17,6 +17,12 @@ from api.serializers import (
 import requests
 import logging
 from decimal import Decimal
+from django.http import HttpResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +201,96 @@ class OrderMarkPaidView(APIView):
 			return Response({'message': 'Order marked as paid', 'status': order.status})
 		except Order.DoesNotExist:
 			return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RestaurantOrderInvoiceView(APIView):
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('restaurant')]
+
+	def get(self, request, pk):
+		try:
+			profile = UserProfile._default_manager.get(user=request.user)
+			tenant = profile.tenant
+			order = Order.objects.select_related('table').prefetch_related('items', 'items__menu_item').get(id=pk, tenant=tenant)
+		except UserProfile.DoesNotExist:
+			return Response({'error': 'User profile not found.'}, status=status.HTTP_403_FORBIDDEN)
+		except Order.DoesNotExist:
+			return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+		buffer = BytesIO()
+		p = canvas.Canvas(buffer, pagesize=A4)
+		width, height = A4
+		margin = 25 * mm
+
+		p.setFont('Helvetica-Bold', 18)
+		p.drawString(margin, height - margin, 'Zenith Restaurant Invoice')
+		p.setFont('Helvetica', 10)
+		p.drawRightString(width - margin, height - margin + 4, f"Order #: RST-{order.id:06d}")
+
+		y = height - margin - 30
+		p.setFont('Helvetica-Bold', 12)
+		p.drawString(margin, y, 'Customer & Table')
+		y -= 14
+		p.setFont('Helvetica', 10)
+		p.drawString(margin, y, f"Customer: {order.customer_name or 'Walk-in'}")
+		y -= 12
+		p.drawString(margin, y, f"Table: {order.table.number if order.table else 'N/A'}")
+		y -= 12
+		p.drawString(margin, y, f"Status: {order.status or 'open'}")
+		y -= 12
+		p.drawString(margin, y, f"Created: {order.created_at.strftime('%d-%m-%Y %I:%M %p') if order.created_at else 'N/A'}")
+		y -= 18
+
+		p.setFont('Helvetica-Bold', 12)
+		p.drawString(margin, y, 'Order Items')
+		y -= 14
+		p.setFont('Helvetica-Bold', 10)
+		p.drawString(margin, y, 'Item')
+		p.drawString(margin + 230, y, 'Qty')
+		p.drawRightString(width - margin - 60, y, 'Price')
+		p.drawRightString(width - margin, y, 'Amount')
+		y -= 12
+		p.setLineWidth(0.5)
+		p.line(margin, y, width - margin, y)
+		y -= 8
+
+		p.setFont('Helvetica', 10)
+		subtotal = Decimal('0.00')
+		for item in order.items.all():
+			if y < margin + 60:
+				p.showPage()
+				y = height - margin - 20
+			name = item.menu_item.name if item.menu_item else item.menu_item_name or 'Item'
+			quantity = item.quantity or 0
+			price = Decimal(item.price or 0)
+			line_total = price * quantity
+			subtotal += line_total
+
+			p.drawString(margin, y, name[:40])
+			p.drawString(margin + 230, y, str(quantity))
+			p.drawRightString(width - margin - 60, y, f"₹{price:.2f}")
+			p.drawRightString(width - margin, y, f"₹{line_total:.2f}")
+			y -= 12
+
+		p.setFont('Helvetica', 11)
+		p.drawString(margin, y - 10, f"Subtotal: ₹{subtotal:.2f}")
+		gst = subtotal * Decimal('0.18')
+		p.drawString(margin, y - 24, f"GST (18%): ₹{gst:.2f}")
+		total = subtotal + gst
+		p.setFont('Helvetica-Bold', 12)
+		p.drawString(margin, y - 40, f"Total: ₹{total:.2f}")
+		y -= 60
+
+		p.setFont('Helvetica', 9)
+		p.drawString(margin, y, 'Thank you for dining with Zenith Restaurant. Contact us for corrections.')
+		p.drawRightString(width - margin, y, f"Generated: {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
+
+		p.showPage()
+		p.save()
+		buffer.seek(0)
+
+		response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+		response['Content-Disposition'] = f'attachment; filename="restaurant_invoice_{order.id}.pdf"'
+		return response
 
 
 class RestaurantAnalyticsView(APIView):

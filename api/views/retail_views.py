@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, F
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -14,8 +14,10 @@ import csv
 from django.http import HttpResponse
 from io import BytesIO
 try:
-    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.pagesizes import A4, letter
     from reportlab.pdfgen import canvas
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
 except ImportError:
     pass
 
@@ -849,6 +851,10 @@ class RetailAnalyticsView(APIView):
             count=Count('id'),
             total=Sum('total_amount')
         )
+
+        pending_sales_qs = Sale.objects.filter(tenant=tenant).exclude(payment_status='PAID')
+        pending_payments_count = pending_sales_qs.count()
+        pending_payments_total = pending_sales_qs.aggregate(total_due=Sum('total_amount'))['total_due'] or 0
         
         # Customer type revenue breakdown
         customer_type_revenue = Sale.objects.filter(
@@ -920,6 +926,10 @@ class RetailAnalyticsView(APIView):
                 'last_week': float(last_week_revenue['total'] or 0),
                 'week_growth_percent': round(week_growth, 2),
             },
+            'pending_payments': {
+                'count': pending_payments_count,
+                'total_due': float(pending_payments_total),
+            },
             'daily_trends': daily_revenue,
             'profitability': {
                 'total_revenue_30_days': total_revenue,
@@ -936,6 +946,94 @@ class RetailAnalyticsView(APIView):
                 'repeat_customers_30_days': repeat_customers,
             },
         })
+
+
+class RetailSaleInvoiceView(APIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
+
+    def get(self, request, pk):
+        try:
+            tenant = request.user.userprofile.tenant
+            sale = Sale.objects.select_related('customer', 'warehouse').prefetch_related('items', 'items__product').get(id=pk, tenant=tenant)
+        except Sale.DoesNotExist:
+            return Response({'error': 'Sale not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        margin = 25 * mm
+        y = height - margin
+
+        p.setFont('Helvetica-Bold', 18)
+        p.drawString(margin, y, 'Zenith Retail Store')
+        p.setFont('Helvetica', 10)
+        p.drawString(margin, y - 20, f"Invoice #: {sale.invoice_number}")
+        p.drawString(margin, y - 34, f"Date: {sale.sale_date.strftime('%d-%m-%Y %I:%M %p') if sale.sale_date else 'N/A'}")
+        customer_name = sale.customer.name if sale.customer else getattr(sale, 'customer_name', 'Walk-in')
+        p.drawString(margin, y - 48, f"Customer: {customer_name}")
+        warehouse_name = sale.warehouse.name if sale.warehouse else 'N/A'
+        p.drawString(margin, y - 62, f"Warehouse: {warehouse_name}")
+        p.drawString(margin, y - 76, f"Payment Status: {sale.payment_status}")
+        p.drawString(margin, y - 90, f"Payment Method: {sale.payment_method}")
+
+        y -= 110
+        p.setFont('Helvetica-Bold', 12)
+        p.drawString(margin, y, 'Items')
+        y -= 18
+        p.setFont('Helvetica-Bold', 10)
+        p.drawString(margin, y, 'Product')
+        p.drawString(margin + 220, y, 'Qty')
+        p.drawRightString(width - margin - 70, y, 'Unit Price')
+        p.drawRightString(width - margin, y, 'Total')
+        y -= 12
+        p.setLineWidth(0.5)
+        p.line(margin, y, width - margin, y)
+        y -= 8
+
+        p.setFont('Helvetica', 10)
+        subtotal = 0
+        for item in sale.items.all():
+            if y < margin + 60:
+                p.showPage()
+                y = height - margin
+            product_name = item.product.name if item.product else 'Item'
+            quantity = item.quantity or 0
+            unit_price = float(item.unit_price or 0)
+            line_total = float(item.total_price or (quantity * unit_price))
+            subtotal += line_total
+
+            p.drawString(margin, y, product_name[:40])
+            p.drawString(margin + 220, y, str(quantity))
+            p.drawRightString(width - margin - 70, y, f"₹{unit_price:.2f}")
+            p.drawRightString(width - margin, y, f"₹{line_total:.2f}")
+            y -= 14
+
+        y -= 10
+        p.setFont('Helvetica-Bold', 11)
+        p.drawRightString(width - margin, y, f"Subtotal: ₹{subtotal:.2f}")
+        y -= 14
+        tax_amount = float(sale.tax_amount or 0)
+        p.setFont('Helvetica', 10)
+        p.drawRightString(width - margin, y, f"Tax: ₹{tax_amount:.2f}")
+        y -= 14
+        discount_amount = float(sale.discount_amount or 0)
+        p.drawRightString(width - margin, y, f"Discount: ₹{discount_amount:.2f}")
+        y -= 14
+        total_amount = float(sale.total_amount or 0)
+        p.setFont('Helvetica-Bold', 12)
+        p.drawRightString(width - margin, y, f"Total: ₹{total_amount:.2f}")
+
+        p.setFont('Helvetica', 9)
+        p.drawString(margin, margin + 20, 'Thank you for your purchase!')
+        p.drawRightString(width - margin, margin + 20, f"Generated: {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="retail_sale_{sale.invoice_number}.pdf"'
+        return response
 
 # Check-in/Check-out Views
 class StaffAttendanceCheckInView(APIView):

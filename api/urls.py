@@ -369,6 +369,7 @@ urlpatterns += [
     path('pharmacy/sales/export/', pharmacy_views.PharmacySaleExportView.as_view(), name='pharmacy-sales-export'),
     path('pharmacy/purchase-orders/export/', pharmacy_views.PharmacyPurchaseOrderExportView.as_view(), name='pharmacy-purchase-orders-export'),
     path('pharmacy/inventory/export/', pharmacy_views.PharmacyInventoryExportView.as_view(), name='pharmacy-inventory-export'),
+    path('pharmacy/drug-lookup/', pharmacy_views.PharmacyDrugLookupView.as_view(), name='pharmacy-drug-lookup'),
     
     # Retail Export endpoints
     path('retail/products/export/', retail_views.RetailProductExportView.as_view(), name='retail-products-export'),
@@ -390,6 +391,7 @@ urlpatterns += [
     path('hotel/bookings/bulk-delete/', hotel_views.BookingBulkDeleteView.as_view(), name='hotel-bookings-bulk-delete'),
     path('hotel/bookings/bulk-status-update/', hotel_views.BookingBulkStatusUpdateView.as_view(), name='hotel-bookings-bulk-status'),
     path('hotel/analytics/', hotel_views.HotelAnalyticsView.as_view(), name='hotel-analytics'),
+    path('hotel/bookings/<int:pk>/folio/', hotel_views.HotelBookingFolioView.as_view(), name='hotel-booking-folio'),
     
     # Restaurant API endpoints
     path('restaurant/menu-categories/', restaurant_views.MenuCategoryListCreateView.as_view(), name='restaurant-menu-categories'),
@@ -402,6 +404,7 @@ urlpatterns += [
     path('restaurant/orders/<int:pk>/', restaurant_views.OrderDetailView.as_view(), name='restaurant-order-detail'),
     path('restaurant/orders/<int:pk>/serve/', restaurant_views.OrderServeView.as_view(), name='restaurant-order-serve'),
     path('restaurant/orders/<int:pk>/mark-paid/', restaurant_views.OrderMarkPaidView.as_view(), name='restaurant-order-mark-paid'),
+    path('restaurant/orders/<int:pk>/invoice/', restaurant_views.RestaurantOrderInvoiceView.as_view(), name='restaurant-order-invoice'),
     path('restaurant/orders/bulk-delete/', restaurant_views.OrderBulkDeleteView.as_view(), name='restaurant-orders-bulk-delete'),
     path('restaurant/orders/bulk-status-update/', restaurant_views.OrderBulkStatusUpdateView.as_view(), name='restaurant-orders-bulk-status'),
     path('restaurant/order-items/', restaurant_views.OrderItemListCreateView.as_view(), name='restaurant-order-items'),
@@ -431,6 +434,7 @@ urlpatterns += [
     path('salon/appointments/<int:pk>/check-in/', salon_views.AppointmentCheckInView.as_view(), name='salon-appointment-check-in'),
     path('salon/appointments/<int:pk>/complete/', salon_views.AppointmentCompleteView.as_view(), name='salon-appointment-complete'),
     path('salon/appointments/<int:pk>/cancel/', salon_views.AppointmentCancelView.as_view(), name='salon-appointment-cancel'),
+    path('salon/appointments/<int:pk>/invoice/', salon_views.SalonAppointmentInvoiceView.as_view(), name='salon-appointment-invoice'),
     path('salon/appointments/bulk-delete/', salon_views.AppointmentBulkDeleteView.as_view(), name='salon-appointments-bulk-delete'),
     path('salon/appointments/bulk-status-update/', salon_views.AppointmentBulkStatusUpdateView.as_view(), name='salon-appointments-bulk-status'),
     path('salon/analytics/', salon_views.SalonAnalyticsView.as_view(), name='salon-analytics'),
@@ -509,6 +513,7 @@ urlpatterns += [
     path('retail/goods-receipts/<int:pk>/', retail_views.GoodsReceiptDetailView.as_view(), name='retail-goods-receipt-detail'),
     path('retail/sales/', retail_views.SaleListCreateView.as_view(), name='retail-sales'),
     path('retail/sales/<int:pk>/', retail_views.SaleDetailView.as_view(), name='retail-sale-detail'),
+    path('retail/sales/<int:pk>/invoice/', retail_views.RetailSaleInvoiceView.as_view(), name='retail-sale-invoice'),
     path('retail/stock-transfers/', retail_views.StockTransferListCreateView.as_view(), name='retail-stock-transfers'),
     path('retail/stock-transfers/<int:pk>/', retail_views.StockTransferDetailView.as_view(), name='retail-stock-transfer-detail'),
     path('retail/stock-adjustments/', retail_views.StockAdjustmentListCreateView.as_view(), name='retail-stock-adjustments'),
