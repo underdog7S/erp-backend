@@ -328,6 +328,35 @@ class StudentDetailView(APIView):
         except Student.DoesNotExist:  # type: ignore
             return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+class EducationCRMStudentContactsView(APIView):
+    """Expose students as CRM-friendly contacts for email marketing"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+
+    def get(self, request):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+            students = Student._default_manager.filter(tenant=profile.tenant).select_related('assigned_class')
+            contacts = []
+            for student in students:
+                contacts.append({
+                    'id': f"student-{student.id}",
+                    'full_name': student.name,
+                    'email': student.email,
+                    'roll_number': student.upper_id or student.admission_number or f'STU-{student.id}',
+                    'class_name': student.assigned_class.name if student.assigned_class else '',
+                    'parent_name': student.parent_name or '',
+                    'parent_phone': student.parent_phone or '',
+                    'status': 'active' if getattr(student, 'is_active', True) else 'inactive'
+                })
+            return Response(contacts)
+        except UserProfile.DoesNotExist:
+            logger.error(f"UserProfile not found for user: {request.user.username}")
+            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as exc:
+            logger.error(f"Error fetching CRM student contacts: {str(exc)}", exc_info=True)
+            return Response({'error': f'An error occurred: {str(exc)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # TODO: Update Fee views to use new FeeStructure, FeePayment, FeeDiscount models
 # class FeeListCreateView(APIView):
 #     pass
@@ -1092,18 +1121,23 @@ class ReportCardPDFView(APIView):
             p.setFont('Helvetica', 10)
             academic_year_text = 'ACADEMIC YEAR ' + (report_card.academic_year.name if report_card.academic_year else '')
             p.drawString(text_x, info_y - 13, academic_year_text)
+            info_y -= 25
+            header_bottom_y = info_y
+            separator_y = min(height - 75, header_bottom_y)
+            separator_y = max(separator_y, height - 130)  # Keep minimum top padding for report card body
             
             # Separator line (simple border, no background)
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
-            y = height - 75
-            p.line(20 * mm, y, width - 20 * mm, y)
+            p.line(20 * mm, separator_y, width - 20 * mm, separator_y)
             
-            y -= 20
+            y = separator_y - 20
             p.setFillColor(colors.black)
 
             # Student information section - clean white background, no colors
-            y = height - 90
+            student_info_start = min(height - 90, y)
+            student_info_start = max(student_info_start, height - 140)
+            y = student_info_start
             # Outer border only - no background color
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
@@ -4958,8 +4992,14 @@ class TransferCertificatePDFView(APIView):
             info_y -= 5
             p.setFont('Helvetica-Bold', 14)
             p.drawString(text_x, info_y, 'TRANSFER CERTIFICATE')
-            
-            y = height - 110
+            # Move body start below header to avoid overlap when contact info spans multiple lines
+            info_y -= 18
+            header_bottom_y = info_y
+            default_body_start = height - 110
+            # Choose the lower point (smaller y) to ensure content starts below the header
+            y = min(default_body_start, header_bottom_y)
+            # Enforce a minimum top buffer to keep the border visible
+            y = max(y, height - 140)
             
             # TC Number and Date
             p.setFont('Helvetica-Bold', 12)

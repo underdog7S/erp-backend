@@ -75,6 +75,7 @@ else:
 MIDDLEWARE.extend([
     'api.middleware.security.RequestValidationMiddleware',  # Add request validation
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'api.middleware.visitor_lead.VisitorLeadMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',  # Must come before RateLimitMiddleware

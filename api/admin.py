@@ -7,6 +7,7 @@ from api.models.email_marketing import (
     EmailTemplate, ContactList, EmailCampaign, EmailActivity,
     EmailSequence, EmailSequenceStep
 )
+from api.models.visitor_lead import VisitorLead
 from api.models.audit import AuditLog
 from api.models.custom_service import CustomServiceRequest
 from .models.payments import PaymentTransaction
@@ -397,6 +398,14 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 secure_admin_site.register(NotificationPreference, NotificationPreferenceAdmin)
+
+class VisitorLeadAdmin(admin.ModelAdmin):
+    list_display = ('visitor_token', 'ip_address', 'form_submitted', 'submitted_email', 'created_at', 'last_seen')
+    list_filter = ('form_submitted', 'utm_source', 'utm_campaign')
+    search_fields = ('visitor_token', 'ip_address', 'submitted_email', 'submitted_phone')
+    readonly_fields = ('visitor_token', 'ip_address', 'user_agent', 'landing_url', 'referrer', 'created_at', 'last_seen')
+
+secure_admin_site.register(VisitorLead, VisitorLeadAdmin)
 
 class NotificationTemplateAdmin(admin.ModelAdmin):
     list_display = ('name', 'module', 'notification_type', 'is_active', 'created_at')

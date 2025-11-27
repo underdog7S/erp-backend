@@ -36,6 +36,7 @@ from .views.crm_views import (
     ContactViewSet, CompanyViewSet, ContactTagViewSet,
     ActivityViewSet, DealViewSet, DealStageViewSet
 )
+from .views.visitor_lead_views import VisitorLeadViewSet
 from .views.email_marketing_views import (
     EmailTemplateViewSet, ContactListViewSet, EmailCampaignViewSet,
     EmailActivityViewSet, EmailSequenceViewSet, EmailSequenceStepViewSet
@@ -67,6 +68,7 @@ router.register(r'crm/contact-tags', ContactTagViewSet, basename='contact-tag')
 router.register(r'crm/activities', ActivityViewSet, basename='activity')
 router.register(r'crm/deals', DealViewSet, basename='deal')
 router.register(r'crm/deal-stages', DealStageViewSet, basename='deal-stage')
+router.register(r'visitor-leads', VisitorLeadViewSet, basename='visitor-lead')
 
 # Email Marketing
 router.register(r'email/templates', EmailTemplateViewSet, basename='email-template')
@@ -271,6 +273,7 @@ urlpatterns = [
     path('crm/analytics/contacts/', ContactAnalyticsView.as_view(), name='crm-contact-analytics'),
     path('crm/analytics/deals/pipeline/', DealPipelineAnalyticsView.as_view(), name='crm-deal-pipeline-analytics'),
     path('crm/analytics/email-marketing/', EmailMarketingAnalyticsView.as_view(), name='crm-email-marketing-analytics'),
+    path('crm/education-students/', education_views.EducationCRMStudentContactsView.as_view(), name='crm-education-students'),
     
     # Alert Management
     path('alerts/list/', alerts_views.AlertListView.as_view(), name='alert-list'),
