@@ -668,7 +668,7 @@ secure_admin_site.register(TicketSLA, TicketSLAAdmin)
 
 # Tenant Admin
 class TenantAdmin(admin.ModelAdmin):
-    list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'get_percentage_method')
+    list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'public_settings_unlocked', 'get_percentage_method')
     list_filter = ('industry', 'subscription_status', 'percentage_calculation_method')
     search_fields = ('name', 'slug')
     
@@ -694,7 +694,7 @@ class TenantAdmin(admin.ModelAdmin):
             'fields': ('plan', 'subscription_start_date', 'subscription_end_date', 'subscription_status', 'grace_period_end_date')
         }),
         ('Public Features', {
-            'fields': ('public_booking_enabled', 'public_orders_enabled', 'public_admissions_enabled', 'public_api_key'),
+            'fields': ('public_booking_enabled', 'public_orders_enabled', 'public_admissions_enabled', 'public_api_key', 'public_settings_unlocked'),
             'classes': ('collapse',)
         }),
         ('Module Access', {
@@ -715,6 +715,10 @@ class TenantAdmin(admin.ModelAdmin):
                     </p>
                 </div>
             ''',
+            'classes': ('collapse',)
+        }),
+        ('UPI / Offline Payments', {
+            'fields': ('upi_payments_enabled', 'upi_id', 'upi_display_name', 'upi_notes'),
             'classes': ('collapse',)
         }),
         ('Education Module: Percentage Calculation Settings', {

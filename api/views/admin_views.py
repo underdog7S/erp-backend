@@ -344,17 +344,23 @@ class TenantPublicSettingsView(APIView):
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			
-			# Check if user has a paid plan
 			tenant = profile.tenant
-			if not tenant or not tenant.plan:
-				return Response({
-					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
-					'requires_paid_plan': True
-				}, status=403)
+			if not tenant:
+				return Response({'error': 'Tenant not found for user'}, status=404)
 			
 			plan = tenant.plan
-			# Free plan users cannot access (price = 0)
-			if plan.price is not None and plan.price == 0:
+			has_paid_plan = bool(plan and (plan.price is None or plan.price > 0))
+			is_free_plan = bool(plan and plan.price is not None and plan.price == 0)
+			override_allowed = getattr(tenant, 'public_settings_unlocked', False)
+			
+			if not has_paid_plan and not override_allowed:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
+					'requires_paid_plan': True,
+					'current_plan': plan.name if plan else None
+				}, status=403)
+			
+			if is_free_plan and not override_allowed:
 				return Response({
 					'error': 'Public settings are only available for paid plans. Please upgrade from the Free plan to access this feature.',
 					'requires_paid_plan': True,
@@ -376,6 +382,7 @@ class TenantPublicSettingsView(APIView):
 				'percentage_calculation_scope': getattr(tenant, 'percentage_calculation_scope', 'TERM_WISE'),
 				'percentage_excluded_subjects': getattr(tenant, 'percentage_excluded_subjects', []),
 				'percentage_rounding': getattr(tenant, 'percentage_rounding', 2),
+				'public_settings_unlocked': override_allowed,
 			}
 			return Response(settings_data)
 		except Exception as e:
@@ -390,17 +397,23 @@ class TenantPublicSettingsView(APIView):
 			if not profile.role or profile.role.name != 'admin':
 				return Response({'error': 'Admin access required'}, status=403)
 			
-			# Check if user has a paid plan
 			tenant = profile.tenant
-			if not tenant or not tenant.plan:
-				return Response({
-					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
-					'requires_paid_plan': True
-				}, status=403)
+			if not tenant:
+				return Response({'error': 'Tenant not found for user'}, status=404)
 			
 			plan = tenant.plan
-			# Free plan users cannot access (price = 0)
-			if plan.price is not None and plan.price == 0:
+			has_paid_plan = bool(plan and (plan.price is None or plan.price > 0))
+			is_free_plan = bool(plan and plan.price is not None and plan.price == 0)
+			override_allowed = getattr(tenant, 'public_settings_unlocked', False)
+			
+			if not has_paid_plan and not override_allowed:
+				return Response({
+					'error': 'Public settings are only available for paid plans. Please upgrade to access this feature.',
+					'requires_paid_plan': True,
+					'current_plan': plan.name if plan else None
+				}, status=403)
+			
+			if is_free_plan and not override_allowed:
 				return Response({
 					'error': 'Public settings are only available for paid plans. Please upgrade from the Free plan to access this feature.',
 					'requires_paid_plan': True,

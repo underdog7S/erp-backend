@@ -636,3 +636,94 @@ class PaymentReceiptPDFView(APIView):
                 'error': f'Receipt PDF generation failed: {str(e)}',
                 'details': 'Check server logs for more information.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
+
+def _serialize_upi_settings(tenant):
+    return {
+        'upi_payments_enabled': bool(tenant.upi_payments_enabled and tenant.upi_id),
+        'upi_id': tenant.upi_id or '',
+        'upi_display_name': tenant.upi_display_name or tenant.name or '',
+        'upi_notes': tenant.upi_notes or ''
+    }
+
+
+class TenantPaymentOptionsView(APIView):
+    """Expose available payment rails (Razorpay, UPI, etc.) to the frontend"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        tenant = profile.tenant
+        if not tenant:
+            return Response({'error': 'Tenant not found for user'}, status=status.HTTP_404_NOT_FOUND)
+
+        razorpay_configured = tenant.has_razorpay_configured()
+        data = {
+            'razorpay': {
+                'configured': razorpay_configured,
+                'enabled': bool(razorpay_configured and tenant.razorpay_enabled),
+                'setup_completed': tenant.razorpay_setup_completed,
+            },
+            'upi': _serialize_upi_settings(tenant)
+        }
+        return Response(data)
+
+
+class TenantUPISettingsView(APIView):
+    """Allow tenant admins to configure the UPI ID and related instructions"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not profile.role or profile.role.name != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = profile.tenant
+        if not tenant:
+            return Response({'error': 'Tenant not found for user'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(_serialize_upi_settings(tenant))
+
+    def post(self, request):
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not profile.role or profile.role.name != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = profile.tenant
+        if not tenant:
+            return Response({'error': 'Tenant not found for user'}, status=status.HTTP_404_NOT_FOUND)
+
+        upi_enabled = bool(request.data.get('upi_payments_enabled'))
+        upi_id = (request.data.get('upi_id') or '').strip()
+        upi_display_name = (request.data.get('upi_display_name') or '').strip()
+        upi_notes = (request.data.get('upi_notes') or '').strip()
+
+        if upi_enabled and not upi_id:
+            return Response({'error': 'Provide a UPI ID before enabling UPI payments.'}, status=status.HTTP_400_BAD_REQUEST)
+        if upi_id and '@' not in upi_id:
+            return Response({'error': 'Invalid UPI ID. It should contain the @ symbol (example: business@bank).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tenant.upi_payments_enabled = upi_enabled and bool(upi_id)
+        tenant.upi_id = upi_id or None
+        tenant.upi_display_name = upi_display_name or tenant.name
+        tenant.upi_notes = upi_notes or ''
+        tenant.save(update_fields=['upi_payments_enabled', 'upi_id', 'upi_display_name', 'upi_notes'])
+
+        return Response({
+            'message': 'UPI settings updated successfully',
+            **_serialize_upi_settings(tenant)
+        })

@@ -17,6 +17,26 @@ class IsTenantMember(BasePermission):
             return False
 
 
+class IsTenantAdmin(BasePermission):
+    """
+    Permission class to ensure the authenticated user is the tenant admin.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        try:
+            profile = UserProfile._default_manager.get(user=request.user)
+        except UserProfile.DoesNotExist:
+            return False
+        if not profile or not profile.tenant:
+            return False
+        role_name = profile.role.name if profile.role else ''
+        if role_name == 'admin' or request.user.is_staff or request.user.is_superuser:
+            return True
+        return False
+
+
 def HasFeaturePermissionFactory(feature_name):
     """
     Factory function to create permission class that checks if user's plan has a specific feature.

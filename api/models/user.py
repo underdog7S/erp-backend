@@ -49,6 +49,10 @@ class Tenant(models.Model):
     public_orders_enabled = models.BooleanField(default=False)
     public_admissions_enabled = models.BooleanField(default=False)
     public_api_key = models.CharField(max_length=80, null=True, blank=True)
+    public_settings_unlocked = models.BooleanField(
+        default=False,
+        help_text="Allow tenant to edit public settings even on the Free plan"
+    )
     # Tenant-level module toggles (some tenants can enable multiple modules)
     has_hotel = models.BooleanField(default=False)
     has_restaurant = models.BooleanField(default=False)
@@ -92,6 +96,11 @@ class Tenant(models.Model):
     razorpay_webhook_secret = models.CharField(max_length=255, blank=True, null=True, help_text="Razorpay Webhook Secret for payment verification")
     razorpay_enabled = models.BooleanField(default=False, help_text="Enable Razorpay payments for this tenant")
     razorpay_setup_completed = models.BooleanField(default=False, help_text="Razorpay setup wizard completed")
+    # Offline / UPI payment configuration
+    upi_payments_enabled = models.BooleanField(default=False, help_text="Expose UPI payment instructions inside the portal")
+    upi_id = models.CharField(max_length=120, blank=True, null=True, help_text="Primary UPI ID / virtual payment address")
+    upi_display_name = models.CharField(max_length=120, blank=True, null=True, help_text="Name shown with UPI QR codes and links")
+    upi_notes = models.CharField(max_length=180, blank=True, null=True, help_text="Optional instructions that appear near the UPI QR code")
     created_at = models.DateTimeField(auto_now_add=True)
     
     def has_razorpay_configured(self):
