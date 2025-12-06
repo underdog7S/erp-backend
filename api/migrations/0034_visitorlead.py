@@ -8,6 +8,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('api', '0033_tenant_upi_fields'),
+        # Note: If 0033_visitorlead exists on server, this migration will be merged
+        # The merge migration will handle the dependency resolution
     ]
 
     operations = [
