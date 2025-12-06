@@ -2,7 +2,7 @@
 
 import django.utils.timezone
 from django.db import migrations, models, connection
-from django.db.migrations.operations.models import SeparateDatabaseAndState
+from django.db.migrations.operations.special import SeparateDatabaseAndState
 
 
 def create_visitorlead_if_not_exists(apps, schema_editor):
