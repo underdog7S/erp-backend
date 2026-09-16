@@ -161,8 +161,10 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only allow all origins in development
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React dev server
     "http://127.0.0.1:3000",  # Alternative localhost
-    # Add your production frontend URL(s) here when deploying
-    # Example: "https://yourdomain.com", "https://www.yourdomain.com"
+    "https://zenitherp.online",
+    "https://www.zenitherp.online",
+    "https://erp-frontend-lyart.vercel.app",
+    "https://erp-frontend-liard-beta.vercel.app"
 ]
 # Allow environment variable override for production
 env_cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
