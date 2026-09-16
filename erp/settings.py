@@ -75,6 +75,9 @@ if DEBUG:
 else:
     MIDDLEWARE.append('django.middleware.security.SecurityMiddleware')
 
+# Add whitenoise for static files
+MIDDLEWARE.append('whitenoise.middleware.WhiteNoiseMiddleware')
+
 # Add remaining middleware
 MIDDLEWARE.extend([
     'api.middleware.security.RequestValidationMiddleware',  # Add request validation
