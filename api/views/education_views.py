@@ -240,10 +240,10 @@ class StudentListCreateView(APIView):
         try:
             profile = UserProfile._default_manager.get(user=request.user)  # type: ignore
             if profile.role and profile.role.name in ['admin', 'accountant', 'principal']:
-                students = Student._default_manager.filter(tenant=profile.tenant)  # type: ignore
+                students = Student._default_manager.filter(tenant=profile.tenant).select_related('assigned_class')  # type: ignore
             else:
                 # Staff/Teachers: only students in their assigned classes
-                students = Student._default_manager.filter(tenant=profile.tenant, assigned_class__in=profile.assigned_classes.all())  # type: ignore
+                students = Student._default_manager.filter(tenant=profile.tenant, assigned_class__in=profile.assigned_classes.all()).select_related('assigned_class')  # type: ignore
             # Filtering
             search = request.query_params.get('search')
             class_id = request.query_params.get('class')
@@ -375,10 +375,10 @@ class AttendanceListCreateView(APIView):
                 return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
             
             if profile.role and profile.role.name == 'admin':
-                attendance = Attendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
+                attendance = Attendance._default_manager.filter(tenant=profile.tenant).select_related('student', 'student__assigned_class')  # type: ignore
             else:
                 # Staff: only attendance for students in their assigned classes
-                attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all())  # type: ignore
+                attendance = Attendance._default_manager.filter(tenant=profile.tenant, student__assigned_class__in=profile.assigned_classes.all()).select_related('student', 'student__assigned_class')  # type: ignore
             serializer = AttendanceSerializer(attendance.order_by('-date'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:

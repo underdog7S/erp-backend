@@ -45,7 +45,7 @@ class RoomListCreateView(generics.ListCreateAPIView):
 	serializer_class = RoomSerializer
 	
 	def get_queryset(self):
-		queryset = Room.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = Room.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('room_type')
 		room_type = self.request.query_params.get('room_type')
 		status = self.request.query_params.get('status')
 		if room_type:
@@ -98,7 +98,7 @@ class BookingListCreateView(generics.ListCreateAPIView):
 	serializer_class = BookingSerializer
 	
 	def get_queryset(self):
-		queryset = Booking.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = Booking.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('guest', 'room', 'room__room_type')
 		status_param = self.request.query_params.get('status')
 		search = self.request.query_params.get('search')
 		date_from = self.request.query_params.get('date_from')

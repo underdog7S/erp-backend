@@ -55,7 +55,7 @@ class MenuItemListCreateView(generics.ListCreateAPIView):
 	serializer_class = MenuItemSerializer
 	
 	def get_queryset(self):
-		queryset = MenuItem.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = MenuItem.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category')
 		category = self.request.query_params.get('category')
 		available = self.request.query_params.get('available')
 		if category:
