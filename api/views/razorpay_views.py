@@ -320,7 +320,7 @@ class RazorpayCreateOrderView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount_float * 100),  # Razorpay expects paise
+                    'amount': round(amount_float * 100),  # Razorpay expects paise
                     'currency': currency,
                     'payment_capture': 1,
                     'notes': {
@@ -404,7 +404,7 @@ class RazorpayVerifyPaymentView(APIView):
                 hashlib.sha256
             ).hexdigest()
             
-            if generated_signature != signature:
+            if not hmac.compare_digest(generated_signature, signature):
                 return Response({
                     'error': 'Invalid payment signature.'
                 }, status=status.HTTP_400_BAD_REQUEST)
@@ -689,7 +689,7 @@ class RazorpayWebhookView(APIView):
                 hashlib.sha256
             ).hexdigest()
             
-            if received_signature != expected_signature:
+            if not hmac.compare_digest(received_signature, expected_signature):
                 logger.warning(f"Invalid webhook signature for tenant {tenant_id}")
                 return Response({'status': 'invalid signature'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -908,7 +908,7 @@ class EducationFeePaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"FEE-{fee_payment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
@@ -1023,7 +1023,7 @@ class RestaurantOrderPaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"ORD-{order.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
@@ -1137,7 +1137,7 @@ class SalonAppointmentPaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"APT-{appointment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
@@ -1254,7 +1254,7 @@ class PharmacySalePaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"PHARM-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
@@ -1366,7 +1366,7 @@ class RetailSalePaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"RETAIL-{sale.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
@@ -1478,7 +1478,7 @@ class HotelBookingPaymentView(APIView):
                 client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
                 
                 order_data = {
-                    'amount': int(amount * 100),
+                    'amount': round(amount * 100),
                     'currency': 'INR',
                     'payment_capture': 1,
                     'receipt': f"HOTEL-{booking.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",

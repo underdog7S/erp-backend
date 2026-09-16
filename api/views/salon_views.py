@@ -492,14 +492,14 @@ class SalonAppointmentInvoiceView(APIView):
 		y -= 12
 		p.drawString(margin, y, f"Phone: {appointment.customer_phone or 'N/A'}")
 		y -= 12
-		p.drawString(margin, y, f"Service: {appointment.service_name or 'Salon Service'}")
+		p.drawString(margin, y, f"Service: {appointment.service.name if appointment.service else 'Salon Service'}")
 		y -= 12
-		p.drawString(margin, y, f"Stylist: {appointment.stylist_name or 'N/A'}")
+		p.drawString(margin, y, f"Stylist: {str(appointment.stylist) if appointment.stylist else 'N/A'}")
 		y -= 12
 		start = appointment.start_time.strftime('%d-%m-%Y %I:%M %p') if appointment.start_time else 'N/A'
 		p.drawString(margin, y, f"Start: {start}")
 		y -= 12
-		duration = appointment.duration_minutes or appointment.service.duration_minutes if appointment.service else 0
+		duration = appointment.service.duration_minutes if appointment.service else 0
 		p.drawString(margin, y, f"Duration: {duration} mins")
 		y -= 20
 

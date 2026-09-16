@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from api.models.custom_service import CustomServiceRequest
 from api.serializers import CustomServiceRequestSerializer
 from django.utils import timezone
@@ -26,8 +26,12 @@ class CustomServiceRequestCreateView(APIView):
 
 class CustomServiceRequestListView(APIView):
     """API endpoint to list all custom service requests (admin only)"""
-    permission_classes = []  # Will be handled by IsAdminUser in urls
-    
+    # An empty list here would leave the endpoint completely open (DRF's
+    # default permission classes are only applied when this attribute is
+    # unset) - the "handled in urls" comment was never actually true since
+    # urls.py wires these views with plain .as_view(), no wrapper.
+    permission_classes = [IsAdminUser]
+
     def get(self, request):
         requests = CustomServiceRequest.objects.all()
         serializer = CustomServiceRequestSerializer(requests, many=True)
@@ -35,7 +39,7 @@ class CustomServiceRequestListView(APIView):
 
 class CustomServiceRequestDetailView(APIView):
     """API endpoint to get/update a specific request (admin only)"""
-    permission_classes = []  # Will be handled by IsAdminUser in urls
+    permission_classes = [IsAdminUser]
     
     def get(self, request, pk):
         try:

@@ -20,10 +20,17 @@ class ClassSerializer(serializers.ModelSerializer):
 
 class OldBalanceSerializer(serializers.ModelSerializer):
     """Serializer for OldBalance model."""
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    student_upper_id = serializers.CharField(source='student.upper_id', read_only=True, allow_null=True)
+    
     class Meta:
         model = OldBalance
-        fields = ['id', 'student', 'amount', 'description', 'created_at']
-        read_only_fields = ['created_at']
+        fields = [
+            'id', 'student', 'student_name', 'student_upper_id', 'academic_year', 
+            'class_name', 'balance_amount', 'carried_forward_to', 'is_settled', 
+            'settled_date', 'settlement_payment', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['student_name', 'student_upper_id', 'created_at', 'updated_at']
 
 class BalanceAdjustmentSerializer(serializers.ModelSerializer):
     """Serializer for BalanceAdjustment model."""
@@ -346,17 +353,204 @@ class TransferCertificateSerializer(serializers.ModelSerializer):
 
 class AdmissionApplicationSerializer(serializers.ModelSerializer):
     """Serializer for AdmissionApplication model."""
-    applied_class_name = serializers.CharField(source='applied_class.name', read_only=True, allow_null=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    student_name = serializers.CharField(source='applicant_name')
+    parent_email = serializers.EmailField(source='email')
+    parent_phone = serializers.CharField(source='phone', required=False, allow_blank=True, allow_null=True)
     
+    # Input primary keys
+    class_applying_for_id = serializers.PrimaryKeyRelatedField(
+        queryset=Class.objects.all(), source='desired_class', required=False, allow_null=True, write_only=True
+    )
+    academic_year_id = serializers.PrimaryKeyRelatedField(
+        queryset=AcademicYear.objects.all(), required=False, allow_null=True, write_only=True
+    )
+    
+    # Non-model write/read fields
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    parent_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    application_date = serializers.DateField(required=False, allow_null=True)
+    previous_school = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    documents_submitted = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
+    remarks = serializers.CharField(source='notes', required=False, allow_blank=True, allow_null=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
     class Meta:
         model = AdmissionApplication
         fields = [
             'id', 'student_name', 'date_of_birth', 'gender', 'parent_name', 'parent_phone',
-            'parent_email', 'applied_class', 'applied_class_name', 'status', 'status_display',
+            'parent_email', 'class_applying_for_id', 'academic_year_id', 'application_date',
+            'previous_school', 'documents_submitted', 'status', 'status_display',
             'remarks', 'created_at'
         ]
-        read_only_fields = ['applied_class_name', 'status_display', 'created_at']
+        read_only_fields = ['status_display', 'created_at']
+
+    def create(self, validated_data):
+        dob = validated_data.pop('date_of_birth', None)
+        gender = validated_data.pop('gender', None)
+        parent_name = validated_data.pop('parent_name', None)
+        ay = validated_data.pop('academic_year_id', None)
+        app_date = validated_data.pop('application_date', None)
+        prev_school = validated_data.pop('previous_school', None)
+        docs = validated_data.pop('documents_submitted', None)
+        
+        notes = validated_data.get('notes', '')
+        extra_notes = []
+        if dob:
+            extra_notes.append(f"DOB: {dob}")
+        if gender:
+            extra_notes.append(f"Gender: {gender}")
+        if parent_name:
+            extra_notes.append(f"Parent Name: {parent_name}")
+        if ay:
+            extra_notes.append(f"Academic Year: {ay.id}:{ay.name}")
+        if app_date:
+            extra_notes.append(f"Application Date: {app_date}")
+        if prev_school:
+            extra_notes.append(f"Previous School: {prev_school}")
+        if docs:
+            extra_notes.append(f"Documents: {docs}")
+            
+        if extra_notes:
+            extra_prefix = " | ".join(extra_notes)
+            validated_data['notes'] = f"{extra_prefix} \n {notes}" if notes else extra_prefix
+            
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        dob = validated_data.pop('date_of_birth', None)
+        gender = validated_data.pop('gender', None)
+        parent_name = validated_data.pop('parent_name', None)
+        ay = validated_data.pop('academic_year_id', None)
+        app_date = validated_data.pop('application_date', None)
+        prev_school = validated_data.pop('previous_school', None)
+        docs = validated_data.pop('documents_submitted', None)
+        
+        notes = validated_data.get('notes', instance.notes or '')
+        
+        # Parse existing extra fields from notes to merge them
+        parsed = self.parse_notes(instance.notes or "")
+        
+        # Update with new values if provided
+        final_dob = dob or parsed.get('dob')
+        final_gender = gender or parsed.get('gender')
+        final_parent_name = parent_name or parsed.get('parent_name')
+        final_ay = ay or parsed.get('ay')
+        final_app_date = app_date or parsed.get('app_date')
+        final_prev_school = prev_school or parsed.get('prev_school')
+        final_docs = docs or parsed.get('docs')
+        
+        # Strip out the extra prefix from the notes field to get original user notes
+        raw_notes = notes
+        if " \n " in notes:
+            raw_notes = notes.split(" \n ", 1)[1]
+        elif "|" in notes and not ("\n" in notes):
+            raw_notes = ""
+            
+        extra_notes = []
+        if final_dob:
+            extra_notes.append(f"DOB: {final_dob}")
+        if final_gender:
+            extra_notes.append(f"Gender: {final_gender}")
+        if final_parent_name:
+            extra_notes.append(f"Parent Name: {final_parent_name}")
+        if final_ay:
+            # handle both object and id
+            ay_id = final_ay.id if hasattr(final_ay, 'id') else final_ay
+            ay_name = final_ay.name if hasattr(final_ay, 'name') else f"Year {ay_id}"
+            extra_notes.append(f"Academic Year: {ay_id}:{ay_name}")
+        if final_app_date:
+            extra_notes.append(f"Application Date: {final_app_date}")
+        if final_prev_school:
+            extra_notes.append(f"Previous School: {final_prev_school}")
+        if final_docs:
+            extra_notes.append(f"Documents: {final_docs}")
+            
+        if extra_notes:
+            extra_prefix = " | ".join(extra_notes)
+            validated_data['notes'] = f"{extra_prefix} \n {raw_notes}" if raw_notes else extra_prefix
+            
+        return super().update(instance, validated_data)
+
+    def parse_notes(self, notes):
+        import re
+        parsed = {}
+        if "DOB:" in notes:
+            match = re.search(r"DOB:\s*([^\s|]+)", notes)
+            if match:
+                parsed['dob'] = match.group(1)
+        if "Gender:" in notes:
+            match = re.search(r"Gender:\s*([^\s|]+)", notes)
+            if match:
+                parsed['gender'] = match.group(1)
+        if "Parent Name:" in notes:
+            match = re.search(r"Parent Name:\s*([^|\n]+)", notes)
+            if match:
+                parsed['parent_name'] = match.group(1).strip()
+        if "Academic Year:" in notes:
+            match = re.search(r"Academic Year:\s*(\d+):?([^|\n]*)", notes)
+            if match:
+                parsed['ay_id'] = int(match.group(1))
+                parsed['ay_name'] = match.group(2).strip() or f"Year {parsed['ay_id']}"
+        if "Application Date:" in notes:
+            match = re.search(r"Application Date:\s*([^\s|]+)", notes)
+            if match:
+                parsed['app_date'] = match.group(1)
+        if "Previous School:" in notes:
+            match = re.search(r"Previous School:\s*([^|\n]+)", notes)
+            if match:
+                parsed['prev_school'] = match.group(1).strip()
+        if "Documents:" in notes:
+            match = re.search(r"Documents:\s*([^|\n]+)", notes)
+            if match:
+                parsed['docs'] = match.group(1).strip()
+        return parsed
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        notes = instance.notes or ""
+        parsed = self.parse_notes(notes)
+        
+        ret['date_of_birth'] = parsed.get('dob')
+        ret['gender'] = parsed.get('gender')
+        ret['parent_name'] = parsed.get('parent_name')
+        
+        # Format class_applying_for as object {'id': ..., 'name': ...}
+        if instance.desired_class:
+            ret['class_applying_for'] = {
+                'id': instance.desired_class.id,
+                'name': instance.desired_class.name
+            }
+            ret['class_applying_for_id'] = instance.desired_class.id
+        else:
+            ret['class_applying_for'] = None
+            ret['class_applying_for_id'] = None
+            
+        # Format academic_year as object {'id': ..., 'name': ...}
+        if 'ay_id' in parsed:
+            ret['academic_year'] = {
+                'id': parsed['ay_id'],
+                'name': parsed['ay_name']
+            }
+            ret['academic_year_id'] = parsed['ay_id']
+        else:
+            ret['academic_year'] = None
+            ret['academic_year_id'] = None
+            
+        ret['application_date'] = parsed.get('app_date') or (instance.created_at.date().isoformat() if instance.created_at else None)
+        ret['previous_school'] = parsed.get('prev_school')
+        ret['documents_submitted'] = parsed.get('docs')
+        
+        if " \n " in notes:
+            ret['remarks'] = notes.split(" \n ", 1)[1]
+        elif "|" in notes and not ("\n" in notes):
+            ret['remarks'] = ""
+        else:
+            ret['remarks'] = notes
+            
+        return ret
+
 
 class PeriodSerializer(serializers.ModelSerializer):
     """Serializer for Period model"""

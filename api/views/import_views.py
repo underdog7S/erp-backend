@@ -137,11 +137,13 @@ class MedicineImportView(APIView):
     
     def process_excel_medicines(self, uploaded_file, tenant):
         """Process Excel file for medicine import"""
-        # For now, return a message that Excel support is coming soon
+        # Not implemented yet - must not return 200, or a caller that only
+        # checks the status code (reasonably, since this is a "process the
+        # import" endpoint) will believe the import actually happened.
         return Response({
-            'message': 'Excel import support is coming soon. Please use CSV format for now.',
+            'error': 'Excel import is not supported yet. Please use CSV format for now.',
             'supported_formats': ['CSV']
-        }, status=status.HTTP_200_OK)
+        }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 class ProductImportView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -262,11 +264,12 @@ class ProductImportView(APIView):
     
     def process_excel_products(self, uploaded_file, tenant):
         """Process Excel file for product import"""
-        # For now, return a message that Excel support is coming soon
+        # Not implemented yet - must not return 200, or a caller that only
+        # checks the status code will believe the import actually happened.
         return Response({
-            'message': 'Excel import support is coming soon. Please use CSV format for now.',
+            'error': 'Excel import is not supported yet. Please use CSV format for now.',
             'supported_formats': ['CSV']
-        }, status=status.HTTP_200_OK)
+        }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 class ImportTemplateView(APIView):
     authentication_classes = [JWTAuthentication]

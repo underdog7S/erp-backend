@@ -1,0 +1,95 @@
+{
+  "admin": {
+    "passed": 12,
+    "failed": 0,
+    "tests": [
+      {
+        "test": "Create Class",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.083230"
+      },
+      {
+        "test": "Create Student",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.103675"
+      },
+      {
+        "test": "Create Fee Structure",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.115846"
+      },
+      {
+        "test": "Record Payment",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.130686"
+      },
+      {
+        "test": "Add Attendance",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.151952"
+      },
+      {
+        "test": "Create Report Card",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.180976"
+      },
+      {
+        "test": "View Classes",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.188795"
+      },
+      {
+        "test": "View Students",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.195607"
+      },
+      {
+        "test": "View Fee Structures",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.203094"
+      },
+      {
+        "test": "View Payments",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.210498"
+      },
+      {
+        "test": "View Attendance",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.218289"
+      },
+      {
+        "test": "View Report Cards",
+        "passed": true,
+        "error": null,
+        "timestamp": "2026-06-13T16:51:00.225941"
+      }
+    ]
+  },
+  "teacher": {
+    "passed": 0,
+    "failed": 0,
+    "tests": []
+  },
+  "staff": {
+    "passed": 0,
+    "failed": 0,
+    "tests": []
+  },
+  "student": {
+    "passed": 0,
+    "failed": 0,
+    "tests": []
+  }
+}

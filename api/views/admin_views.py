@@ -24,6 +24,23 @@ from api.models.serializers_education import StudentSerializer, ClassSerializer,
 from django.utils.text import slugify
 import secrets
 
+ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
+MAX_LOGO_SIZE_MB = 5
+
+
+def validate_logo_file(file_obj):
+    """Reject obviously-unsafe tenant logo uploads before they hit storage.
+    Assigning straight to an ImageField and calling save() (as this file
+    does) skips Django's normal form/full_clean validation, so nothing else
+    checks the extension or size here."""
+    ext = os.path.splitext(file_obj.name)[1].lower()
+    if ext not in ALLOWED_LOGO_EXTENSIONS:
+        return f"Unsupported logo file type '{ext}'."
+    if file_obj.size > MAX_LOGO_SIZE_MB * 1024 * 1024:
+        return f"Logo exceeds the maximum size of {MAX_LOGO_SIZE_MB} MB."
+    return None
+
+
 # Custom JSON encoder to handle Decimal and other non-serializable types
 class DecimalEncoder(json.JSONEncoder):
 	def default(self, obj):
@@ -322,8 +339,14 @@ class AdminImportDataView(APIView):
 					if 'customers' in import_data['module_data']['retail']:
 						imported_count += len(import_data['module_data']['retail']['customers'])
 			
+			# NOTE: this only validates the export file's structure and counts
+			# what it contains - it does not write anything to the database.
+			# The response must say so explicitly; a prior version of this
+			# endpoint returned a message implying the import had completed,
+			# which would mislead an admin trying to restore from backup.
 			return Response({
-				'message': f'Import file validated successfully. Found {imported_count} items to import.',
+				'message': f'Import file validated. Found {imported_count} items, but automated import is not implemented yet - no data was written. Please import manually or contact support.',
+				'imported': False,
 				'import_info': import_data.get('export_info', {}),
 				'item_count': imported_count
 			}, status=status.HTTP_200_OK)
@@ -423,6 +446,9 @@ class TenantPublicSettingsView(APIView):
 			
 			# Handle logo upload
 			if 'logo' in request.FILES:
+				logo_error = validate_logo_file(request.FILES['logo'])
+				if logo_error:
+					return Response({'error': logo_error}, status=400)
 				tenant.logo = request.FILES['logo']
 				tenant.save(update_fields=['logo'])
 			
@@ -556,9 +582,13 @@ class TenantLogoView(APIView):
 			
 			if 'logo' not in request.FILES:
 				return Response({'error': 'No logo file provided'}, status=400)
-			
+
+			logo_error = validate_logo_file(request.FILES['logo'])
+			if logo_error:
+				return Response({'error': logo_error}, status=400)
+
 			tenant = profile.tenant
-			
+
 			# Delete old logo if exists
 			if tenant.logo:
 				tenant.logo.delete(save=False)

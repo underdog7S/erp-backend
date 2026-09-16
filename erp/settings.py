@@ -26,8 +26,12 @@ except Exception as e:
 # ============================================
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
-    # For development, use a default but warn
-    if os.getenv('DEBUG', 'True').lower() == 'true':
+    # Use the same DEBUG default ('False') here as the real DEBUG setting
+    # below - otherwise an operator who forgets both SECRET_KEY and DEBUG
+    # env vars would silently get a guessable dev key (this key also signs
+    # JWTs, see SIMPLE_JWT SIGNING_KEY) while DEBUG independently defaults
+    # to False, i.e. production-hardened but forgeable auth tokens.
+    if os.getenv('DEBUG', 'False').lower() == 'true':
         SECRET_KEY = 'DEV-SECRET-KEY-CHANGE-IN-PRODUCTION-' + os.getenv('USER', 'dev')
         print("WARNING: Using default SECRET_KEY. Set SECRET_KEY environment variable for production!")
     else:
@@ -232,7 +236,10 @@ RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
 # Email Configuration (Gmail SMTP)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True

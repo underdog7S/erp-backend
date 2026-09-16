@@ -53,6 +53,15 @@ class Product(models.Model):
     
     def __str__(self):
         return f"{self.name} - {self.sku}"
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.sku = f"SKU-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class Warehouse(models.Model):
     """Warehouse locations"""
@@ -226,6 +235,15 @@ class PurchaseOrder(models.Model):
     
     def __str__(self):
         return f"PO {self.po_number} - {self.supplier.name}"
+    def save(self, *args, **kwargs):
+        if not self.po_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.po_number = f"PO-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class PurchaseOrderItem(models.Model):
     """Items in purchase orders"""
@@ -252,6 +270,15 @@ class GoodsReceipt(models.Model):
     
     def __str__(self):
         return f"GR {self.gr_number} - {self.purchase_order.po_number}"
+    def save(self, *args, **kwargs):
+        if not self.gr_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.gr_number = f"GR-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class GoodsReceiptItem(models.Model):
     """Items in goods receipt"""
@@ -297,6 +324,15 @@ class Sale(models.Model):
     
     def __str__(self):
         return f"Invoice {self.invoice_number} - {self.customer.name}"
+    def save(self, *args, **kwargs):
+        if not self.invoice_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.invoice_number = f"INV-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class SaleItem(models.Model):
     """Individual items in a sale"""
@@ -328,6 +364,15 @@ class StockTransfer(models.Model):
     
     def __str__(self):
         return f"Transfer {self.transfer_number} - {self.from_warehouse} to {self.to_warehouse}"
+    def save(self, *args, **kwargs):
+        if not self.transfer_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.transfer_number = f"TRF-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class StockTransferItem(models.Model):
     """Items in stock transfers"""
@@ -357,6 +402,15 @@ class StockAdjustment(models.Model):
     
     def __str__(self):
         return f"Adjustment {self.adjustment_number} - {self.adjustment_type}"
+    def save(self, *args, **kwargs):
+        if not self.adjustment_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.adjustment_number = f"ADJ-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class StockAdjustmentItem(models.Model):
     """Items in stock adjustments"""
@@ -425,6 +479,15 @@ class SaleReturn(models.Model):
 
     def __str__(self):
         return f"Return {self.return_number} - {self.sale.invoice_number}"
+    def save(self, *args, **kwargs):
+        if not self.return_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.return_number = f"RET-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class SaleReturnItem(models.Model):
     """Individual items in a sale return"""
@@ -480,6 +543,15 @@ class Quotation(models.Model):
     def can_convert_to_sale(self):
         """Check if quotation can be converted to sale"""
         return self.status == 'ACCEPTED'
+    def save(self, *args, **kwargs):
+        if not self.quotation_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.quotation_number = f"QUO-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class QuotationItem(models.Model):
     """Individual items in a quotation"""

@@ -1,10 +1,11 @@
 from rest_framework import serializers
+from django.db import models
 from decimal import Decimal
 from api.models.user import Tenant, UserProfile
 from api.models.custom_service import CustomServiceRequest
 from education.models import Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, StaffAttendance as EducationStaffAttendance, Department
 from pharmacy.models import (
-    MedicineCategory, Supplier as PharmacySupplier, Medicine, MedicineBatch, Customer as PharmacyCustomer,
+    MasterMedicine, MedicineCategory, Supplier as PharmacySupplier, Medicine, MedicineBatch, Customer as PharmacyCustomer,
     Prescription, PrescriptionItem, Sale as PharmacySale, SaleItem as PharmacySaleItem, PurchaseOrder as PharmacyPurchaseOrder,
     PurchaseOrderItem as PharmacyPurchaseOrderItem, StockAdjustment as PharmacyStockAdjustment, StaffAttendance as PharmacyStaffAttendance,
     SaleReturn as PharmacySaleReturn, SaleReturnItem as PharmacySaleReturnItem,
@@ -90,6 +91,11 @@ class PharmacySupplierSerializer(serializers.ModelSerializer):
         model = PharmacySupplier
         fields = ['id', 'name', 'contact_person', 'phone', 'email', 'address', 'gst_number', 'payment_terms']
         read_only_fields = ('tenant',)
+
+class MasterMedicineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MasterMedicine
+        fields = '__all__'
 
 class MedicineSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -241,44 +247,40 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
         sale = super().create(validated_data)
         
         # Create sale items
+        from pharmacy.models import Medicine, MedicineBatch, SaleItem as PharmacySaleItem
         for item_data in items_data:
             # Find the medicine batch for this medicine
             medicine_name = item_data.get('medicine', '')
+            quantity = item_data.get('quantity', 1)
+            unit_price = item_data.get('price', 0)
+            medicine_batch = None
             if medicine_name:
-                try:
-                    # Find medicine by name (use first() to avoid multiple results)
-                    from pharmacy.models import Medicine
-                    medicine = Medicine.objects.filter(name__icontains=medicine_name).first()
-                    if medicine:
-                        # Get the first available batch for this medicine
-                        from pharmacy.models import MedicineBatch
-                        medicine_batch = MedicineBatch.objects.filter(
-                            medicine=medicine,
-                            quantity_available__gt=0
-                        ).first()
-                    
-                    if medicine_batch:
-                        from pharmacy.models import SaleItem as PharmacySaleItem
-                        PharmacySaleItem.objects.create(
-                            sale=sale,
-                            medicine_batch=medicine_batch,
-                            quantity=item_data.get('quantity', 1),
-                            unit_price=item_data.get('price', 0),
-                            total_price=item_data.get('quantity', 1) * item_data.get('price', 0),
-                            tenant=sale.tenant
-                        )
-                except Medicine.DoesNotExist:
-                    # If medicine not found, create a placeholder item
-                    from pharmacy.models import SaleItem as PharmacySaleItem
-                    PharmacySaleItem.objects.create(
-                        sale=sale,
-                        medicine_batch=None,
-                        quantity=item_data.get('quantity', 1),
-                        unit_price=item_data.get('price', 0),
-                        total_price=item_data.get('quantity', 1) * item_data.get('price', 0),
-                        tenant=sale.tenant
-                    )
-        
+                # Scope to this tenant - an unscoped lookup could match (and
+                # sell/deduct stock from) another tenant's medicine batch.
+                medicine = Medicine.objects.filter(
+                    name__icontains=medicine_name, tenant=sale.tenant
+                ).first()
+                if medicine:
+                    medicine_batch = MedicineBatch.objects.filter(
+                        medicine=medicine,
+                        quantity_available__gt=0
+                    ).first()
+
+            PharmacySaleItem.objects.create(
+                sale=sale,
+                medicine_batch=medicine_batch,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=quantity * unit_price,
+                tenant=sale.tenant
+            )
+
+            # Deduct sold quantity from the batch's available stock
+            if medicine_batch:
+                MedicineBatch.objects.filter(pk=medicine_batch.pk).update(
+                    quantity_available=models.F('quantity_available') - quantity
+                )
+
         return sale
 
 class PharmacyPurchaseOrderItemSerializer(serializers.ModelSerializer):
@@ -570,38 +572,38 @@ class RetailSaleSerializer(serializers.ModelSerializer):
             validated_data['invoice_number'] = f"RINV{timestamp}"
         
         sale = super().create(validated_data)
-        
+
         # Create sale items
+        from retail.models import Product, Inventory, SaleItem as RetailSaleItem
         for item_data in items_data:
             # Find the product for this item
             product_name = item_data.get('product', '')
-            if product_name:
-                try:
-                    # Find product by name (use first() to avoid multiple results)
-                    from retail.models import Product
-                    product = Product.objects.filter(name__icontains=product_name).first()
-                    if product:
-                        from retail.models import SaleItem as RetailSaleItem
-                        RetailSaleItem.objects.create(
-                            sale=sale,
-                            product=product,
-                            quantity=item_data.get('quantity', 1),
-                            unit_price=item_data.get('price', 0),
-                            total_price=item_data.get('quantity', 1) * item_data.get('price', 0),
-                            tenant=sale.tenant
-                        )
-                except Product.DoesNotExist:
-                    # If product not found, create a placeholder item
-                    from retail.models import SaleItem as RetailSaleItem
-                    RetailSaleItem.objects.create(
-                        sale=sale,
-                        product=None,
-                        quantity=item_data.get('quantity', 1),
-                        unit_price=item_data.get('price', 0),
-                        total_price=item_data.get('quantity', 1) * item_data.get('price', 0),
-                        tenant=sale.tenant
-                    )
-        
+            quantity = item_data.get('quantity', 1)
+            unit_price = item_data.get('price', 0)
+            # Scope to this tenant - an unscoped lookup could match (and sell
+            # stock from) another tenant's product.
+            product = Product.objects.filter(
+                name__icontains=product_name, tenant=sale.tenant
+            ).first() if product_name else None
+
+            RetailSaleItem.objects.create(
+                sale=sale,
+                product=product,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_price=quantity * unit_price,
+                tenant=sale.tenant
+            )
+
+            # Deduct sold quantity from inventory at the sale's warehouse
+            if product and sale.warehouse:
+                inventory = Inventory.objects.filter(
+                    product=product, warehouse=sale.warehouse, tenant=sale.tenant
+                ).first()
+                if inventory:
+                    inventory.quantity_on_hand = max(0, inventory.quantity_on_hand - quantity)
+                    inventory.save()
+
         return sale
 
 class StockTransferItemSerializer(serializers.ModelSerializer):
@@ -737,6 +739,29 @@ class BookingSerializer(serializers.ModelSerializer):
 			name = f"{obj.guest.first_name} {obj.guest.last_name}".strip()
 			return name
 		return ""
+
+	def validate(self, data):
+		# `room`/`guest` are declared read_only above for representation, so
+		# on write they come through as plain PKs in initial_data - fall back
+		# to those, then check for overlapping active bookings on the same
+		# room. Without this, the room can be double-booked for the same
+		# date range with no error.
+		room_id = self.initial_data.get('room') or (self.instance.room_id if self.instance else None)
+		check_in = data.get('check_in', self.instance.check_in if self.instance else None)
+		check_out = data.get('check_out', self.instance.check_out if self.instance else None)
+		if room_id and check_in and check_out:
+			if check_out <= check_in:
+				raise serializers.ValidationError('Check-out must be after check-in.')
+			overlap_qs = Booking.objects.filter(
+				room_id=room_id,
+				check_in__lt=check_out,
+				check_out__gt=check_in,
+			).exclude(status__in=['cancelled', 'checked_out'])
+			if self.instance:
+				overlap_qs = overlap_qs.exclude(pk=self.instance.pk)
+			if overlap_qs.exists():
+				raise serializers.ValidationError('This room is already booked for the selected dates.')
+		return data
 
 # Restaurant Serializers
 class MenuCategorySerializer(serializers.ModelSerializer):
@@ -1082,3 +1107,20 @@ class CustomServiceRequestSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'notes', 'submitted_at', 'contacted_at'
         ]
         read_only_fields = ['id', 'status', 'submitted_at', 'contacted_at'] 
+
+from education.models import Assignment, AssignmentSubmission, Grade
+
+class AssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Assignment
+        fields = '__all__'
+
+class AssignmentSubmissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AssignmentSubmission
+        fields = '__all__'
+
+class GradeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grade
+        fields = '__all__'

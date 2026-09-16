@@ -241,11 +241,13 @@ class RemoveUserView(APIView):
     @role_required('admin', 'principal')
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if profile.role.name != "admin":
+        if not profile.role or profile.role.name != "admin":
             return Response({"error": "Only admins can remove users."}, status=status.HTTP_403_FORBIDDEN)
         username = request.data.get("username")
         try:
-            user = User.objects.get(username=username)
+            # Scope to this admin's own tenant - otherwise any tenant admin
+            # could delete a user account belonging to a different tenant.
+            user = User.objects.get(username=username, userprofile__tenant=profile.tenant)
             if user == request.user:
                 return Response({"error": "You cannot remove yourself."}, status=status.HTTP_400_BAD_REQUEST)
             user.delete()
@@ -261,7 +263,7 @@ class InviteUserView(APIView):
 
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
-        if profile.role.name != "admin":
+        if not profile.role or profile.role.name != "admin":
             return Response({"error": "Only admins can invite users."}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         data = request.data
@@ -660,34 +662,43 @@ def user_me(request):
 class UserToggleStatusView(APIView):
     """Toggle user active status"""
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         try:
+            requester_profile = UserProfile._default_manager.filter(user=request.user).first()
+            if not requester_profile or not requester_profile.tenant:
+                return Response({"error": "User profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+            requester_role = requester_profile.role.name if requester_profile.role else ''
+            if requester_role not in ('admin', 'principal') and not request.user.is_staff:
+                return Response({"error": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+
             logger.info(f"Toggle status request data: {request.data}")
             user_id = request.data.get('user_id')
-            
+
             # Also accept 'id' as fallback (if frontend sends UserProfile ID instead of User ID)
             if not user_id:
                 user_id = request.data.get('id')
-            
+
             # Try to get UserProfile if user_id is UserProfile ID
             if not user_id:
                 return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # First try to get UserProfile (in case user_id is UserProfile ID)
+
+            # First try to get UserProfile (in case user_id is UserProfile ID) -
+            # scoped to the requester's own tenant, otherwise any authenticated
+            # user could deactivate an account in a different organization.
             try:
-                user_profile = UserProfile._default_manager.get(id=user_id)
+                user_profile = UserProfile._default_manager.get(id=user_id, tenant=requester_profile.tenant)
                 user = user_profile.user
                 logger.info(f"Found user via UserProfile: {user.username}")
             except UserProfile._default_manager.model.DoesNotExist:
-                # Try direct User lookup
+                # Try direct User lookup, still scoped to this tenant
                 try:
-                    user = User.objects.get(id=user_id)
+                    user = User.objects.get(id=user_id, userprofile__tenant=requester_profile.tenant)
                     logger.info(f"Found user directly: {user.username}")
                 except User.DoesNotExist:
                     logger.error(f"User not found with ID: {user_id}")
                     return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-            
+
             # Get is_active value and convert string to boolean if needed
             is_active = request.data.get('is_active', True)
             if isinstance(is_active, str):

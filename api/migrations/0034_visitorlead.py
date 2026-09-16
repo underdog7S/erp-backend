@@ -12,20 +12,25 @@ def create_visitorlead_if_not_exists(apps, schema_editor):
     """
     db_table = 'api_visitorlead'
     
-    # Check if table already exists
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = %s
-            );
-        """, [db_table])
-        table_exists = cursor.fetchone()[0]
+        if 'sqlite' in connection.settings_dict['ENGINE']:
+            cursor.execute("""
+                SELECT count(*) FROM sqlite_master WHERE type='table' AND name=%s;
+            """, [db_table])
+            table_exists = cursor.fetchone()[0] > 0
+        else:
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = %s
+                );
+            """, [db_table])
+            table_exists = cursor.fetchone()[0]
     
     if not table_exists:
         # Table doesn't exist, create it
-        VisitorLead = apps.get_model('api', 'VisitorLead')
+        from api.models.visitor_lead import VisitorLead
         schema_editor.create_model(VisitorLead)
     # If table exists, do nothing (it was created by 0033_visitorlead)
 
@@ -38,14 +43,20 @@ def reverse_create_visitorlead(apps, schema_editor):
     db_table = 'api_visitorlead'
     
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_name = %s
-            );
-        """, [db_table])
-        table_exists = cursor.fetchone()[0]
+        if 'sqlite' in connection.settings_dict['ENGINE']:
+            cursor.execute("""
+                SELECT count(*) FROM sqlite_master WHERE type='table' AND name=%s;
+            """, [db_table])
+            table_exists = cursor.fetchone()[0] > 0
+        else:
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = %s
+                );
+            """, [db_table])
+            table_exists = cursor.fetchone()[0]
     
     if table_exists:
         # Only delete if we're sure this migration created it

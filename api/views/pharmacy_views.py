@@ -24,13 +24,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 from pharmacy.models import (
-    MedicineCategory, Supplier, Medicine, MedicineBatch, Customer,
+    MasterMedicine, MedicineCategory, Supplier, Medicine, MedicineBatch, Customer,
     Prescription, PrescriptionItem, Sale, SaleItem, PurchaseOrder,
     PurchaseOrderItem, StockAdjustment, StaffAttendance, SaleReturn, SaleReturnItem,
     LoyaltyReward, LoyaltyTransaction
 )
 from ..serializers import (
-    MedicineCategorySerializer, PharmacySupplierSerializer as SupplierSerializer, MedicineSerializer,
+    MasterMedicineSerializer, MedicineCategorySerializer, PharmacySupplierSerializer as SupplierSerializer, MedicineSerializer,
     MedicineBatchSerializer, PharmacyCustomerSerializer as CustomerSerializer, PrescriptionSerializer,
     PrescriptionItemSerializer, PharmacySaleSerializer as SaleSerializer, PharmacySaleItemSerializer as SaleItemSerializer,
     PharmacyPurchaseOrderSerializer as PurchaseOrderSerializer, PharmacyPurchaseOrderItemSerializer as PurchaseOrderItemSerializer, PharmacyStockAdjustmentSerializer as StockAdjustmentSerializer,
@@ -74,6 +74,41 @@ class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         return Supplier.objects.filter(tenant=self.request.user.userprofile.tenant)
+
+# Master Medicine Views
+class MasterMedicineListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+    serializer_class = MasterMedicineSerializer
+    queryset = MasterMedicine.objects.all()
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        query = self.request.query_params.get('q', '')
+        if query:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(brand_name__icontains=query) | 
+                Q(generic_name__icontains=query) |
+                Q(substitutes__icontains=query)
+            )
+        return queryset
+
+class MasterMedicineDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+    serializer_class = MasterMedicineSerializer
+    queryset = MasterMedicine.objects.all()
+
+class MedicineBarcodeSearchView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+    serializer_class = MedicineSerializer
+    
+    def get_object(self):
+        barcode = self.request.query_params.get('code')
+        if not barcode:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Barcode is required")
+        from django.shortcuts import get_object_or_404
+        return get_object_or_404(Medicine, barcode=barcode, tenant=self.request.user.userprofile.tenant)
 
 # Medicine Views
 class MedicineListCreateView(generics.ListCreateAPIView):
@@ -731,20 +766,25 @@ class MedicineExportView(APIView):
                 y -= 20
                 
                 for med in medicines:
-                    # Calculate current stock
-                    total_stock = MedicineBatch._default_manager.filter(
-                        medicine=med, 
+                    # Medicine has no price field of its own - price lives on
+                    # each MedicineBatch - so use the most recent batch's
+                    # selling price as a representative value.
+                    med_batches = MedicineBatch._default_manager.filter(
+                        medicine=med,
                         tenant=profile.tenant,
                         expiry_date__gte=timezone.now().date()
-                    ).aggregate(total=Sum('current_stock'))['total'] or 0
-                    
+                    )
+                    total_stock = med_batches.aggregate(total=Sum('quantity_available'))['total'] or 0
+                    latest_batch = med_batches.order_by('-expiry_date').first()
+                    med_price = latest_batch.selling_price if latest_batch else 0
+
                     row = [
                         str(med.id),
                         med.name,
                         med.generic_name or "N/A",
                         med.category.name if med.category else "N/A",
                         med.manufacturer or "N/A",
-                        f"₹{med.price}",
+                        f"₹{med_price}",
                         str(total_stock)
                     ]
                     for i, val in enumerate(row):
@@ -767,13 +807,15 @@ class MedicineExportView(APIView):
             writer.writerow(["ID", "Name", "Generic Name", "Category", "Manufacturer", "Description", "Price", "Barcode", "Prescription Required"])
             
             for med in medicines:
-                # Calculate current stock
-                total_stock = MedicineBatch._default_manager.filter(
-                    medicine=med, 
+                med_batches = MedicineBatch._default_manager.filter(
+                    medicine=med,
                     tenant=profile.tenant,
                     expiry_date__gte=timezone.now().date()
-                ).aggregate(total=Sum('current_stock'))['total'] or 0
-                
+                )
+                total_stock = med_batches.aggregate(total=Sum('quantity_available'))['total'] or 0
+                latest_batch = med_batches.order_by('-expiry_date').first()
+                med_price = latest_batch.selling_price if latest_batch else 0
+
                 writer.writerow([
                     med.id,
                     med.name,
@@ -781,7 +823,7 @@ class MedicineExportView(APIView):
                     med.category.name if med.category else "",
                     med.manufacturer or "",
                     med.description or "",
-                    med.price,
+                    med_price,
                     med.barcode or "",
                     "Yes" if med.prescription_required else "No"
                 ])
@@ -834,7 +876,7 @@ class PharmacySaleExportView(APIView):
                         sale.sale_date.strftime('%Y-%m-%d'),
                         f"₹{sale.total_amount}",
                         sale.payment_method,
-                        sale.status
+                        sale.payment_status
                     ]
                     for i, val in enumerate(row):
                         p.drawString(40 + i*80, y, val)
@@ -863,7 +905,7 @@ class PharmacySaleExportView(APIView):
                     sale.sale_date.strftime('%Y-%m-%d'),
                     sale.total_amount,
                     sale.payment_method,
-                    sale.status,
+                    sale.payment_status,
                     sale.notes or ""
                 ])
             return response
@@ -915,7 +957,7 @@ class PharmacyPurchaseOrderExportView(APIView):
                         po.order_date.strftime('%Y-%m-%d'),
                         f"₹{po.total_amount}",
                         po.status,
-                        po.expected_delivery_date.strftime('%Y-%m-%d') if po.expected_delivery_date else "Not Set"
+                        po.expected_delivery.strftime('%Y-%m-%d') if po.expected_delivery else "Not Set"
                     ]
                     for i, val in enumerate(row):
                         p.drawString(40 + i*80, y, val)
@@ -942,7 +984,7 @@ class PharmacyPurchaseOrderExportView(APIView):
                     po.supplier.name if po.supplier else "N/A",
                     po.supplier.contact_person if po.supplier else "",
                     po.order_date.strftime('%Y-%m-%d'),
-                    po.expected_delivery_date.strftime('%Y-%m-%d') if po.expected_delivery_date else "",
+                    po.expected_delivery.strftime('%Y-%m-%d') if po.expected_delivery else "",
                     po.total_amount,
                     po.status,
                     po.notes or ""
@@ -998,7 +1040,7 @@ class PharmacyInventoryExportView(APIView):
                         batch.medicine.name,
                         batch.batch_number,
                         batch.supplier.name if batch.supplier else "N/A",
-                        str(batch.current_stock),
+                        str(batch.quantity_available),
                         batch.expiry_date.strftime('%Y-%m-%d'),
                         f"₹{batch.cost_price}"
                     ]
@@ -1030,8 +1072,8 @@ class PharmacyInventoryExportView(APIView):
                     batch.expiry_date.strftime('%Y-%m-%d'),
                     batch.cost_price,
                     batch.selling_price,
-                    batch.current_stock,
-                    batch.initial_stock
+                    batch.quantity_available,
+                    batch.quantity_received
                 ])
             return response
 
@@ -1331,4 +1373,145 @@ class LoyaltyRedeemView(APIView):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST) 
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from io import BytesIO
+from django.http import HttpResponse
+
+class PharmacyInvoicePDFView(APIView):
+    """Generate PDF for a specific pharmacy sale (invoice)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            sale = Sale._default_manager.select_related('customer').prefetch_related('items__medicine_batch__medicine').get(id=pk, tenant=profile.tenant)
+        except Sale.DoesNotExist:
+            return Response({'error': 'Sale not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+
+        # Header
+        p.setFont("Helvetica-Bold", 16)
+        p.drawString(20 * mm, height - 20 * mm, getattr(profile.tenant, 'name', 'Pharmacy Invoice'))
+        
+        p.setFont("Helvetica", 12)
+        p.drawString(20 * mm, height - 30 * mm, f"Invoice: {sale.invoice_number}")
+        p.drawString(20 * mm, height - 36 * mm, f"Date: {sale.sale_date.strftime('%Y-%m-%d %H:%M')}")
+        if sale.customer:
+            p.drawString(20 * mm, height - 42 * mm, f"Customer: {sale.customer.name} (Ph: {sale.customer.phone})")
+
+        # Table Header
+        y = height - 60 * mm
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(20 * mm, y, "Item Description")
+        p.drawString(120 * mm, y, "Qty")
+        p.drawString(140 * mm, y, "Unit Price")
+        p.drawString(170 * mm, y, "Total")
+        p.line(20 * mm, y - 2 * mm, 190 * mm, y - 2 * mm)
+
+        # Table Items
+        y -= 8 * mm
+        p.setFont("Helvetica", 10)
+        for item in sale.items.all():
+            med_name = item.medicine_batch.medicine.name if item.medicine_batch and item.medicine_batch.medicine else "Medicine"
+            p.drawString(20 * mm, y, med_name[:40])
+            p.drawString(120 * mm, y, str(item.quantity))
+            p.drawString(140 * mm, y, f"${item.unit_price}")
+            p.drawString(170 * mm, y, f"${item.total_price}")
+            y -= 6 * mm
+
+        # Footer
+        p.line(20 * mm, y, 190 * mm, y)
+        y -= 6 * mm
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(130 * mm, y, "Total Amount:")
+        p.drawString(170 * mm, y, f"${sale.total_amount}")
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="invoice_{sale.invoice_number}.pdf"'
+        return response
+
+class PrescriptionPDFView(APIView):
+    """Generate PDF for a specific prescription"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+
+    def get(self, request, pk):
+        profile = UserProfile._default_manager.get(user=request.user)
+        try:
+            prescription = Prescription._default_manager.select_related('customer').prefetch_related('items__medicine').get(id=pk, tenant=profile.tenant)
+        except Prescription.DoesNotExist:
+            return Response({'error': 'Prescription not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+
+        # Header
+        p.setFont("Helvetica-Bold", 18)
+        p.drawString(20 * mm, height - 20 * mm, "Medical Prescription")
+        
+        p.setFont("Helvetica", 12)
+        p.drawString(20 * mm, height - 30 * mm, getattr(profile.tenant, 'name', 'Pharmacy Clinic'))
+        p.drawString(20 * mm, height - 36 * mm, f"Doctor: {prescription.doctor_name}")
+        p.drawString(20 * mm, height - 42 * mm, f"Date: {prescription.prescription_date}")
+        p.drawString(120 * mm, height - 36 * mm, f"Patient: {prescription.customer.name}")
+        p.drawString(120 * mm, height - 42 * mm, f"Diagnosis: {prescription.diagnosis}")
+
+        # Rx symbol
+        p.setFont("Helvetica-Bold", 24)
+        p.drawString(20 * mm, height - 60 * mm, "Rx")
+
+        # Table Header
+        y = height - 75 * mm
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(20 * mm, y, "Medicine Name")
+        p.drawString(80 * mm, y, "Dosage")
+        p.drawString(120 * mm, y, "Frequency")
+        p.drawString(160 * mm, y, "Duration")
+        p.line(20 * mm, y - 2 * mm, 190 * mm, y - 2 * mm)
+
+        # Table Items
+        y -= 8 * mm
+        p.setFont("Helvetica", 10)
+        for item in prescription.items.all():
+            med_name = item.medicine.name if item.medicine else "Medicine"
+            p.drawString(20 * mm, y, med_name[:25])
+            p.drawString(80 * mm, y, item.dosage[:20])
+            p.drawString(120 * mm, y, item.frequency[:20])
+            p.drawString(160 * mm, y, item.duration[:15])
+            if item.notes:
+                y -= 4 * mm
+                p.setFont("Helvetica-Oblique", 8)
+                p.drawString(25 * mm, y, f"Note: {item.notes}")
+                p.setFont("Helvetica", 10)
+            y -= 8 * mm
+
+        # Footer
+        if prescription.notes:
+            y -= 10 * mm
+            p.setFont("Helvetica-Bold", 10)
+            p.drawString(20 * mm, y, "Additional Notes:")
+            y -= 5 * mm
+            p.setFont("Helvetica", 10)
+            p.drawString(20 * mm, y, prescription.notes)
+
+        p.showPage()
+        p.save()
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="prescription_{prescription.id}.pdf"'
+        return response

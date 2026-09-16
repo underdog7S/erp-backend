@@ -107,8 +107,8 @@ def HasFeaturePermissionFactory(feature_name):
 def role_required(*roles):
     def decorator(view_func):
         def _wrapped_view(self, request, *args, **kwargs):
-            profile = UserProfile._default_manager.get(user=request.user)
-            if profile.role and profile.role.name in roles:
+            profile = UserProfile._default_manager.filter(user=request.user).first()
+            if profile and profile.role and profile.role.name in roles:
                 return view_func(self, request, *args, **kwargs)
             return Response({'error': 'Permission denied.'}, status=403)
         return _wrapped_view
@@ -117,8 +117,8 @@ def role_required(*roles):
 def role_exclude(*excluded_roles):
     def decorator(view_func):
         def _wrapped_view(self, request, *args, **kwargs):
-            profile = UserProfile._default_manager.get(user=request.user)
-            if profile.role and profile.role.name not in excluded_roles:
+            profile = UserProfile._default_manager.filter(user=request.user).first()
+            if profile and profile.role and profile.role.name not in excluded_roles:
                 return view_func(self, request, *args, **kwargs)
             return Response({'error': 'Permission denied.'}, status=403)
         return _wrapped_view

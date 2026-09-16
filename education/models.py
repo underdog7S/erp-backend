@@ -275,11 +275,19 @@ class FeePayment(models.Model):
     
     def save(self, *args, **kwargs):
         """Auto-update installment status when payment is saved"""
+        if not self.receipt_number:
+            self.receipt_number = self.generate_receipt_number()
+
         # Auto-set academic year from fee_structure if not provided
         if not self.academic_year and self.fee_structure:
             self.academic_year = self.fee_structure.academic_year
-        
+
         super().save(*args, **kwargs)
+
+        # This installment-tracking logic used to live after a `return` in
+        # generate_receipt_number() below, making it permanently unreachable
+        # - installments never moved to PAID/PARTIAL through this path.
+
         # Update installment paid_amount and status
         if self.installment:
             # Recalculate paid_amount from all payments for this installment
@@ -289,7 +297,7 @@ class FeePayment(models.Model):
             ).aggregate(total=Sum('amount_paid'))['total'] or 0
             self.installment.paid_amount = total_paid
             self.installment.update_status()
-        
+
         # Handle split payments across multiple installments
         if self.split_installments:
             from django.db.models import Sum
@@ -308,6 +316,15 @@ class FeePayment(models.Model):
                     installment.update_status()
                 except FeeInstallmentModel.DoesNotExist:
                     pass
+
+    def generate_receipt_number(self):
+        """Generate unique receipt number"""
+        import uuid
+        from datetime import datetime
+        year = datetime.now().year
+        month_day = datetime.now().strftime('%m%d')
+        unique_part = uuid.uuid4().hex[:4].upper()
+        return f"REC-{year}-{month_day}-{unique_part}"
 
 class FeeDiscount(models.Model):
     """Discount schemes for fees"""
@@ -549,7 +566,6 @@ class ReportCard(models.Model):
     def calculate_totals(self):
         """Auto-calculate total marks, percentage, and grade from marks entries"""
         from django.db.models import Sum, Count
-        from django.db.models.functions import Coalesce
         
         # Get marks entries based on calculation scope
         scope = self.tenant.percentage_calculation_scope if hasattr(self.tenant, 'percentage_calculation_scope') else 'TERM_WISE'
@@ -576,11 +592,11 @@ class ReportCard(models.Model):
         
         # Calculate totals
         self.total_marks = marks_entries.aggregate(
-            total=Coalesce(Sum('marks_obtained'), 0)
+            total=Sum('marks_obtained')
         )['total'] or 0
         
         self.max_total_marks = marks_entries.aggregate(
-            total=Coalesce(Sum('max_marks'), 0)
+            total=Sum('max_marks')
         )['total'] or 0
         
         # Calculate percentage based on tenant's method
@@ -594,8 +610,8 @@ class ReportCard(models.Model):
             
             for subject_id in subjects_in_term:
                 subject_entries = marks_entries.filter(assessment__subject_id=subject_id)
-                subject_obtained = subject_entries.aggregate(total=Coalesce(Sum('marks_obtained'), 0))['total'] or 0
-                subject_max = subject_entries.aggregate(total=Coalesce(Sum('max_marks'), 0))['total'] or 0
+                subject_obtained = subject_entries.aggregate(total=Sum('marks_obtained'))['total'] or 0
+                subject_max = subject_entries.aggregate(total=Sum('max_marks'))['total'] or 0
                 if subject_max > 0:
                     subject_pct = (subject_obtained / subject_max) * 100
                     subject_percentages.append(subject_pct)
@@ -619,8 +635,8 @@ class ReportCard(models.Model):
                 try:
                     subject = Subject._default_manager.get(id=subject_id, tenant=self.tenant)
                     subject_entries = marks_entries.filter(assessment__subject_id=subject_id)
-                    subject_obtained = subject_entries.aggregate(total=Coalesce(Sum('marks_obtained'), 0))['total'] or 0
-                    subject_max = subject_entries.aggregate(total=Coalesce(Sum('max_marks'), 0))['total'] or 0
+                    subject_obtained = subject_entries.aggregate(total=Sum('marks_obtained'))['total'] or 0
+                    subject_max = subject_entries.aggregate(total=Sum('max_marks'))['total'] or 0
                     
                     if subject_max > 0:
                         subject_pct = (subject_obtained / subject_max) * 100
@@ -1268,3 +1284,42 @@ class HallTicket(models.Model):
             
             self.ticket_number = ticket_number
         return self.ticket_number
+
+class Assignment(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='assignments')
+    class_obj = models.ForeignKey(Class, on_delete=models.CASCADE, related_name='assignments')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='assignments', null=True, blank=True)
+    teacher = models.ForeignKey('api.UserProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments_created')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    max_score = models.IntegerField(default=100)
+    status = models.CharField(max_length=20, default='Active')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+class AssignmentSubmission(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='assignment_submissions')
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='assignment_submissions')
+    submission_date = models.DateTimeField(auto_now_add=True)
+    content = models.TextField(blank=True)
+    score = models.IntegerField(null=True, blank=True)
+    status = models.CharField(max_length=20, default='Pending') # Pending, Graded
+
+    def __str__(self):
+        return f"{self.student.name} - {self.assignment.title}"
+
+class Grade(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='grades')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='grades')
+    subject = models.CharField(max_length=100, blank=True)
+    assignment = models.CharField(max_length=100, blank=True)
+    score = models.IntegerField(default=0)
+    remarks = models.TextField(blank=True)
+    date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.name} - {self.subject} - {self.score}"

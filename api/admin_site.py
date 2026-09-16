@@ -48,6 +48,10 @@ class SecureAdminSite(AdminSite):
         """
         Custom admin index page with API documentation link
         """
+        if not request.user.is_authenticated:
+            from django.urls import reverse
+            return HttpResponseRedirect(reverse('admin:login') + '?next=' + request.path)
+            
         if not self.has_permission(request):
             return self.redirect_to_home(request)
         

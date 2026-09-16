@@ -96,6 +96,19 @@ class WarehouseDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Warehouse.objects.filter(tenant=self.request.user.userprofile.tenant)
 
 # Product Views
+class ProductBarcodeSearchView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
+    serializer_class = ProductSerializer
+    
+    def get_object(self):
+        barcode = self.request.query_params.get('code')
+        if not barcode:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Barcode is required")
+        from django.shortcuts import get_object_or_404
+        from retail.models import Product
+        return get_object_or_404(Product, barcode=barcode, tenant=self.request.user.userprofile.tenant)
+
 class ProductListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('retail')]
     serializer_class = ProductSerializer
@@ -1130,16 +1143,16 @@ class RetailProductExportView(APIView):
                 for product in products:
                     # Calculate total stock across all warehouses
                     total_stock = Inventory._default_manager.filter(
-                        product=product, 
+                        product=product,
                         tenant=profile.tenant
-                    ).aggregate(total=Sum('quantity'))['total'] or 0
-                    
+                    ).aggregate(total=Sum('quantity_available'))['total'] or 0
+
                     row = [
                         str(product.id),
                         product.name,
                         product.category.name if product.category else "N/A",
                         product.sku or "N/A",
-                        f"₹{product.price}",
+                        f"₹{product.selling_price}",
                         str(total_stock)
                     ]
                     for i, val in enumerate(row):
@@ -1159,25 +1172,24 @@ class RetailProductExportView(APIView):
             response = HttpResponse(content_type='text/csv')
             response['Content-Disposition'] = 'attachment; filename="retail_products.csv"'
             writer = csv.writer(response)
-            writer.writerow(["ID", "Name", "Category", "SKU", "Description", "Price", "Cost Price", "Supplier", "Barcode"])
-            
+            writer.writerow(["ID", "Name", "Category", "SKU", "Description", "Price", "Cost Price", "Brand"])
+
             for product in products:
                 # Calculate total stock across all warehouses
                 total_stock = Inventory._default_manager.filter(
-                    product=product, 
+                    product=product,
                     tenant=profile.tenant
-                ).aggregate(total=Sum('quantity'))['total'] or 0
-                
+                ).aggregate(total=Sum('quantity_available'))['total'] or 0
+
                 writer.writerow([
                     product.id,
                     product.name,
                     product.category.name if product.category else "",
                     product.sku or "",
                     product.description or "",
-                    product.price,
+                    product.selling_price,
                     product.cost_price,
-                    product.supplier.name if product.supplier else "",
-                    product.barcode or ""
+                    product.brand or ""
                 ])
             return response
 
@@ -1228,7 +1240,7 @@ class RetailSaleExportView(APIView):
                         sale.sale_date.strftime('%Y-%m-%d'),
                         f"₹{sale.total_amount}",
                         sale.payment_method,
-                        sale.status
+                        sale.payment_status
                     ]
                     for i, val in enumerate(row):
                         p.drawString(40 + i*80, y, val)
@@ -1257,7 +1269,7 @@ class RetailSaleExportView(APIView):
                     sale.sale_date.strftime('%Y-%m-%d'),
                     sale.total_amount,
                     sale.payment_method,
-                    sale.status,
+                    sale.payment_status,
                     sale.notes or ""
                 ])
             return response
@@ -1309,7 +1321,7 @@ class RetailPurchaseOrderExportView(APIView):
                         po.order_date.strftime('%Y-%m-%d'),
                         f"₹{po.total_amount}",
                         po.status,
-                        po.expected_delivery_date.strftime('%Y-%m-%d') if po.expected_delivery_date else "Not Set"
+                        po.expected_delivery.strftime('%Y-%m-%d') if po.expected_delivery else "Not Set"
                     ]
                     for i, val in enumerate(row):
                         p.drawString(40 + i*80, y, val)
@@ -1336,7 +1348,7 @@ class RetailPurchaseOrderExportView(APIView):
                     po.supplier.name if po.supplier else "N/A",
                     po.supplier.contact_person if po.supplier else "",
                     po.order_date.strftime('%Y-%m-%d'),
-                    po.expected_delivery_date.strftime('%Y-%m-%d') if po.expected_delivery_date else "",
+                    po.expected_delivery.strftime('%Y-%m-%d') if po.expected_delivery else "",
                     po.total_amount,
                     po.status,
                     po.notes or ""

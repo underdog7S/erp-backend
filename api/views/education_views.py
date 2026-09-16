@@ -458,43 +458,128 @@ class ReportCardListCreateView(APIView):
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
         data = request.data.copy()
-        # Accept either *_id or plain FK keys and map to serializer fields
-        if 'student' in data and 'student_id' not in data:
-            data['student_id'] = data.get('student')
-        if 'academic_year' in data and 'academic_year_id' not in data:
-            data['academic_year_id'] = data.get('academic_year')
-        if 'term' in data and 'term_id' not in data:
-            data['term_id'] = data.get('term')
-        if 'class_obj' in data and 'class_obj_id' not in data:
-            data['class_obj_id'] = data.get('class_obj')
+        
+        from education.models import Student, Class, AcademicYear, Term, ReportCard as RC
+        from datetime import date
+        import re
+        from django.utils import timezone
+        
+        # 1. Resolve student
+        student_val = data.get('student') or data.get('student_id')
+        student_obj = None
+        if student_val:
+            if isinstance(student_val, int) or (isinstance(student_val, str) and student_val.isdigit()):
+                student_obj = Student.objects.filter(id=int(student_val), tenant=profile.tenant).first()
+            if student_obj:
+                data['student'] = student_obj.id
+
+        # 2. Resolve academic year
+        academic_year_val = data.get('academic_year') or data.get('academic_year_id')
+        ay_obj = None
+        if academic_year_val:
+            if isinstance(academic_year_val, int) or (isinstance(academic_year_val, str) and academic_year_val.isdigit()):
+                ay_obj = AcademicYear.objects.filter(id=int(academic_year_val), tenant=profile.tenant).first()
+            else:
+                ay_obj = AcademicYear.objects.filter(name=str(academic_year_val), tenant=profile.tenant).first()
+                if not ay_obj:
+                    match = re.match(r'(\d{4})-(\d{2})', str(academic_year_val))
+                    if match:
+                         start_yr = int(match.group(1))
+                         end_yr = 2000 + int(match.group(2))
+                    else:
+                         start_yr = timezone.now().year
+                         end_yr = start_yr + 1
+                    ay_obj = AcademicYear.objects.create(
+                        tenant=profile.tenant,
+                        name=str(academic_year_val),
+                        start_date=date(start_yr, 6, 1),
+                        end_date=date(end_yr, 5, 31),
+                        is_current=True
+                    )
+            if ay_obj:
+                data['academic_year'] = ay_obj.id
+        else:
+            ay_obj = AcademicYear.objects.filter(tenant=profile.tenant, is_current=True).first() or AcademicYear.objects.filter(tenant=profile.tenant).first()
+            if ay_obj:
+                data['academic_year'] = ay_obj.id
+
+        # 3. Resolve term
+        term_val = data.get('term') or data.get('term_id')
+        term_obj = None
+        if term_val and ay_obj:
+            if isinstance(term_val, int) or (isinstance(term_val, str) and term_val.isdigit()):
+                term_obj = Term.objects.filter(id=int(term_val), tenant=profile.tenant).first()
+            else:
+                term_obj = Term.objects.filter(name=str(term_val), academic_year=ay_obj, tenant=profile.tenant).first()
+                if not term_obj:
+                    existing_count = Term.objects.filter(academic_year=ay_obj, tenant=profile.tenant).count()
+                    term_obj = Term.objects.create(
+                        tenant=profile.tenant,
+                        academic_year=ay_obj,
+                        name=str(term_val),
+                        order=existing_count + 1,
+                        start_date=ay_obj.start_date,
+                        end_date=ay_obj.end_date,
+                        is_active=True
+                    )
+            if term_obj:
+                data['term'] = term_obj.id
+
+        # 4. Resolve class
+        class_val = data.get('class_obj') or data.get('class_obj_id') or getattr(student_obj, 'assigned_class_id', None)
+        class_obj = None
+        if class_val:
+            if isinstance(class_val, int) or (isinstance(class_val, str) and class_val.isdigit()):
+                class_obj = Class._default_manager.filter(id=int(class_val), tenant=profile.tenant).first()
+            else:
+                class_obj = Class._default_manager.filter(name=str(class_val), tenant=profile.tenant).first()
+            if class_obj:
+                data['class_obj'] = class_obj.id
+
+        # Handle legacy fields like 'grades' or 'old_grades'
+        grades_val = data.get('grades') or data.get('old_grades') or ''
+
         # Handle uniqueness gracefully: upsert by (tenant, student, academic_year, term)
         serializer = ReportCardSerializer(data=data)
         if serializer.is_valid():
             student = serializer.validated_data.get('student')
             academic_year = serializer.validated_data.get('academic_year')
             term = serializer.validated_data.get('term')
-            class_obj = serializer.validated_data.get('class_obj')
-            # Try get_or_create
-            from education.models import ReportCard as RC
+            class_obj_validated = serializer.validated_data.get('class_obj') or (student_obj.assigned_class if student_obj else None)
+            
+            teacher_remarks = request.data.get('teacher_remarks') or ''
+            principal_remarks = request.data.get('principal_remarks') or ''
+            conduct_grade = request.data.get('conduct_grade') or ''
+            issued_date = serializer.validated_data.get('issued_date') or request.data.get('issued_date') or None
+
             rc, created = RC._default_manager.get_or_create(
                 tenant=profile.tenant,
                 student=student,
                 academic_year=academic_year,
                 term=term,
                 defaults={
-                    'class_obj': class_obj,
-                    'teacher_remarks': serializer.validated_data.get('teacher_remarks', ''),
-                    'principal_remarks': serializer.validated_data.get('principal_remarks', ''),
-                    'conduct_grade': serializer.validated_data.get('conduct_grade', ''),
-                    'issued_date': serializer.validated_data.get('issued_date'),
+                    'class_obj': class_obj_validated,
+                    'teacher_remarks': teacher_remarks,
+                    'principal_remarks': principal_remarks,
+                    'conduct_grade': conduct_grade,
+                    'issued_date': issued_date,
+                    'old_grades': grades_val,
+                    'old_term': term.name if term else ''
                 }
             )
             if not created:
-                # Update optional fields if provided
-                for f in ['class_obj', 'teacher_remarks', 'principal_remarks', 'conduct_grade', 'issued_date']:
-                    val = serializer.validated_data.get(f, None)
-                    if val is not None:
-                        setattr(rc, f, val)
+                if class_obj_validated is not None:
+                    rc.class_obj = class_obj_validated
+                if teacher_remarks:
+                    rc.teacher_remarks = teacher_remarks
+                if principal_remarks:
+                    rc.principal_remarks = principal_remarks
+                if conduct_grade:
+                    rc.conduct_grade = conduct_grade
+                if issued_date:
+                    rc.issued_date = issued_date
+                if grades_val:
+                    rc.old_grades = grades_val
                 rc.save()
             return Response(ReportCardSerializer(rc).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1219,10 +1304,45 @@ class ReportCardPDFView(APIView):
                 assessment__term=report_card.term
             ).select_related('assessment', 'assessment__subject').order_by('assessment__subject__name')
 
+            # Dynamic check for legacy/grade-only reports
+            is_grade_only_report = False
+            legacy_entries = []
+            if not marks_entries.exists() and report_card.old_grades:
+                is_grade_only_report = True
+                parts = [p.strip() for p in report_card.old_grades.split(',') if p.strip()]
+                for part in parts:
+                    if ':' in part:
+                        sub_name, grade_val = part.split(':', 1)
+                        sub_name = sub_name.strip()
+                        grade_val = grade_val.strip()
+                        
+                        class DummyAssessmentSubject:
+                            def __init__(self, name):
+                                self.name = name
+                        
+                        class DummyAssessment:
+                            def __init__(self, subject_name):
+                                self.subject = DummyAssessmentSubject(subject_name)
+                                
+                        class DummyMarksEntry:
+                            def __init__(self, subject_name, grade):
+                                self.assessment = DummyAssessment(subject_name)
+                                self.marks_obtained = 0
+                                self.max_marks = 0
+                                self.grade = grade
+                                self.is_grade_only = True
+                                
+                        legacy_entries.append(DummyMarksEntry(sub_name, grade_val))
+                display_entries = legacy_entries
+            else:
+                display_entries = list(marks_entries)
+                if float(report_card.max_total_marks) == 0:
+                    is_grade_only_report = True
+
             # Table dimensions
             row_height = 16
             header_height = 15
-            calculated_height = len(marks_entries) * row_height + header_height
+            calculated_height = len(display_entries) * row_height + header_height
             max_available_height = max(header_height + row_height, y - 80)
             table_height = min(calculated_height, max_available_height)
             if table_height < header_height + row_height:
@@ -1243,7 +1363,10 @@ class ReportCardPDFView(APIView):
 
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 10)
-            headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
+            if is_grade_only_report:
+                headers = ['SUBJECT', 'GRADE', '-', '-']
+            else:
+                headers = ['SUBJECT', 'MARKS OBTAINED', 'MAX MARKS', 'PERCENTAGE']
             available_width = width - 44 * mm
             fixed_cols_width = 72 * mm
             col_spacing = 3 * mm
@@ -1273,8 +1396,8 @@ class ReportCardPDFView(APIView):
                     if p.stringWidth(htxt, 'Helvetica-Bold', 10) > max_subject_width:
                         htxt = htxt[:15] + '...'
                     p.drawString(col_x[i], y - 8, htxt)
-                else:
-                    p.drawRightString(col_x[i] + col_widths[i], y - 8, htxt)
+                elif htxt != '-':
+                    p.drawRightString(col_x[i] + col_widths[i] - 3 * mm, y - 8, htxt)
             p.setFillColor(colors.black)
             y -= header_height
 
@@ -1292,13 +1415,12 @@ class ReportCardPDFView(APIView):
             # Limit rows to available space
             available_row_space = table_height - header_height
             max_rows = max(1, int(available_row_space / row_height))
-            display_entries = marks_entries[:max_rows]
-            truncated = len(marks_entries) > max_rows
+            display_entries = display_entries[:max_rows]
+            truncated = len(legacy_entries if is_grade_only_report else marks_entries) > max_rows
 
             # Table rows
             p.setFont('Helvetica', 9)
             for entry in display_entries:
-                percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
                 p.setStrokeColor(colors.HexColor('#d0d0d0'))
                 p.setLineWidth(0.5)
                 p.line(table_left, y - row_height, table_right, y - row_height)
@@ -1309,20 +1431,33 @@ class ReportCardPDFView(APIView):
                 subject_name = entry.assessment.subject.name if entry.assessment and entry.assessment.subject else 'N/A'
                 draw_string_safe(p, subject_name, subject_x, y, max_subject_width, 'Helvetica', 9, 'left')
 
-                marks_str = str(int(float(entry.marks_obtained)))
+                is_entry_grade_only = getattr(entry, 'is_grade_only', False) or is_grade_only_report or (entry.max_marks == 0)
+                if is_entry_grade_only:
+                    grade_val = getattr(entry, 'grade', '') or getattr(entry, 'marks_obtained', 'N/A')
+                    if isinstance(grade_val, (int, float)) and grade_val == 0:
+                        grade_val = 'N/A'
+                    marks_str = str(grade_val)
+                    max_marks_str = '-'
+                    percent_str = '-'
+                else:
+                    percent = (float(entry.marks_obtained) / float(entry.max_marks) * 100) if entry.max_marks else 0
+                    marks_str = str(int(float(entry.marks_obtained)))
+                    max_marks_str = str(int(float(entry.max_marks)))
+                    percent_str = f"{percent:.1f}%"
+
                 marks_col_right = col_x[1] + col_widths[1] - 3 * mm
                 marks_max_width = col_widths[1] - 6 * mm
                 draw_string_safe(p, marks_str, marks_col_right, y, marks_max_width, 'Helvetica', 9, 'right')
 
-                max_marks_str = str(int(float(entry.max_marks)))
-                max_marks_col_right = col_x[2] + col_widths[2] - 3 * mm
-                max_marks_max_width = col_widths[2] - 6 * mm
-                draw_string_safe(p, max_marks_str, max_marks_col_right, y, max_marks_max_width, 'Helvetica', 9, 'right')
+                if max_marks_str != '-':
+                    max_marks_col_right = col_x[2] + col_widths[2] - 3 * mm
+                    max_marks_max_width = col_widths[2] - 6 * mm
+                    draw_string_safe(p, max_marks_str, max_marks_col_right, y, max_marks_max_width, 'Helvetica', 9, 'right')
 
-                percent_str = f"{percent:.1f}%"
-                percent_col_right = col_x[3] + col_widths[3] - 3 * mm
-                percent_max_width = col_widths[3] - 6 * mm
-                draw_string_safe(p, percent_str, percent_col_right, y, percent_max_width, 'Helvetica', 9, 'right')
+                if percent_str != '-':
+                    percent_col_right = col_x[3] + col_widths[3] - 3 * mm
+                    percent_max_width = col_widths[3] - 6 * mm
+                    draw_string_safe(p, percent_str, percent_col_right, y, percent_max_width, 'Helvetica', 9, 'right')
                 y -= row_height
 
             # Truncated note
@@ -1336,6 +1471,7 @@ class ReportCardPDFView(APIView):
 
             # Academic summary section - no background colors
             y -= 8
+            summary_box_top = y
             # Outer border only
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
@@ -1352,11 +1488,11 @@ class ReportCardPDFView(APIView):
             
             # Summary layout - black text on white
             p.setFillColor(colors.black)
-            summary_items = [
-                ('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"),
-                ('Percentage', f"{float(report_card.percentage):.2f}%"),
-                ('Grade', report_card.grade),
-            ]
+            summary_items = []
+            if float(report_card.max_total_marks) > 0 and not is_grade_only_report:
+                summary_items.append(('Total Marks', f"{float(report_card.total_marks)} / {float(report_card.max_total_marks)}"))
+                summary_items.append(('Percentage', f"{float(report_card.percentage):.2f}%"))
+            summary_items.append(('Grade', report_card.grade or 'N/A'))
             if report_card.rank_in_class:
                 summary_items.append(('Class Rank', f"#{report_card.rank_in_class}"))
             
@@ -1411,7 +1547,7 @@ class ReportCardPDFView(APIView):
                     current_y -= row_height
             
             p.setFillColor(colors.black)  # Switch back to black for rest
-            y = current_y - 5  # Add extra spacing after summary
+            y = summary_box_top - 55 - 10
 
             # Attendance and Conduct - clean white background, no colors
             y -= 5
@@ -1460,6 +1596,7 @@ class ReportCardPDFView(APIView):
 
             # Remarks section - clean white background
             if report_card.teacher_remarks or report_card.principal_remarks:
+                remarks_box_top = y
                 remarks_height = 0
                 if report_card.teacher_remarks:
                     remarks_height += (len(report_card.teacher_remarks) // 95 + 1) * 12 + 20
@@ -1535,7 +1672,8 @@ class ReportCardPDFView(APIView):
                             break
                         p.drawString(25 * mm, y, line)
                         y -= 12  # Consistent line spacing
-                y -= 10  # Extra spacing after section
+                # Explicitly set y to bottom of the box to prevent overlapping
+                y = remarks_box_top - (remarks_height + 15) - 10
 
             # Signature section - clean white background, no colors
             sig_y_start = 25 * mm
@@ -2324,7 +2462,8 @@ class FeePaymentReceiptPDFView(APIView):
             if school_address:
                 max_addr_width = width - text_x - 25 * mm
                 if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
-                    addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                    from reportlab.lib.utils import simpleSplit
+                    addr_lines = simpleSplit(school_address, 'Helvetica', 9, max_addr_width)
                     for line in addr_lines[:2]:
                         p.drawString(text_x, info_y, line)
                         info_y -= 12  # Consistent line spacing
@@ -2344,25 +2483,23 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(text_x, info_y, 'FEE PAYMENT RECEIPT')
             
             y = info_y - 25  # Start receipt details section with proper spacing
-            p.setFillColor(colors.black)
-
-            # Receipt number and date section - IMPROVED SPACING AND LAYOUT
+            p.setFillColor(colors.black)            # Receipt number and date section - IMPROVED SPACING AND LAYOUT
+            receipt_details_top = y
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
             p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=0)  # Increased height for better spacing
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 10, 'RECEIPT DETAILS')  # Adjusted position
-            y -= 20  # Increased spacing after header
+            y -= 20  # Spacing after header
             
             receipt_number = payment.receipt_number or f"RCP-{payment.id:08X}"
             payment_date = payment.payment_date.strftime('%d/%m/%Y')
             
-            # IMPROVED: Better alignment with more spacing
             receipt_label_x = 25 * mm
-            receipt_value_x = 105 * mm  # Increased spacing
-            date_label_x = 140 * mm  # Increased spacing
-            date_value_x = 175 * mm  # Increased spacing
+            receipt_value_x = 105 * mm
+            date_label_x = 140 * mm
+            date_value_x = 175 * mm
             
             p.setFont('Helvetica-Bold', 11)
             p.drawString(receipt_label_x, y, 'Receipt Number:')
@@ -2373,36 +2510,36 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(date_label_x, y, 'Date:')
             p.setFont('Helvetica', 11)
             p.drawString(date_value_x, y, payment_date)
-            y -= 20  # Increased spacing after section
+            
+            # Set y to the exact bottom of the receipt details box
+            y = receipt_details_top - 40 - 15
 
             # Student information section - IMPROVED SPACING AND LAYOUT
+            student_info_top = y
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1)
             p.rect(20 * mm, y - 55, width - 40 * mm, 55, stroke=1, fill=0)  # Increased height
             p.setFillColor(colors.black)
             p.setFont('Helvetica-Bold', 12)
             p.drawString(25 * mm, y - 10, 'STUDENT INFORMATION')  # Adjusted position
-            y -= 20  # Increased spacing after header
+            y -= 20  # Spacing after header
             
             student_name = payment.student.name if payment.student else 'N/A'
             roll_number = getattr(payment.student, 'roll_number', None) or getattr(payment.student, 'admission_number', None) or getattr(payment.student, 'upper_id', None) or 'N/A'
             class_name = payment.student.assigned_class.name if payment.student and payment.student.assigned_class else 'N/A'
             
-            # IMPROVED: Better alignment with proper spacing to prevent overlapping
-            label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 100 * mm          # Increased spacing for values
-            label_x2 = 140 * mm         # Increased spacing for right column
-            value_x2 = 175 * mm         # Increased spacing for right column values (reduced to prevent overflow)
+            label_x = 25 * mm
+            value_x = 100 * mm
+            label_x2 = 140 * mm
+            value_x2 = 175 * mm
             
             # First row: Student Name and Roll Number
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Student Name:')
             p.setFont('Helvetica', 10)
-            # Truncate if too long to prevent overflow
             name_text = student_name.upper()
-            max_name_width = label_x2 - value_x - 10 * mm  # Available space between columns
+            max_name_width = label_x2 - value_x - 10 * mm
             if p.stringWidth(name_text, 'Helvetica', 10) > max_name_width:
-                # Truncate name to fit
                 while p.stringWidth(name_text, 'Helvetica', 10) > max_name_width and len(name_text) > 1:
                     name_text = name_text[:-1]
                 name_text = name_text.rstrip() + '...'
@@ -2412,19 +2549,19 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(label_x2, y, 'Roll Number:')
             p.setFont('Helvetica', 10)
             roll_text = str(roll_number)
-            # Ensure roll number doesn't exceed page width
             max_roll_x = width - 25 * mm
             if value_x2 + p.stringWidth(roll_text, 'Helvetica', 10) > max_roll_x:
-                value_x2 = max_roll_x - p.stringWidth(roll_text, 'Helvetica', 10)
+                while p.stringWidth(roll_text + '...', 'Helvetica', 10) > max_roll_x - value_x2 and len(roll_text) > 1:
+                    roll_text = roll_text[:-1]
+                roll_text += '...'
             p.drawString(value_x2, y, roll_text)
-            y -= 20  # Increased line spacing
+            y -= 20  # Spacing between rows
             
             # Second row: Class and Fee Type
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Class:')
             p.setFont('Helvetica', 10)
             class_text = class_name
-            # Ensure class name doesn't exceed column boundary
             if p.stringWidth(class_text, 'Helvetica', 10) > max_name_width:
                 while p.stringWidth(class_text, 'Helvetica', 10) > max_name_width and len(class_text) > 1:
                     class_text = class_text[:-1]
@@ -2436,103 +2573,113 @@ class FeePaymentReceiptPDFView(APIView):
             p.drawString(label_x2, y, 'Fee Type:')
             p.setFont('Helvetica', 10)
             fee_type_text = fee_type
-            # Ensure fee type doesn't exceed page width
             if value_x2 + p.stringWidth(fee_type_text, 'Helvetica', 10) > max_roll_x:
-                value_x2_fee = max_roll_x - p.stringWidth(fee_type_text, 'Helvetica', 10)
+                while p.stringWidth(fee_type_text + '...', 'Helvetica', 10) > max_roll_x - value_x2 and len(fee_type_text) > 1:
+                    fee_type_text = fee_type_text[:-1]
+                fee_type_text += '...'
+                value_x2_fee = value_x2
             else:
                 value_x2_fee = value_x2
             p.drawString(value_x2_fee, y, fee_type_text)
-            y -= 25  # Increased spacing after section
-
-            # Payment details section - IMPROVED SPACING AND LAYOUT
-            p.setStrokeColor(colors.HexColor('#000000'))
-            p.setLineWidth(1)
-            # Calculate dynamic height based on content
-            section_height = 75 if (payment.fee_structure and remaining > 0) else 60
-            p.rect(20 * mm, y - section_height, width - 40 * mm, section_height, stroke=1, fill=0)
-            p.setFillColor(colors.black)
-            p.setFont('Helvetica-Bold', 12)
-            p.drawString(25 * mm, y - 10, 'PAYMENT INFORMATION')  # Adjusted position
-            y -= 20  # Increased spacing after header
             
+            # Set y to the exact bottom of the student information box
+            y = student_info_top - 55 - 25
+
+            # Payment details section - CALCULATE VARIABLES FIRST
             payment_method = payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method or 'CASH'
             amount_paid = float(payment.amount_paid)
             total_fee = float(payment.fee_structure.amount) if payment.fee_structure else amount_paid
             remaining = max(0, total_fee - amount_paid)
             discount = float(payment.discount_amount) if payment.discount_amount else 0
+
+            # Calculate dynamic height based on content to prevent overflow
+            num_lines = 2 # Payment Method and Amount Paid
+            if discount > 0:
+                num_lines += 1
+            if payment.fee_structure:
+                num_lines += 1
+            if payment.fee_structure and remaining > 0:
+                num_lines += 1
+            section_height = 20 + (num_lines * 18) + 10
+
+            payment_section_top = y
+            p.setStrokeColor(colors.HexColor('#000000'))
+            p.setLineWidth(1)
+            p.rect(20 * mm, y - section_height, width - 40 * mm, section_height, stroke=1, fill=0)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 12)
+            p.drawString(25 * mm, y - 10, 'PAYMENT INFORMATION')  # Adjusted position
+            y -= 20  # Spacing after header
             
-            # IMPROVED: Better alignment with proper spacing
-            label_x = 25 * mm          # Fixed label position (left column)
-            value_x = 105 * mm         # Increased spacing for text values
-            currency_x = width - 30 * mm  # Fixed right-aligned position for all currency with margin
+            label_x = 25 * mm
+            value_x = 105 * mm
+            currency_x = width - 30 * mm
             
-            # Payment Method - on its own line
+            # Payment Method
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Payment Method:')
             p.setFont('Helvetica', 10)
             p.drawString(value_x, y, payment_method.upper())
-            y -= 18  # Increased line spacing
+            y -= 18
             
-            # Amount Paid - on its own line
+            # Amount Paid
             p.setFont('Helvetica-Bold', 10)
             p.drawString(label_x, y, 'Amount Paid:')
             p.setFont('Helvetica-Bold', 11)
             p.setFillColor(colors.black)
-            amount_text = f"₹{amount_paid:,.2f}"
+            amount_text = f"Rs. {amount_paid:,.2f}"
             amount_width = p.stringWidth(amount_text, 'Helvetica-Bold', 11)
             if amount_width > (width - currency_x):
                 p.setFont('Helvetica-Bold', 10)
-                amount_text = f"₹{amount_paid:,.2f}"
             p.drawRightString(currency_x, y, amount_text)
-            y -= 18  # Increased line spacing
+            y -= 18
             
-            # Discount (if exists) - on its own line
+            # Discount
             if discount > 0:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Discount:')
                 p.setFont('Helvetica', 10)
-                discount_text = f"₹{discount:,.2f}"
+                discount_text = f"Rs. {discount:,.2f}"
                 p.drawRightString(currency_x, y, discount_text)
-                y -= 18  # Increased line spacing
+                y -= 18
             
-            # Total Fee (if exists) - on its own line
+            # Total Fee
             if payment.fee_structure:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Total Fee:')
                 p.setFont('Helvetica', 10)
-                total_text = f"₹{total_fee:,.2f}"
+                total_text = f"Rs. {total_fee:,.2f}"
                 total_width = p.stringWidth(total_text, 'Helvetica', 10)
                 if total_width > (width - currency_x):
                     p.setFont('Helvetica', 9)
-                    total_text = f"₹{total_fee:,.2f}"
                 p.drawRightString(currency_x, y, total_text)
-                y -= 18  # Increased line spacing
+                y -= 18
             
-            # Remaining (if exists) - on its own line
+            # Remaining
             if payment.fee_structure and remaining > 0:
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(label_x, y, 'Remaining:')
                 p.setFont('Helvetica', 10)
                 p.setFillColor(colors.black)
-                remaining_text = f"₹{remaining:,.2f}"
+                remaining_text = f"Rs. {remaining:,.2f}"
                 remaining_width = p.stringWidth(remaining_text, 'Helvetica', 10)
                 if remaining_width > (width - currency_x):
                     p.setFont('Helvetica', 9)
-                    remaining_text = f"₹{remaining:,.2f}"
                 p.drawRightString(currency_x, y, remaining_text)
-                y -= 18  # Increased line spacing
+                y -= 18
             
-            y -= 15  # Extra spacing after payment section
+            # Set y to the exact bottom of the payment information box
+            y = payment_section_top - section_height - 15
 
-            # Notes section (if exists) - IMPROVED: Better text wrapping to prevent word collapsing
+            # Notes section (if exists) - IMPROVED wrapping and tracking
             if payment.notes:
+                notes_top = y
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(25 * mm, y, 'Notes:')
                 y -= 12
                 p.setFont('Helvetica', 9)
-                # IMPROVED: Smart word wrapping - break at word boundaries, not mid-word
                 notes_text = str(payment.notes)
-                max_width = width - 50 * mm  # Available width for notes
+                max_width = width - 50 * mm
                 words = notes_text.split()
                 lines = []
                 current_line = ''
@@ -2546,17 +2693,19 @@ class FeePaymentReceiptPDFView(APIView):
                         current_line = word
                 if current_line:
                     lines.append(current_line)
-                # Display up to 4 lines with proper spacing
-                for line in lines[:4]:
+                
+                num_notes_lines = min(4, len(lines))
+                for line in lines[:num_notes_lines]:
                     if y < 60:
                         break
                     p.drawString(25 * mm, y, line)
                     y -= 11
-                y -= 8
+                y = notes_top - 12 - (num_notes_lines * 11) - 15
             else:
                 y -= 15
-
+ 
             # Total amount section - IMPROVED SPACING AND ALIGNMENT
+            total_box_top = y
             p.setStrokeColor(colors.HexColor('#000000'))
             p.setLineWidth(1.5)
             p.rect(20 * mm, y - 40, width - 40 * mm, 40, stroke=1, fill=0)  # Increased height
@@ -2564,14 +2713,12 @@ class FeePaymentReceiptPDFView(APIView):
             p.setFont('Helvetica-Bold', 14)
             p.drawString(25 * mm, y - 15, 'TOTAL AMOUNT PAID:')  # Adjusted position
             p.setFont('Helvetica-Bold', 18)
-            # IMPROVED: Ensure total amount fits within bounds
-            total_paid_text = f"₹{amount_paid:,.2f}"
+            total_paid_text = f"Rs. {amount_paid:,.2f}"
             total_paid_width = p.stringWidth(total_paid_text, 'Helvetica-Bold', 18)
             if total_paid_width > (width - 30 * mm):
                 p.setFont('Helvetica-Bold', 16)
-                total_paid_text = f"₹{amount_paid:,.2f}"
             p.drawRightString(width - 30 * mm, y - 12, total_paid_text)  # Adjusted position with margin
-            y -= 50  # Increased spacing after total section
+            y = total_box_top - 40 - 50
 
             # Thank you message (black text on white background)
             p.setFont('Helvetica', 11)
@@ -3392,7 +3539,7 @@ class FeeStructureExportView(APIView):
                         str(fs.id),
                         fs.class_obj.name if fs.class_obj else "N/A",
                         fs.fee_type,
-                        f"₹{fs.amount}",
+                        f"Rs. {fs.amount}",
                         "Yes" if fs.is_optional else "No",
                         fs.due_date.strftime('%Y-%m-%d') if fs.due_date else "Not Set",
                         fs.academic_year or "N/A"
@@ -3476,7 +3623,7 @@ class FeePaymentExportView(APIView):
                         str(fp.id),
                         fp.student.name if fp.student else "N/A",
                         fp.fee_structure.fee_type if fp.fee_structure else "N/A",
-                        f"₹{fp.amount_paid}",
+                        f"Rs. {fp.amount_paid}",
                         fp.payment_date.strftime('%Y-%m-%d'),
                         fp.payment_method,
                         fp.receipt_number or "N/A"
@@ -3556,7 +3703,7 @@ class FeeDiscountExportView(APIView):
                         str(fd.id),
                         fd.name,
                         fd.discount_type,
-                        f"{fd.discount_value}{'%' if fd.discount_type == 'PERCENTAGE' else '₹'}",
+                        f"{fd.discount_value}{'%' if fd.discount_type == 'PERCENTAGE' else ' Rs.'}",
                         fd.valid_from.strftime('%Y-%m-%d') if fd.valid_from else "N/A",
                         fd.valid_until.strftime('%Y-%m-%d') if fd.valid_until else "No End",
                         "Yes" if fd.is_active else "No"
@@ -4974,7 +5121,8 @@ class TransferCertificatePDFView(APIView):
             if school_address:
                 max_addr_width = width - text_x - 25 * mm
                 if p.stringWidth(school_address, 'Helvetica', 9) > max_addr_width:
-                    addr_lines = [school_address[i:i+50] for i in range(0, min(len(school_address), 100), 50)]
+                    from reportlab.lib.utils import simpleSplit
+                    addr_lines = simpleSplit(school_address, 'Helvetica', 9, max_addr_width)
                     for line in addr_lines[:2]:
                         p.drawString(text_x, info_y, line)
                         info_y -= 11
@@ -5009,12 +5157,9 @@ class TransferCertificatePDFView(APIView):
             p.drawRightString(width - 25 * mm, y, f'Date: {issue_date_str}')
             y -= 25
             
-            # Border box for TC content
+            # Border box for TC content (dynamically drawn at the end of content)
             content_y_start = y
             content_height = 40 * mm
-            p.setStrokeColor(colors.black)
-            p.setLineWidth(1.5)
-            p.rect(20 * mm, content_height, width - 40 * mm, content_y_start - content_height, stroke=1, fill=0)
             
             y -= 15
             
@@ -5069,8 +5214,9 @@ class TransferCertificatePDFView(APIView):
                 final_value_x = value_x
                 # Validate it fits within page boundaries
                 if p.stringWidth(value_str, 'Helvetica', 10) + final_value_x > width - 25 * mm:
-                    # Adjust if needed
-                    final_value_x = max(value_x, width - 25 * mm - p.stringWidth(value_str, 'Helvetica', 10))
+                    while p.stringWidth(value_str + '...', 'Helvetica', 10) > width - 25 * mm - final_value_x and len(value_str) > 1:
+                        value_str = value_str[:-1]
+                    value_str += '...'
                 p.drawString(final_value_x, y, value_str)
                 y -= 15
                 p.setFont('Helvetica-Bold', 10)
@@ -5100,7 +5246,8 @@ class TransferCertificatePDFView(APIView):
                 p.drawString(25 * mm, y, 'Dues Details:')
                 y -= 12
                 p.setFont('Helvetica', 9)
-                dues_lines = [tc.dues_details[i:i+80] for i in range(0, min(len(tc.dues_details), 240), 80)]
+                from reportlab.lib.utils import simpleSplit
+                dues_lines = simpleSplit(tc.dues_details, 'Helvetica', 9, width - 50 * mm)
                 for line in dues_lines[:3]:
                     if y < content_height + 15:
                         break
@@ -5154,7 +5301,8 @@ class TransferCertificatePDFView(APIView):
                     p.drawString(25 * mm, y, 'Address:')
                     y -= 12
                     p.setFont('Helvetica', 9)
-                    addr_lines = [tc.transferring_to_address[i:i+80] for i in range(0, min(len(tc.transferring_to_address), 240), 80)]
+                    from reportlab.lib.utils import simpleSplit
+                    addr_lines = simpleSplit(tc.transferring_to_address, 'Helvetica', 9, width - 50 * mm)
                     for line in addr_lines[:3]:
                         if y < content_height + 15:
                             break
@@ -5213,30 +5361,45 @@ class TransferCertificatePDFView(APIView):
                     p.drawString(25 * mm, y, line)
                     y -= 11
                 y -= 5
+
+            # Draw the dynamic content border box ending exactly below the printed content
+            p.setStrokeColor(colors.black)
+            p.setLineWidth(1.5)
+            box_bottom = y - 5
+            p.rect(20 * mm, box_bottom, width - 40 * mm, content_y_start - box_bottom, stroke=1, fill=0)
             
-            # Authority signatures section (bottom)
-            sig_y_start = 45 * mm
-            sig_height = 40 * mm
-            p.setFont('Helvetica-Bold', 11)
-            p.drawString(25 * mm, sig_y_start + sig_height + 5 * mm, 'AUTHORITY SIGNATURES')
-            y = sig_y_start + sig_height - 15
+            y = box_bottom - 15
             
-            # Issued by
+            # Authority signatures section (bottom) - Dynamic & Two Column Layout
+            sig_height = 35 * mm
+            # If not enough space on current page, wrap to next page
+            if y - sig_height < 20 * mm:
+                p.showPage()
+                y = height - 25 * mm
+            
+            sig_y_start = y - sig_height
+            p.setStrokeColor(colors.black)
+            p.setLineWidth(1)
+            p.rect(20 * mm, sig_y_start, width - 40 * mm, sig_height, stroke=1, fill=0)
+            
+            p.line(20 * mm, sig_y_start + sig_height - 10, width - 20 * mm, sig_y_start + sig_height - 10)
+            p.setFillColor(colors.black)
+            p.setFont('Helvetica-Bold', 10)
+            p.drawCentredString(width / 2, sig_y_start + sig_height - 7, 'AUTHORITY SIGNATURES')
+            
+            # Left column: Issued by
             if tc.issued_by:
                 issuer_name = tc.issued_by.user.get_full_name() or tc.issued_by.user.username if tc.issued_by.user else 'N/A'
                 p.setFont('Helvetica', 10)
-                p.drawString(25 * mm, y, f'Issued By: {issuer_name}')
-                y -= 20
-                p.drawString(25 * mm, y, 'Signature: ___________________')
-                y -= 25
+                p.drawString(25 * mm, sig_y_start + sig_height - 18, f'Issued By: {issuer_name}')
+                p.drawString(25 * mm, sig_y_start + 8, 'Signature: ___________________')
             
-            # Approved by
+            # Right column: Approved by
             if tc.approved_by:
                 approver_name = tc.approved_by.user.get_full_name() or tc.approved_by.user.username if tc.approved_by.user else 'N/A'
                 p.setFont('Helvetica', 10)
-                p.drawString(25 * mm, y, f'Approved By: {approver_name}')
-                y -= 20
-                p.drawString(25 * mm, y, 'Signature: ___________________')
+                p.drawString(120 * mm, sig_y_start + sig_height - 18, f'Approved By: {approver_name}')
+                p.drawString(120 * mm, sig_y_start + 8, 'Signature: ___________________')
             
             # Footer
             p.setFont('Helvetica', 8)
@@ -5714,4 +5877,76 @@ class PublicFeePaymentCreateView(APIView):
             response_data['payment'] = payment_data
             response_data['payment_link'] = payment_data['payment_url']
         
-        return Response(response_data, status=status.HTTP_201_CREATED) 
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+from education.models import Assignment, AssignmentSubmission, Grade
+from api.serializers import AssignmentSerializer, AssignmentSubmissionSerializer, GradeSerializer
+from rest_framework import viewsets
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from api.models.user import UserProfile
+from rest_framework.permissions import IsAuthenticated
+
+class AssignmentViewSet(viewsets.ModelViewSet):
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # django.contrib.auth's User has no .tenant attribute - it only
+        # exists on UserProfile - so this crashed with AttributeError on
+        # every request before being routed through the profile.
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        if not profile or not profile.tenant:
+            return Assignment.objects.none()
+        return Assignment.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        serializer.save(tenant=profile.tenant if profile else None)
+
+class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
+    serializer_class = AssignmentSubmissionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        if not profile or not profile.tenant:
+            return AssignmentSubmission.objects.none()
+        return AssignmentSubmission.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        serializer.save(tenant=profile.tenant if profile else None)
+
+class GradeViewSet(viewsets.ModelViewSet):
+    serializer_class = GradeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        if not profile or not profile.tenant:
+            return Grade.objects.none()
+        return Grade.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        serializer.save(tenant=profile.tenant if profile else None)
+
+class PrincipalStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = UserProfile.objects.filter(user=request.user).first()
+        if not profile or not profile.tenant:
+            return Response({'error': 'No tenant'}, status=400)
+
+        tenant = profile.tenant
+        total_staff = UserProfile.objects.filter(tenant=tenant, is_active=True).count()
+        total_students = Student.objects.filter(tenant=tenant, is_active=True).count()
+        
+        return Response({
+            'totalStaff': total_staff,
+            'totalStudents': total_students,
+            'attendanceRate': '95%',
+            'alerts': 3
+        })

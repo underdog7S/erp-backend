@@ -18,7 +18,7 @@ def create_sample_education_data():
     
     # Get education tenant
     try:
-        tenant = Tenant.objects.filter(industry__iexact='education').first()
+        tenant = UserProfile.objects.get(user__username='shadab1').tenant
         if not tenant:
             print("❌ No education tenant found. Please create an education tenant first.")
             return

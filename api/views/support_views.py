@@ -175,22 +175,24 @@ class TicketResponseViewSet(viewsets.ModelViewSet):
             from api.models.user import UserProfile
             profile = UserProfile.objects.get(user=self.request.user)
             tenant = profile.tenant
-            
-            # Regular users see responses to their tickets, admins see all
+
+            # Regular users see responses to their own tickets (excluding
+            # internal staff-only notes), admins see everything for the tenant
             if profile.role and profile.role.name == 'admin':
                 return TicketResponse.objects.filter(ticket__tenant=tenant)
             else:
                 return TicketResponse.objects.filter(
                     ticket__tenant=tenant,
-                    ticket__user=self.request.user
+                    ticket__user=self.request.user,
+                    is_internal=False
                 )
         except:
             return TicketResponse.objects.none()
-    
+
     def get_serializer_class(self):
         """Return appropriate serializer"""
         from rest_framework import serializers
-        
+
         class TicketResponseSerializer(serializers.ModelSerializer):
             class Meta:
                 model = TicketResponse
@@ -199,10 +201,24 @@ class TicketResponseViewSet(viewsets.ModelViewSet):
                     'attachment', 'created_at'
                 ]
                 read_only_fields = ['user', 'created_at']
-        
+
         return TicketResponseSerializer
-    
+
     def perform_create(self, serializer):
-        """Set user automatically"""
+        """Set user automatically and make sure the ticket actually belongs
+        to the requester (or their tenant, for admins) - otherwise any
+        authenticated user could post a response onto someone else's ticket."""
+        from rest_framework.exceptions import PermissionDenied
+        from api.models.user import UserProfile
+
+        profile = UserProfile.objects.filter(user=self.request.user).first()
+        ticket = serializer.validated_data.get('ticket')
+        if not profile or not ticket or ticket.tenant_id != profile.tenant_id:
+            raise PermissionDenied('Ticket does not belong to your organization.')
+        is_admin = bool(profile.role and profile.role.name == 'admin')
+        if not is_admin and ticket.user_id != self.request.user.id:
+            raise PermissionDenied('You can only respond to your own tickets.')
+        if not is_admin:
+            serializer.validated_data['is_internal'] = False
         serializer.save(user=self.request.user)
 

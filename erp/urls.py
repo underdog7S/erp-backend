@@ -26,6 +26,8 @@ schema_view = get_schema_view(
 
 def redirect_admin(request):
     """Redirect to secure admin or show access denied"""
+    if not request.user.is_authenticated:
+        return HttpResponseRedirect('/secure-admin/login/?next=/secure-admin/')
     if request.user.is_authenticated and request.user.is_superuser:
         return HttpResponseRedirect('/secure-admin/')
     else:

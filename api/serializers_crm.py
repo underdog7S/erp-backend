@@ -23,7 +23,7 @@ class CompanySerializer(serializers.ModelSerializer):
     )
     owner_name = serializers.CharField(source='owner.username', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
-    
+
     class Meta:
         model = Company
         fields = [
@@ -36,7 +36,19 @@ class CompanySerializer(serializers.ModelSerializer):
             'contact_count', 'full_address'
         ]
         read_only_fields = ['id', 'tenant', 'created_at', 'updated_at', 'contact_count', 'full_address']
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Scope cross-tenant-writable FK fields to the caller's own tenant so a
+        # client can't attach another tenant's tags/parent company and have its
+        # name leaked back via the read-only *_name fields.
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user_profile = UserProfile.objects.filter(user=request.user).first()
+            if user_profile:
+                self.fields['tag_ids'].queryset = ContactTag.objects.filter(tenant=user_profile.tenant)
+                self.fields['parent_company'].queryset = Company.objects.filter(tenant=user_profile.tenant)
+
     def validate(self, data):
         # Ensure tenant is set from request context
         request = self.context.get('request')
@@ -80,13 +92,22 @@ class ContactSerializer(serializers.ModelSerializer):
             'activity_count', 'deal_count'
         ]
         read_only_fields = ['id', 'tenant', 'created_at', 'updated_at', 'full_name', 'full_address', 'activity_count', 'deal_count']
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user_profile = UserProfile.objects.filter(user=request.user).first()
+            if user_profile:
+                self.fields['tag_ids'].queryset = ContactTag.objects.filter(tenant=user_profile.tenant)
+                self.fields['company'].queryset = Company.objects.filter(tenant=user_profile.tenant)
+
     def get_activity_count(self, obj):
         return obj.activities.count()
-    
+
     def get_deal_count(self, obj):
         return obj.deals.count()
-    
+
     def validate(self, data):
         # Ensure tenant is set from request context
         request = self.context.get('request')
@@ -113,7 +134,16 @@ class ActivitySerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'attachments'
         ]
         read_only_fields = ['id', 'tenant', 'created_at', 'updated_at']
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user_profile = UserProfile.objects.filter(user=request.user).first()
+            if user_profile:
+                self.fields['contact'].queryset = Contact.objects.filter(tenant=user_profile.tenant)
+                self.fields['company'].queryset = Company.objects.filter(tenant=user_profile.tenant)
+
     def validate(self, data):
         # Ensure tenant is set from request context
         request = self.context.get('request')
@@ -154,7 +184,16 @@ class DealSerializer(serializers.ModelSerializer):
             'weighted_amount'
         ]
         read_only_fields = ['id', 'tenant', 'created_at', 'updated_at', 'weighted_amount']
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user_profile = UserProfile.objects.filter(user=request.user).first()
+            if user_profile:
+                self.fields['contact'].queryset = Contact.objects.filter(tenant=user_profile.tenant)
+                self.fields['company'].queryset = Company.objects.filter(tenant=user_profile.tenant)
+
     def validate(self, data):
         # Ensure tenant is set from request context
         request = self.context.get('request')

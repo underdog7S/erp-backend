@@ -17,6 +17,7 @@ from api.models.payments import PaymentTransaction
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from datetime import timedelta
+from decimal import Decimal
 import json
 from rest_framework import viewsets
 from api.models.serializers import PaymentTransactionSerializer
@@ -50,7 +51,7 @@ class RazorpayOrderCreateView(APIView):
             
             client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
             order_data = {
-                'amount': int(amount_float * 100),  # Razorpay expects paise
+                'amount': round(amount_float * 100),  # Razorpay expects paise
                 'currency': currency,
                 'payment_capture': 1,
             }
@@ -86,7 +87,7 @@ class RazorpayPaymentVerifyView(APIView):
                 msg.encode(),
                 hashlib.sha256
             ).hexdigest()
-            if generated_signature == signature:
+            if hmac.compare_digest(generated_signature, signature):
                 # Activate user plan
                 try:
                     profile = UserProfile._default_manager.get(user=request.user)
@@ -94,11 +95,32 @@ class RazorpayPaymentVerifyView(APIView):
                     return Response({'error': 'User profile not found.'}, status=status.HTTP_404_NOT_FOUND)
                 tenant = profile.tenant
                 plan = None
+                verified_amount = None
                 if plan_name:
                     try:
                         plan = Plan._default_manager.get(name__iexact=plan_name)
+
+                        # A valid signature only proves *some* payment was made on
+                        # this order - the order amount itself is client-supplied
+                        # (see RazorpayOrderCreateView), so it must never be trusted.
+                        # Fetch the actual captured amount from Razorpay and check
+                        # it covers the selected plan's price before activating it.
+                        if razorpay is None:
+                            return Response({'error': 'Razorpay is not available.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                        if plan.price is None:
+                            return Response({'error': 'This plan requires contacting sales and cannot be self-activated.'}, status=status.HTTP_400_BAD_REQUEST)
+                        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                        razorpay_payment = client.payment.fetch(payment_id)
+                        if razorpay_payment.get('status') != 'captured':
+                            return Response({'error': f"Payment not captured. Status: {razorpay_payment.get('status')}"}, status=status.HTTP_400_BAD_REQUEST)
+                        paid_paise = int(razorpay_payment.get('amount') or 0)
+                        expected_paise = round(plan.price * 100)
+                        if paid_paise < expected_paise:
+                            return Response({'error': 'Paid amount does not cover the selected plan price.'}, status=status.HTTP_400_BAD_REQUEST)
+                        verified_amount = Decimal(paid_paise) / 100
+
                         tenant.plan = plan
-                        
+
                         # Calculate subscription expiration date based on billing cycle
                         today = timezone.now().date()
                         
@@ -137,7 +159,9 @@ class RazorpayPaymentVerifyView(APIView):
                         tenant.save()
                     except Plan._default_manager.model.DoesNotExist:
                         return Response({'error': 'Selected plan does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
-                # Store transaction record
+                # Store transaction record (use the Razorpay-verified amount when
+                # a plan was activated; fall back to the client-supplied amount
+                # only for the no-plan / generic verification path)
                 PaymentTransaction._default_manager.create(
                     user=request.user,
                     tenant=tenant,
@@ -145,7 +169,7 @@ class RazorpayPaymentVerifyView(APIView):
                     order_id=order_id,
                     payment_id=payment_id,
                     signature=signature,
-                    amount=request.data.get('amount', 0),
+                    amount=verified_amount if verified_amount is not None else request.data.get('amount', 0),
                     currency=request.data.get('currency', 'INR'),
                     status='verified',
                     verified_at=timezone.now(),
@@ -169,7 +193,7 @@ class RazorpayWebhookView(APIView):
             if event.get('event') == 'payment.captured':
                 payment_entity = event['payload']['payment']['entity']
                 payment_id = payment_entity['id']
-                amount = payment_entity['amount'] / 100.0
+                amount = Decimal(payment_entity['amount']) / 100
                 currency = payment_entity['currency']
                 # Update transaction status if exists
                 PaymentTransaction._default_manager.filter(payment_id=payment_id).update(status='captured')
@@ -178,9 +202,14 @@ class RazorpayWebhookView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class PaymentTransactionViewSet(viewsets.ModelViewSet):
-    queryset = PaymentTransaction.objects.all().order_by('id')  # Add ordering for pagination warning
     serializer_class = PaymentTransactionSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        profile = UserProfile._default_manager.filter(user=self.request.user).first()
+        if not profile or not profile.tenant:
+            return PaymentTransaction.objects.none()
+        return PaymentTransaction.objects.filter(tenant=profile.tenant).order_by('id')
 
     def destroy(self, request, *args, **kwargs):
         profile = UserProfile._default_manager.get(user=request.user)

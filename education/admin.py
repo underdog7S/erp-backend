@@ -53,12 +53,46 @@ class StudentAdmin(admin.ModelAdmin):
 secure_admin_site.register(Department, DepartmentAdmin)
 secure_admin_site.register(Class, ClassAdmin)
 secure_admin_site.register(Student, StudentAdmin)
-secure_admin_site.register(FeeStructure)
-secure_admin_site.register(FeePayment)
-secure_admin_site.register(FeeDiscount)
-secure_admin_site.register(Attendance)
-secure_admin_site.register(ReportCard)
-secure_admin_site.register(StaffAttendance)
+class FeeStructureAdmin(admin.ModelAdmin):
+    list_display = ('class_obj', 'fee_type', 'amount', 'academic_year', 'due_date', 'tenant')
+    list_filter = ('fee_type', 'academic_year', 'tenant')
+    search_fields = ('class_obj__name', 'fee_type')
+
+class FeePaymentAdmin(admin.ModelAdmin):
+    list_display = ('receipt_number', 'student', 'fee_structure', 'amount_paid', 'payment_date', 'payment_method', 'tenant')
+    list_filter = ('payment_method', 'payment_date', 'tenant')
+    search_fields = ('receipt_number', 'student__name', 'student__upper_id')
+    date_hierarchy = 'payment_date'
+
+class FeeDiscountAdmin(admin.ModelAdmin):
+    list_display = ('name', 'discount_type', 'discount_value', 'is_active', 'valid_until', 'tenant')
+    list_filter = ('discount_type', 'is_active', 'tenant')
+    search_fields = ('name',)
+
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = ('student', 'date', 'present', 'tenant')
+    list_filter = ('present', 'date', 'tenant')
+    search_fields = ('student__name', 'student__upper_id')
+    date_hierarchy = 'date'
+
+class ReportCardAdmin(admin.ModelAdmin):
+    list_display = ('student', 'academic_year', 'term', 'class_obj', 'percentage', 'grade', 'tenant')
+    list_filter = ('academic_year', 'term', 'class_obj', 'tenant')
+    search_fields = ('student__name', 'student__upper_id')
+    date_hierarchy = 'generated_at'
+
+class StaffAttendanceAdmin(admin.ModelAdmin):
+    list_display = ('staff', 'date', 'check_in_time', 'check_out_time', 'tenant')
+    list_filter = ('date', 'tenant')
+    search_fields = ('staff__user__username',)
+    date_hierarchy = 'date'
+
+secure_admin_site.register(FeeStructure, FeeStructureAdmin)
+secure_admin_site.register(FeePayment, FeePaymentAdmin)
+secure_admin_site.register(FeeDiscount, FeeDiscountAdmin)
+secure_admin_site.register(Attendance, AttendanceAdmin)
+secure_admin_site.register(ReportCard, ReportCardAdmin)
+secure_admin_site.register(StaffAttendance, StaffAttendanceAdmin)
 secure_admin_site.register(StudentPromotion, StudentPromotionAdmin)
 
 class TransferCertificateAdmin(admin.ModelAdmin):

@@ -1,15 +1,18 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from api.models.visitor_lead import VisitorLead
 from api.serializers_visitor_lead import VisitorLeadSerializer
-from api.models.permissions import IsTenantAdmin
 
 
 class VisitorLeadViewSet(viewsets.ReadOnlyModelViewSet):
+    """Marketing-site leads for the vendor's own sales team - these aren't
+    scoped to any tenant, so access must be restricted to internal staff
+    (is_staff), not IsTenantAdmin, which would let any paying customer's
+    admin list every other prospect's PII."""
     queryset = VisitorLead.objects.all()
     serializer_class = VisitorLeadSerializer
-    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     pagination_class = None
     filterset_fields = (
         'form_submitted',

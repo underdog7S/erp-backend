@@ -3,8 +3,7 @@ Subscription Middleware
 Checks subscription status for API requests and enforces restrictions
 """
 from django.utils import timezone
-from rest_framework.response import Response
-from rest_framework import status
+from django.http import JsonResponse
 from api.models.user import UserProfile
 
 class SubscriptionMiddleware:
@@ -49,23 +48,25 @@ class SubscriptionMiddleware:
             # Check if subscription has expired
             if tenant.is_subscription_expired():
                 if tenant.subscription_status == 'expired':
-                    # Block all access
-                    return Response({
+                    # Block all access. Plain Django middleware runs outside the
+                    # DRF view/renderer cycle, so a rest_framework Response here
+                    # would crash (no accepted_renderer set) - use JsonResponse.
+                    return JsonResponse({
                         'error': 'Your plan has expired. Please renew to continue using the service.',
                         'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
                         'action_url': '/admin/plans',
                         'renewal_required': True
-                    }, status=status.HTTP_403_FORBIDDEN)
+                    }, status=403)
                 elif tenant.is_in_grace_period():
                     # Allow read-only access in grace period
                     if request.method not in self.READ_ONLY_METHODS:
-                        return Response({
+                        return JsonResponse({
                             'error': 'Your plan has expired. You are in a grace period with read-only access. Please renew to restore full functionality.',
                             'subscription_end_date': tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
                             'grace_period_end': tenant.grace_period_end_date.isoformat() if tenant.grace_period_end_date else None,
                             'action_url': '/admin/plans',
                             'renewal_required': True
-                        }, status=status.HTTP_403_FORBIDDEN)
+                        }, status=403)
             
             return self.get_response(request)
         except UserProfile.DoesNotExist:

@@ -204,14 +204,15 @@ class GoogleOAuthCallbackView(APIView):
     
     def get(self, request):
         """Handle Google OAuth callback redirect from Google"""
+        # Resolved before the try block so the except handler can always
+        # build a redirect URL, even if something above it raises first.
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'https://zenitherp.online')
         try:
             # Get authorization code from query parameters
             code = request.GET.get('code')
             state = request.GET.get('state', 'login')  # 'login' or 'register'
             error = request.GET.get('error')
-            
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'https://zenitherp.online')
-            
+
             if error:
                 # User denied access
                 error_url = f"{frontend_url}/login?error={urllib.parse.quote(error)}"
@@ -259,9 +260,11 @@ class GoogleOAuthCallbackView(APIView):
                     'email': user.email
                 }
                 
-                # Redirect to frontend with tokens
-                # Frontend will extract tokens from URL and store them
-                redirect_url = f"{frontend_url}/auth/google/callback?access={urllib.parse.quote(str(refresh.access_token))}&refresh={urllib.parse.quote(str(refresh))}&email={urllib.parse.quote(email)}"
+                # Redirect to frontend with tokens in the URL fragment (not the
+                # query string) so the JWTs never get logged in server/proxy
+                # access logs or sent in a Referer header - only query params
+                # are exposed there, the fragment stays client-side only.
+                redirect_url = f"{frontend_url}/auth/google/callback#access={urllib.parse.quote(str(refresh.access_token))}&refresh={urllib.parse.quote(str(refresh))}&email={urllib.parse.quote(email)}"
                 return HttpResponseRedirect(redirect_url)
                 
             except User.DoesNotExist:

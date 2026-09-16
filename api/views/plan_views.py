@@ -153,6 +153,19 @@ class PlanChangeView(APIView):
         try:
             plan_instance = Plan.objects.get(name__iexact=plan_obj["name"])
             old_plan = tenant.plan
+            old_price = old_plan.price if old_plan and old_plan.price is not None else 0
+            new_price = plan_instance.price
+
+            # This endpoint performs no payment verification, so it must never
+            # move a tenant to a costlier plan - only sideways/downgrades (e.g.
+            # switching to Free) are safe to self-serve here. Paid upgrades must
+            # go through the Razorpay order/verify flow, which activates the
+            # plan itself once a matching payment is confirmed.
+            if new_price is None:
+                return Response({"error": "This plan requires contacting sales."}, status=status.HTTP_400_BAD_REQUEST)
+            if new_price > old_price:
+                return Response({"error": "Upgrading to a paid plan requires completing payment first."}, status=status.HTTP_402_PAYMENT_REQUIRED)
+
             tenant.plan = plan_instance
             tenant.save()
             

@@ -4,6 +4,10 @@ from .settings import *
 # Test settings
 DEBUG = True
 SECRET_KEY = 'test-secret-key-for-testing-only'
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+
 
 # Use in-memory SQLite for testing
 DATABASES = {

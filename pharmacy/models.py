@@ -24,6 +24,28 @@ class Supplier(models.Model):
     def __str__(self):
         return self.name
 
+class MasterMedicine(models.Model):
+    """Global dictionary of medicines with brands and substitutes"""
+    brand_name = models.CharField(max_length=200)
+    generic_name = models.CharField(max_length=200)
+    manufacturer = models.CharField(max_length=200, blank=True)
+    strength = models.CharField(max_length=50, blank=True)
+    dosage_form = models.CharField(max_length=50, choices=[
+        ('TABLET', 'Tablet'),
+        ('CAPSULE', 'Capsule'),
+        ('SYRUP', 'Syrup'),
+        ('INJECTION', 'Injection'),
+        ('CREAM', 'Cream'),
+        ('OINTMENT', 'Ointment'),
+        ('DROPS', 'Drops'),
+        ('INHALER', 'Inhaler'),
+        ('OTHER', 'Other'),
+    ], default='TABLET')
+    substitutes = models.TextField(blank=True, help_text="Comma separated list of substitutes or generic alternatives")
+    
+    def __str__(self):
+        return f"{self.brand_name} ({self.generic_name}) - {self.strength}"
+
 class Medicine(models.Model):
     """Medicine/Product information"""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
@@ -204,6 +226,15 @@ class Sale(models.Model):
     
     def __str__(self):
         return f"Invoice {self.invoice_number} - {self.total_amount}"
+    def save(self, *args, **kwargs):
+        if not self.invoice_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.invoice_number = f"INV-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class SaleItem(models.Model):
     """Individual items in a sale"""
@@ -236,6 +267,15 @@ class PurchaseOrder(models.Model):
     
     def __str__(self):
         return f"PO {self.po_number} - {self.supplier.name}"
+    def save(self, *args, **kwargs):
+        if not self.po_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.po_number = f"PO-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class PurchaseOrderItem(models.Model):
     """Items in purchase orders"""
@@ -327,6 +367,15 @@ class SaleReturn(models.Model):
     
     def __str__(self):
         return f"Return {self.return_number} - {self.sale.invoice_number}"
+    def save(self, *args, **kwargs):
+        if not self.return_number:
+            import uuid
+            from datetime import datetime
+            year = datetime.now().year
+            month_day = datetime.now().strftime('%m%d')
+            unique_part = uuid.uuid4().hex[:4].upper()
+            self.return_number = f"RET-{year}-{month_day}-{unique_part}"
+        super().save(*args, **kwargs)
 
 class SaleReturnItem(models.Model):
     """Individual items in a return"""
