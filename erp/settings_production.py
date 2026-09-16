@@ -71,7 +71,15 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 CORS_ALLOW_ALL_ORIGINS = False  # Never allow all in production!
 # Get CORS origins from environment variable, filter out empty strings
 cors_origins_env = os.getenv('CORS_ALLOWED_ORIGINS', '')
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',') if origin.strip()]
+CORS_ALLOWED_ORIGINS = [
+    "https://zenitherp.online",
+    "https://www.zenitherp.online",
+    "https://erp-frontend-lyart.vercel.app",
+    "https://erp-frontend-liard-beta.vercel.app",
+    "http://localhost:3000"
+]
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS.extend([origin.strip() for origin in cors_origins_env.split(',') if origin.strip()])
 
 # If no CORS origins are set, log a warning (but don't break the app)
 if not CORS_ALLOWED_ORIGINS:
