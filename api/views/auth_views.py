@@ -208,11 +208,13 @@ class RegisterView(APIView):
                 plan=plan
             )
             
+            is_oauth = data.get("is_oauth", False)
+            
             # Create user and activate immediately (email verification disabled)
             user = User.objects.create_user(
                 username=data["username"],
                 email=data["email"],
-                password=data["password"],
+                password=data.get("password") if data.get("password") else None,
                 is_active=True  # User is active immediately
             )
             
@@ -225,15 +227,24 @@ class RegisterView(APIView):
                 # department is not set for first user
             )
             
-            # Create email verification
+            if is_oauth:
+                # OAuth users are already verified by Google
+                # Generate tokens for immediate login
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    "message": "Registration successful! Logging you in...",
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                    "email": data["email"]
+                }, status=status.HTTP_201_CREATED)
+            
+            # For regular users, create email verification
             email_verification = EmailVerification.objects.create(
                 user=user,
                 email=data["email"]
             )
             
             # Send verification email immediately (synchronously) for faster delivery
-            # Use SendGrid API if available (much faster than SMTP)
-            # If SMTP is used, it has a 10-second timeout to prevent blocking
             email_sent = False
             email_error = None
             
