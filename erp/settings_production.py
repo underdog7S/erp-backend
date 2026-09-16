@@ -10,6 +10,9 @@ import dj_database_url
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 SECRET_KEY = os.getenv('SECRET_KEY', 'replace-this-with-a-secure-key')
 
+# Remove development-only middleware that causes redirect loops on Render
+MIDDLEWARE = [m for m in MIDDLEWARE if 'development_https_handler' not in m]
+
 # Allowed hosts - filter out empty strings
 allowed_hosts_env = os.getenv('ALLOWED_HOSTS', '')
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
