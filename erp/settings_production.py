@@ -19,21 +19,25 @@ if not ALLOWED_HOSTS:
 
 # Database Configuration - Supports Supabase DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL:
+if DATABASE_URL and DATABASE_URL.strip():
     # Parse DATABASE_URL (Supabase format)
+    url = DATABASE_URL.strip().strip("'").strip('"')
+    db_config = dj_database_url.parse(url, conn_max_age=600)
+    if not db_config.get('NAME'):
+        db_config['NAME'] = 'postgres'
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+        'default': db_config
     }
 else:
     # Fallback to individual database settings
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', 'postgres'),
-            'USER': os.getenv('DB_USER', 'postgres'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
+            'NAME': os.getenv('DB_NAME') or 'postgres',
+            'USER': os.getenv('DB_USER') or 'postgres',
+            'PASSWORD': os.getenv('DB_PASSWORD') or '',
+            'HOST': os.getenv('DB_HOST') or 'localhost',
+            'PORT': os.getenv('DB_PORT') or '5432',
         }
     }
 
