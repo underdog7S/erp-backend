@@ -606,6 +606,8 @@ class MenuSyncLogListView(generics.ListAPIView):
 
 # ==================== Public API Views (Cloud Kitchen) ====================
 
+from django.db.models import Prefetch
+
 class PublicMenuView(APIView):
 	"""Public endpoint to view menu (no authentication required)"""
 	permission_classes = [AllowAny]
@@ -621,15 +623,14 @@ class PublicMenuView(APIView):
 		except Tenant.DoesNotExist:
 			return Response({'error': 'Restaurant not found'}, status=status.HTTP_404_NOT_FOUND)
 		
-		# Get all categories with available items
+		# Get all categories with available items pre-filtered to avoid N+1
 		categories = MenuCategory.objects.filter(tenant=tenant).prefetch_related(
-			'items'
+			Prefetch('items', queryset=MenuItem.objects.filter(is_available=True))
 		)
 		
-		# Filter only available items
 		menu_data = []
 		for category in categories:
-			items = category.items.filter(is_available=True)
+			items = category.items.all()
 			if items.exists():
 				menu_data.append({
 					'id': category.id,
@@ -644,10 +645,13 @@ class PublicMenuView(APIView):
 		})
 
 
+from django.db import transaction
+
 class PublicOrderCreateView(APIView):
 	"""Public endpoint for customers to place orders (cloud kitchen)"""
 	permission_classes = [AllowAny]
 	
+	@transaction.atomic
 	def post(self, request):
 		"""Create a new order from public API"""
 		tenant_id = request.data.get('tenant_id')
@@ -678,38 +682,44 @@ class PublicOrderCreateView(APIView):
 			status='open'
 		)
 		
+		# Pre-fetch all requested menu items in bulk to prevent N+1 and handle validation
+		item_ids = [item.get('menu_item_id') for item in data['items'] if item.get('menu_item_id')]
+		menu_items_map = MenuItem.objects.select_related('category').in_bulk(item_ids)
+		
 		# Create order items
 		total_amount = Decimal('0.00')
+		order_items_to_create = []
+		
 		for item_data in data['items']:
+			item_id = item_data.get('menu_item_id')
+			menu_item = menu_items_map.get(item_id)
+			
+			if not menu_item or not menu_item.is_available or menu_item.tenant_id != tenant.id:
+				# Transaction will automatically rollback if we return an error Response here
+				return Response({
+					'error': f"Menu item {item_id} not found or unavailable"
+				}, status=status.HTTP_400_BAD_REQUEST)
+				
 			try:
-				menu_item = MenuItem.objects.select_related('category').get(
-					id=item_data.get('menu_item_id'),
-					tenant=tenant,
-					is_available=True
-				)
 				quantity = int(item_data.get('quantity', 1))
 				price = menu_item.price
 				
-				OrderItem.objects.create(
+				order_items_to_create.append(OrderItem(
 					tenant=tenant,
 					order=order,
 					menu_item=menu_item,
 					quantity=quantity,
 					price=price
-				)
-				
+				))
 				total_amount += price * quantity
-			except MenuItem.DoesNotExist:
-				return Response({
-					'error': f"Menu item {item_data.get('menu_item_id')} not found or unavailable"
-				}, status=status.HTTP_400_BAD_REQUEST)
-			except (ValueError, KeyError) as e:
+			except (ValueError, KeyError, TypeError) as e:
 				return Response({
 					'error': f"Invalid item data: {str(e)}"
 				}, status=status.HTTP_400_BAD_REQUEST)
-		
+				
+		OrderItem.objects.bulk_create(order_items_to_create)
 		order.total_amount = total_amount
-		order.save()
+		order.save(update_fields=['total_amount'])
 		
 		# Send webhook if configured
 		send_order_webhook(order)
@@ -783,11 +793,13 @@ class PublicOrderStatusView(APIView):
 	
 	def get(self, request, order_id):
 		"""Get order status by order ID"""
-		phone = request.query_params.get('phone')  # Optional phone verification
+		phone = request.query_params.get('phone')  # Mandatory phone verification
+		if not phone:
+			return Response({'error': 'Phone number is required for verification'}, status=status.HTTP_400_BAD_REQUEST)
 		
 		try:
 			order = Order.objects.get(id=order_id)
-			if phone and order.customer_phone != phone:
+			if order.customer_phone != phone:
 				return Response({'error': 'Invalid order or phone number'}, status=status.HTTP_403_FORBIDDEN)
 			
 			return Response({

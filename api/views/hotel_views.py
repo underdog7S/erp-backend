@@ -142,19 +142,22 @@ class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
 		)
 
 
+from django.db import transaction
+
 class BookingCheckInView(APIView):
 	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
+	@transaction.atomic
 	def post(self, request, pk):
 		try:
 			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
 				id=pk, tenant=request.user.userprofile.tenant
 			)
 			booking.status = 'checked_in'
-			booking.save()
+			booking.save(update_fields=['status'])
 			# Update room status
 			booking.room.status = 'occupied'
-			booking.room.save()
+			booking.room.save(update_fields=['status'])
 			return Response({'message': 'Guest checked in successfully', 'status': booking.status})
 		except Booking.DoesNotExist:
 			return Response({'error': 'Booking not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -163,16 +166,17 @@ class BookingCheckInView(APIView):
 class BookingCheckOutView(APIView):
 	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
+	@transaction.atomic
 	def post(self, request, pk):
 		try:
 			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
 				id=pk, tenant=request.user.userprofile.tenant
 			)
 			booking.status = 'checked_out'
-			booking.save()
+			booking.save(update_fields=['status'])
 			# Update room status
 			booking.room.status = 'available'
-			booking.room.save()
+			booking.room.save(update_fields=['status'])
 			return Response({'message': 'Guest checked out successfully', 'status': booking.status})
 		except Booking.DoesNotExist:
 			return Response({'error': 'Booking not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -389,6 +393,7 @@ class BookingBulkDeleteView(APIView):
 class BookingBulkStatusUpdateView(APIView):
 	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
 
+	@transaction.atomic
 	def post(self, request):
 		booking_ids = request.data.get('ids', [])
 		new_status = request.data.get('status')
@@ -403,16 +408,12 @@ class BookingBulkStatusUpdateView(APIView):
 		tenant = request.user.userprofile.tenant
 		updated_count = Booking.objects.filter(id__in=booking_ids, tenant=tenant).update(status=new_status)
 		
-		# Update room statuses if checking in/out
+		# Update room statuses if checking in/out in bulk to prevent N+1
 		if new_status == 'checked_in':
-			bookings = Booking.objects.filter(id__in=booking_ids, tenant=tenant)
-			for booking in bookings:
-				booking.room.status = 'occupied'
-				booking.room.save()
+			room_ids = Booking.objects.filter(id__in=booking_ids, tenant=tenant).values_list('room_id', flat=True)
+			Room.objects.filter(id__in=room_ids).update(status='occupied')
 		elif new_status == 'checked_out':
-			bookings = Booking.objects.filter(id__in=booking_ids, tenant=tenant)
-			for booking in bookings:
-				booking.room.status = 'available'
-				booking.room.save()
+			room_ids = Booking.objects.filter(id__in=booking_ids, tenant=tenant).values_list('room_id', flat=True)
+			Room.objects.filter(id__in=room_ids).update(status='available')
 		
 		return Response({'message': f'{updated_count} booking(s) updated successfully'})
