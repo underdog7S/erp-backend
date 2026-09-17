@@ -40,14 +40,14 @@ class RateLimitMiddleware:
             return self.get_response(request)
 
         # Check if user is authenticated (safely - request.user might not exist yet)
+        # DRF JWT auth happens in views, so middleware sees request.user as AnonymousUser
         is_authenticated = False
-        if hasattr(request, 'user') and request.user:
-            try:
-                is_authenticated = request.user.is_authenticated
-            except AttributeError:
-                # request.user exists but doesn't have is_authenticated (shouldn't happen, but be safe)
-                is_authenticated = False
-        
+        if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False):
+            is_authenticated = True
+        elif 'HTTP_AUTHORIZATION' in request.META and request.META['HTTP_AUTHORIZATION'].startswith('Bearer '):
+            # JWT token provided, treat as authenticated for rate limiting purposes
+            is_authenticated = True
+            
         # Use different limits based on authentication
         if is_authenticated:
             minute_limit = self.rate_limit_per_minute_auth
@@ -56,7 +56,7 @@ class RateLimitMiddleware:
             minute_limit = self.rate_limit_per_minute_unauth
             hour_limit = self.rate_limit_per_hour_unauth
 
-        # Get client IP (use user ID for authenticated users if available)
+        # Get client IP (use JWT auth header + IP for better tracking if user.id not available yet)
         if is_authenticated and hasattr(request, 'user') and request.user and hasattr(request.user, 'id'):
             # For authenticated users, use user ID + IP for better tracking
             try:
