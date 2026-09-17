@@ -21,7 +21,7 @@ class RateLimitMiddleware:
         self.rate_limit_per_hour_unauth = 1000  # 1000 requests per hour
         
         # Rate limits per IP - authenticated users (more lenient)
-        self.rate_limit_per_minute_auth = 300  # 300 requests per minute (increased for dashboard loads)
+        self.rate_limit_per_minute_auth = 1000  # 1000 requests per minute (increased for dashboard loads)
         self.rate_limit_per_hour_auth = 10000  # 10000 requests per hour (increased)
         
         self.rate_limit_per_day = 10000  # 10000 requests per day (same for both)
