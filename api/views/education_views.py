@@ -1920,7 +1920,7 @@ class StaffAttendanceListCreateView(APIView):
                 staff_id = request.query_params.get('staff')
                 class_id = request.query_params.get('class')
                 date = request.query_params.get('date')
-                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant)  # type: ignore
+                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant).select_related('staff', 'staff__user')  # type: ignore
                 if staff_id:
                     qs = qs.filter(staff_id=staff_id)
                 if class_id:
@@ -1930,7 +1930,7 @@ class StaffAttendanceListCreateView(APIView):
                 qs = qs.distinct()
             else:
                 # Staff can only see their own
-                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant, staff=profile)  # type: ignore
+                qs = StaffAttendance._default_manager.filter(tenant=profile.tenant, staff=profile).select_related('staff', 'staff__user')  # type: ignore
             serializer = StaffAttendanceSerializer(qs.order_by('-date', '-check_in_time'), many=True)
             return Response(serializer.data)
         except UserProfile.DoesNotExist:
@@ -2205,7 +2205,7 @@ class StaffListView(APIView):
     def get(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
         # Optionally filter by role if you want only staff/teachers
-        staff = UserProfile._default_manager.filter(tenant=profile.tenant, role__name__in=['staff', 'teacher'])
+        staff = UserProfile._default_manager.filter(tenant=profile.tenant, role__name__in=['staff', 'teacher']).select_related('user')
         data = [{"id": s.id, "name": s.user.get_full_name() or s.user.username} for s in staff]
         return Response(data)
 
@@ -2216,7 +2216,7 @@ class StudentListPagination(PageNumberPagination):
 
 class StaffAttendanceCheckInView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
@@ -2234,16 +2234,22 @@ class StaffAttendanceCheckInView(APIView):
 
 class StaffAttendanceCheckOutView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def post(self, request):
         profile = UserProfile._default_manager.get(user=request.user)
         staff_id = request.data.get('staff_id')
-        if not staff_id:
-            return Response({'error': 'staff_id is required.'}, status=400)
-        staff = UserProfile._default_manager.filter(id=staff_id, tenant=profile.tenant).first()
-        if not staff:
-            return Response({'error': 'Staff not found.'}, status=404)
+        
+        # If staff_id is provided, check if user is admin/principal
+        if staff_id and str(profile.id) != str(staff_id):
+            if profile.role and profile.role.name not in ['admin', 'principal']:
+                return Response({'error': 'You do not have permission to check out other staff.'}, status=403)
+            staff = UserProfile._default_manager.filter(id=staff_id, tenant=profile.tenant).first()
+            if not staff:
+                return Response({'error': 'Staff not found.'}, status=404)
+        else:
+            staff = profile
+            
         today = timezone.now().date()
         attendance = StaffAttendance._default_manager.filter(
             staff=staff, date=today, tenant=profile.tenant
@@ -2320,7 +2326,7 @@ class FeePaymentListCreateView(APIView):
         data['tenant'] = profile.tenant.id
         serializer = FeePaymentSerializer(data=data, context={'request': request})
         if serializer.is_valid():
-            serializer.save(tenant=profile.tenant)
+            serializer.save(tenant=profile.tenant, collected_by=profile)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

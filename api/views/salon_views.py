@@ -71,7 +71,7 @@ class ServiceListCreateView(generics.ListCreateAPIView):
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
 	def get_queryset(self):
-		queryset = Service.objects.filter(tenant=self.request.user.userprofile.tenant)
+		queryset = Service.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category')
 		category = self.request.query_params.get('category')
 		active = self.request.query_params.get('active')
 		if category:
@@ -98,7 +98,7 @@ class ServiceDetailView(generics.RetrieveUpdateDestroyAPIView):
 	parser_classes = [JSONParser, MultiPartParser, FormParser]
 	
 	def get_queryset(self):
-		return Service.objects.filter(tenant=self.request.user.userprofile.tenant)
+		return Service.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category')
 
 
 class StylistListCreateView(generics.ListCreateAPIView):
@@ -161,7 +161,7 @@ class AppointmentListCreateView(generics.ListCreateAPIView):
 				from datetime import datetime
 				date_obj = datetime.strptime(date, '%Y-%m-%d').date()
 				queryset = queryset.filter(start_time__date=date_obj)
-			except Exception:
+			except ValueError:
 				pass
 		if date_from:
 			try:
@@ -513,7 +513,7 @@ class SalonAppointmentInvoiceView(APIView):
 		tax = amount * 0.18
 		p.drawString(margin, y, f"GST (18%): ₹{tax:.2f}")
 		y -= 14
-		total = amount
+		total = amount + tax
 		p.setFont('Helvetica-Bold', 12)
 		p.drawString(margin, y, f"Total: ₹{total:.2f}")
 		y -= 24

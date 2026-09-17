@@ -75,9 +75,11 @@ class SupplierDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Supplier.objects.filter(tenant=self.request.user.userprofile.tenant)
 
+from rest_framework.permissions import IsAdminUser
+
 # Master Medicine Views
 class MasterMedicineListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = MasterMedicineSerializer
     queryset = MasterMedicine.objects.all()
     
@@ -94,7 +96,7 @@ class MasterMedicineListCreateView(generics.ListCreateAPIView):
         return queryset
 
 class MasterMedicineDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+    permission_classes = [IsAuthenticated, IsAdminUser]
     serializer_class = MasterMedicineSerializer
     queryset = MasterMedicine.objects.all()
 
@@ -116,7 +118,7 @@ class MedicineListCreateView(generics.ListCreateAPIView):
     serializer_class = MedicineSerializer
     
     def get_queryset(self):
-        queryset = Medicine.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = Medicine.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category')
         category = self.request.query_params.get('category', None)
         search = self.request.query_params.get('search', None)
         barcode = self.request.query_params.get('barcode', None)
@@ -257,7 +259,7 @@ class MedicineBatchListCreateView(generics.ListCreateAPIView):
     serializer_class = MedicineBatchSerializer
     
     def get_queryset(self):
-        queryset = MedicineBatch.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = MedicineBatch.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('medicine', 'supplier')
         medicine = self.request.query_params.get('medicine', None)
         if medicine:
             queryset = queryset.filter(medicine_id=medicine)
@@ -328,10 +330,12 @@ class SaleListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         try:
-            queryset = Sale.objects.filter(tenant=self.request.user.userprofile.tenant).prefetch_related(
-                'items__medicine_batch__medicine',
+            queryset = Sale.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
                 'customer',
+                'sold_by',
                 'sold_by__user'
+            ).prefetch_related(
+                'items__medicine_batch__medicine'
             )
             customer = self.request.query_params.get('customer', None)
             search = self.request.query_params.get('search', None)

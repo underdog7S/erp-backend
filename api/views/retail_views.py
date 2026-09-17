@@ -138,7 +138,7 @@ class InventoryListCreateView(generics.ListCreateAPIView):
     serializer_class = InventorySerializer
     
     def get_queryset(self):
-        queryset = Inventory.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = Inventory.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('product', 'warehouse')
         warehouse = self.request.query_params.get('warehouse', None)
         if warehouse:
             queryset = queryset.filter(warehouse_id=warehouse)
@@ -288,8 +288,11 @@ class GetProductPriceView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting product price: {e}", exc_info=True)
             return Response(
-                {'error': str(e)},
+                {'error': 'An unexpected error occurred'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -299,11 +302,11 @@ class QuotationListCreateView(generics.ListCreateAPIView):
     serializer_class = QuotationSerializer
     
     def get_queryset(self):
-        queryset = Quotation.objects.filter(tenant=self.request.user.userprofile.tenant).prefetch_related(
-            'items__product',
+        queryset = Quotation.objects.filter(tenant=self.request.user.userprofile.tenant).select_related(
             'customer',
+            'created_by',
             'created_by__user'
-        )
+        ).prefetch_related('items__product')
         customer = self.request.query_params.get('customer', None)
         status_filter = self.request.query_params.get('status', None)
         customer_type = self.request.query_params.get('customer_type', None)
@@ -555,7 +558,7 @@ class PurchaseOrderListCreateView(generics.ListCreateAPIView):
     serializer_class = PurchaseOrderSerializer
     
     def get_queryset(self):
-        queryset = PurchaseOrder.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = PurchaseOrder.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('supplier', 'created_by', 'created_by__user')
         supplier = self.request.query_params.get('supplier', None)
         status_filter = self.request.query_params.get('status', None)
         search = self.request.query_params.get('search', None)
@@ -594,7 +597,7 @@ class GoodsReceiptListCreateView(generics.ListCreateAPIView):
     serializer_class = GoodsReceiptSerializer
     
     def get_queryset(self):
-        queryset = GoodsReceipt.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = GoodsReceipt.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('purchase_order', 'warehouse', 'received_by', 'received_by__user')
         purchase_order = self.request.query_params.get('purchase_order', None)
         if purchase_order:
             queryset = queryset.filter(purchase_order_id=purchase_order)
@@ -679,7 +682,7 @@ class StockTransferListCreateView(generics.ListCreateAPIView):
     serializer_class = StockTransferSerializer
     
     def get_queryset(self):
-        queryset = StockTransfer.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = StockTransfer.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('from_warehouse', 'to_warehouse', 'transferred_by', 'transferred_by__user')
         status_filter = self.request.query_params.get('status', None)
         
         if status_filter:
@@ -703,7 +706,7 @@ class StockAdjustmentListCreateView(generics.ListCreateAPIView):
     serializer_class = StockAdjustmentSerializer
     
     def get_queryset(self):
-        queryset = StockAdjustment.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = StockAdjustment.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('warehouse', 'adjusted_by', 'adjusted_by__user')
         warehouse = self.request.query_params.get('warehouse', None)
         adjustment_type = self.request.query_params.get('adjustment_type', None)
         
