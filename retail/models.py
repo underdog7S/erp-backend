@@ -570,3 +570,32 @@ class QuotationItem(models.Model):
         """Auto-calculate total_price"""
         self.total_price = self.quantity * self.unit_price
         super().save(*args, **kwargs) 
+
+# ==========================================
+# ENTERPRISE RETAIL MODULES
+# ==========================================
+
+class RetailBarcode(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='retail_barcodes')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='barcodes')
+    barcode_value = models.CharField(max_length=100, unique=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.barcode_value} - {self.product.name}"
+
+class StockTransit(models.Model):
+    TRANSIT_STATUS = [
+        ('in_transit', 'In Transit'),
+        ('received', 'Received'),
+        ('lost', 'Lost/Damaged'),
+    ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='stock_transits')
+    transfer = models.ForeignKey(StockTransfer, on_delete=models.CASCADE, related_name='transit_records')
+    status = models.CharField(max_length=20, choices=TRANSIT_STATUS, default='in_transit')
+    dispatched_at = models.DateTimeField(auto_now_add=True)
+    received_at = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Transit {self.id} for Transfer {self.transfer.id}"

@@ -57,6 +57,11 @@ class Tenant(models.Model):
     has_hotel = models.BooleanField(default=False)
     has_restaurant = models.BooleanField(default=False)
     has_salon = models.BooleanField(default=False)
+    
+    # Decentralized Payment Gateway Settings
+    is_razorpay_unlocked = models.BooleanField(default=False, help_text="True if tenant purchased the Razorpay addon")
+    razorpay_key_id = models.CharField(max_length=100, blank=True, null=True)
+    razorpay_key_secret = models.CharField(max_length=100, blank=True, null=True)
     storage_used_mb = models.FloatField(default=0)
     logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True, help_text="Organization logo for reports, bills, and documents")
     # Education module: Percentage calculation settings

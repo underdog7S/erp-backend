@@ -5956,3 +5956,148 @@ class PrincipalStatsView(APIView):
             'attendanceRate': '95%',
             'alerts': 3
         })
+
+# ==========================================
+# ENTERPRISE EXPANSION VIEWS
+# ==========================================
+from education.models import (
+    Vehicle, TransportRoute, TransportAllocation,
+    LibraryBook, BookIssue,
+    Hostel, HostelRoom, HostelAllocation
+)
+from api.models.serializers_education import (
+    VehicleSerializer, TransportRouteSerializer, TransportAllocationSerializer,
+    LibraryBookSerializer, BookIssueSerializer,
+    HostelSerializer, HostelRoomSerializer, HostelAllocationSerializer
+)
+
+class VehicleViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = VehicleSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        return Vehicle.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class TransportRouteViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = TransportRouteSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        return TransportRoute.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class TransportAllocationViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = TransportAllocationSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        qs = TransportAllocation.objects.filter(tenant=profile.tenant)
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        return qs
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class LibraryBookViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = LibraryBookSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        return LibraryBook.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class BookIssueViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = BookIssueSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        qs = BookIssue.objects.filter(tenant=profile.tenant)
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        return qs
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        # Decrease available copies if issued
+        book = serializer.validated_data.get('book')
+        if book.available_copies > 0:
+            book.available_copies -= 1
+            book.save()
+            serializer.save(tenant=profile.tenant)
+        else:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'error': 'No copies available for this book.'})
+
+class HostelViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = HostelSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        return Hostel.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class HostelRoomViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = HostelRoomSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        return HostelRoom.objects.filter(tenant=profile.tenant)
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        serializer.save(tenant=profile.tenant)
+
+class HostelAllocationViewSet(viewsets.ModelViewSet):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
+    serializer_class = HostelAllocationSerializer
+
+    def get_queryset(self):
+        profile = UserProfile.objects.get(user=self.request.user)
+        qs = HostelAllocation.objects.filter(tenant=profile.tenant)
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        return qs
+
+    def perform_create(self, serializer):
+        profile = UserProfile.objects.get(user=self.request.user)
+        room = serializer.validated_data.get('room')
+        if room.available_beds > 0:
+            room.available_beds -= 1
+            room.save()
+            serializer.save(tenant=profile.tenant)
+        else:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'error': 'No beds available in this room.'})

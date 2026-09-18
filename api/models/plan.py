@@ -156,6 +156,19 @@ class Plan(models.Model):
         default=False,
         help_text="New Features Access: Early access to new features (beta), test before general release"
     )
+    
+    # Addon Features
+    has_razorpay_gateway = models.BooleanField(
+        default=False,
+        help_text="Whether this plan includes Razorpay gateway out of the box."
+    )
+    razorpay_addon_price = models.DecimalField(
+        max_digits=8, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Price to unlock Razorpay if not included in plan. Editable from Django Admin."
+    )
 
     class Meta:
         app_label = 'api'

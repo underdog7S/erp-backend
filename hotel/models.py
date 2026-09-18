@@ -65,3 +65,45 @@ class Booking(models.Model):
 		return f"Booking {self.id} - Room {self.room.room_number}"
 
 
+
+
+# ==========================================
+# ENTERPRISE HOSPITALITY MODULES
+# ==========================================
+
+class HousekeepingTask(models.Model):
+    TASK_STATUS = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('inspected', 'Inspected'),
+    ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='housekeeping_tasks')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='housekeeping_tasks')
+    task_type = models.CharField(max_length=100, default='Daily Cleaning')
+    status = models.CharField(max_length=20, choices=TASK_STATUS, default='pending')
+    assigned_to = models.CharField(max_length=100, blank=True, null=True, help_text='Name or ID of housekeeper')
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f'{self.room.room_number} - {self.task_type} ({self.status})'
+
+class RoomServiceOrder(models.Model):
+    ORDER_STATUS = [
+        ('received', 'Received'),
+        ('preparing', 'Preparing'),
+        ('delivered', 'Delivered'),
+        ('billed', 'Billed to Folio'),
+    ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='room_service_orders')
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='room_service_orders')
+    guest_name = models.CharField(max_length=100, blank=True, null=True)
+    items = models.JSONField(help_text='List of items ordered')
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    status = models.CharField(max_length=20, choices=ORDER_STATUS, default='received')
+    ordered_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Order for Room {self.room.room_number} - {self.status}'

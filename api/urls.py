@@ -1,6 +1,13 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+
+from api.views.education_views import (
+    VehicleViewSet, TransportRouteViewSet, TransportAllocationViewSet,
+    LibraryBookViewSet, BookIssueViewSet,
+    HostelViewSet, HostelRoomViewSet, HostelAllocationViewSet
+)
+
 from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
@@ -93,6 +100,12 @@ router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-pa
 # router.register(r'manufacturing/production', manufacturing_views.ProductionViewSet, basename='manufacturing-production')
 # router.register(r'manufacturing/quality-control', manufacturing_views.QualityControlViewSet, basename='manufacturing-quality-control')
 
+# Admin specific ViewSets
+from .views.admin_views import AdminTenantViewSet, AdminUserViewSet, AdminInvoiceViewSet
+router.register(r'admin/tenants', AdminTenantViewSet, basename='admin-tenant')
+router.register(r'admin/users', AdminUserViewSet, basename='admin-user')
+router.register(r'admin/billing/invoices', AdminInvoiceViewSet, basename='admin-invoice')
+
 # Education
 # router.register(r'education/classes', education_views.ClassViewSet, basename='education-class')
 # router.register(r'education/students', education_views.StudentViewSet, basename='education-student')
@@ -108,6 +121,17 @@ router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-pa
 # router.register(r'healthcare/appointments', healthcare_views.AppointmentViewSet, basename='healthcare-appointment')
 # router.register(r'healthcare/billing', healthcare_views.BillingViewSet, basename='healthcare-billing')
 # router.register(r'healthcare/prescriptions', healthcare_views.PrescriptionViewSet, basename='healthcare-prescription')
+
+
+# Enterprise Education Modules
+router.register(r'education/vehicles', VehicleViewSet, basename='education-vehicles')
+router.register(r'education/transport-routes', TransportRouteViewSet, basename='education-transport-routes')
+router.register(r'education/transport-allocations', TransportAllocationViewSet, basename='education-transport-allocations')
+router.register(r'education/library-books', LibraryBookViewSet, basename='education-library-books')
+router.register(r'education/book-issues', BookIssueViewSet, basename='education-book-issues')
+router.register(r'education/hostels', HostelViewSet, basename='education-hostels')
+router.register(r'education/hostel-rooms', HostelRoomViewSet, basename='education-hostel-rooms')
+router.register(r'education/hostel-allocations', HostelAllocationViewSet, basename='education-hostel-allocations')
 
 urlpatterns = [
     # API Root

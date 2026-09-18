@@ -82,4 +82,20 @@ class Appointment(models.Model):
 	def __str__(self):
 		return f"Appt {self.id} - {self.customer_name}"
 
+# ==========================================
+# ENTERPRISE SALON MODULES
+# ==========================================
+
+class StylistCommission(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='stylist_commissions')
+    stylist = models.ForeignKey(Stylist, on_delete=models.CASCADE, related_name='commissions')
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name='commissions')
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+    commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    is_paid = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Commission {self.commission_amount} for {self.stylist.name}"
+
 

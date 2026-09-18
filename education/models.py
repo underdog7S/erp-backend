@@ -1323,3 +1323,98 @@ class Grade(models.Model):
 
     def __str__(self):
         return f"{self.student.name} - {self.subject} - {self.score}"
+
+# ==========================================
+# ENTERPRISE EXPANSION MODULES
+# ==========================================
+
+# 1. Transport Management
+class Vehicle(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transport_vehicles')
+    vehicle_number = models.CharField(max_length=50)
+    capacity = models.IntegerField(default=0)
+    driver_name = models.CharField(max_length=100)
+    driver_phone = models.CharField(max_length=20)
+    
+    def __str__(self):
+        return f"{self.vehicle_number} ({self.driver_name})"
+
+class TransportRoute(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transport_routes')
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True, blank=True)
+    route_name = models.CharField(max_length=100)
+    start_point = models.CharField(max_length=100)
+    end_point = models.CharField(max_length=100)
+    monthly_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+
+    def __str__(self):
+        return self.route_name
+
+class TransportAllocation(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transport_allocations')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='transport_allocations')
+    route = models.ForeignKey(TransportRoute, on_delete=models.CASCADE)
+    pickup_point = models.CharField(max_length=100)
+    assigned_date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.name} - {self.route.route_name}"
+
+# 2. Library Management
+class LibraryBook(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='library_books')
+    title = models.CharField(max_length=255)
+    author = models.CharField(max_length=255)
+    isbn = models.CharField(max_length=50, blank=True)
+    category = models.CharField(max_length=100, blank=True)
+    total_copies = models.IntegerField(default=1)
+    available_copies = models.IntegerField(default=1)
+
+    def __str__(self):
+        return self.title
+
+class BookIssue(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='book_issues')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='book_issues')
+    book = models.ForeignKey(LibraryBook, on_delete=models.CASCADE)
+    issue_date = models.DateField(auto_now_add=True)
+    due_date = models.DateField()
+    return_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=[('Issued', 'Issued'), ('Returned', 'Returned'), ('Overdue', 'Overdue')], default='Issued')
+    fine_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+
+    def __str__(self):
+        return f"{self.student.name} - {self.book.title}"
+
+# 3. Hostel Management
+class Hostel(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='hostels')
+    name = models.CharField(max_length=100)
+    hostel_type = models.CharField(max_length=50, choices=[('Boys', 'Boys'), ('Girls', 'Girls'), ('Co-ed', 'Co-ed')])
+    warden_name = models.CharField(max_length=100, blank=True)
+    warden_phone = models.CharField(max_length=20, blank=True)
+
+    def __str__(self):
+        return self.name
+
+class HostelRoom(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='hostel_rooms')
+    hostel = models.ForeignKey(Hostel, on_delete=models.CASCADE, related_name='rooms')
+    room_number = models.CharField(max_length=50)
+    capacity = models.IntegerField(default=2)
+    available_beds = models.IntegerField(default=2)
+    monthly_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.0)
+
+    def __str__(self):
+        return f"{self.hostel.name} - {self.room_number}"
+
+class HostelAllocation(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='hostel_allocations')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='hostel_allocations')
+    room = models.ForeignKey(HostelRoom, on_delete=models.CASCADE)
+    allocation_date = models.DateField(auto_now_add=True)
+    vacate_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=[('Active', 'Active'), ('Vacated', 'Vacated')], default='Active')
+
+    def __str__(self):
+        return f"{self.student.name} - {self.room.room_number}"

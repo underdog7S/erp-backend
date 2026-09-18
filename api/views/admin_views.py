@@ -624,3 +624,31 @@ class TenantLogoView(APIView):
 			return Response({'message': 'No logo to delete'})
 		except Exception as e:
 			return Response({'error': str(e)}, status=400)
+
+
+from rest_framework import viewsets
+from rest_framework.permissions import IsAdminUser
+from django.contrib.auth.models import User
+
+class SuperAdminUserSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = UserProfile
+		fields = '__all__'
+
+class AdminTenantViewSet(viewsets.ModelViewSet):
+	queryset = Tenant.objects.all()
+	serializer_class = TenantSerializer
+	permission_classes = [IsAuthenticated, IsAdminUser]
+
+class AdminUserViewSet(viewsets.ModelViewSet):
+	queryset = UserProfile.objects.all()
+	serializer_class = SuperAdminUserSerializer
+	permission_classes = [IsAuthenticated, IsAdminUser]
+
+from api.models.invoice import Invoice
+from api.models.serializers import InvoiceSerializer
+
+class AdminInvoiceViewSet(viewsets.ModelViewSet):
+	queryset = Invoice.objects.all()
+	serializer_class = InvoiceSerializer
+	permission_classes = [IsAuthenticated, IsAdminUser]

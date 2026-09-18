@@ -915,3 +915,66 @@ class HallTicketSerializer(serializers.ModelSerializer):
         if obj.generated_by and obj.generated_by.user:
             return obj.generated_by.user.get_full_name() or obj.generated_by.user.username
         return None
+
+
+# ==========================================
+# ENTERPRISE EXPANSION SERIALIZERS
+# ==========================================
+from education.models import (
+    Vehicle, TransportRoute, TransportAllocation,
+    LibraryBook, BookIssue,
+    Hostel, HostelRoom, HostelAllocation
+)
+
+# 1. Transport Management
+class VehicleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vehicle
+        fields = '__all__'
+
+class TransportRouteSerializer(serializers.ModelSerializer):
+    vehicle_number = serializers.CharField(source='vehicle.vehicle_number', read_only=True)
+    driver_name = serializers.CharField(source='vehicle.driver_name', read_only=True)
+    class Meta:
+        model = TransportRoute
+        fields = '__all__'
+
+class TransportAllocationSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    route_name = serializers.CharField(source='route.route_name', read_only=True)
+    class Meta:
+        model = TransportAllocation
+        fields = '__all__'
+
+# 2. Library Management
+class LibraryBookSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LibraryBook
+        fields = '__all__'
+
+class BookIssueSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    book_title = serializers.CharField(source='book.title', read_only=True)
+    class Meta:
+        model = BookIssue
+        fields = '__all__'
+
+# 3. Hostel Management
+class HostelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hostel
+        fields = '__all__'
+
+class HostelRoomSerializer(serializers.ModelSerializer):
+    hostel_name = serializers.CharField(source='hostel.name', read_only=True)
+    class Meta:
+        model = HostelRoom
+        fields = '__all__'
+
+class HostelAllocationSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    room_number = serializers.CharField(source='room.room_number', read_only=True)
+    hostel_name = serializers.CharField(source='room.hostel.name', read_only=True)
+    class Meta:
+        model = HostelAllocation
+        fields = '__all__'
