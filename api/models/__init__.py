@@ -11,11 +11,12 @@ from .email_marketing import (
     EmailSequence, EmailSequenceStep
 )
 from .visitor_lead import VisitorLead
+from .communications import CommunicationThread, CommunicationMessage
 
 __all__ = [
     'Plan', 'UserProfile', 'Role', 'Tenant', 'PaymentTransaction', 'AuditLog',
     'Notification', 'NotificationPreference', 'NotificationTemplate', 'NotificationLog',
     'CustomServiceRequest', 'Contact', 'Company', 'ContactTag', 'Activity', 'Deal', 'DealStage',
     'EmailTemplate', 'ContactList', 'EmailCampaign', 'EmailActivity', 'EmailSequence', 'EmailSequenceStep',
-    'VisitorLead'
+    'VisitorLead', 'CommunicationThread', 'CommunicationMessage'
 , 'TenantFeatureConfig'] 

@@ -575,6 +575,7 @@ urlpatterns += [
 
     # WhatsApp manual send
     path('integrations/whatsapp/send/', whatsapp_views.WhatsAppSendView.as_view(), name='whatsapp-send'),
+    path('webhooks/whatsapp/', whatsapp_views.WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
     
     # Import endpoints
     path('pharmacy/medicines/import/', import_views.MedicineImportView.as_view(), name='pharmacy-medicines-import'),

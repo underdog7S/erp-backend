@@ -61,3 +61,69 @@ class WhatsAppSendView(APIView):
 		except Exception as e:
 			return Response({'error': str(e)}, status=400)
 
+
+
+from rest_framework.permissions import AllowAny
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+@method_decorator(csrf_exempt, name='dispatch')
+class WhatsAppWebhookView(APIView):
+    permission_classes = [AllowAny]  # Webhooks come from Meta, no JWT auth
+
+    def get(self, request):
+        """
+        Meta Webhook Verification.
+        When setting up the webhook in the Meta Developer Dashboard,
+        Meta sends a GET request with hub.mode, hub.challenge, and hub.verify_token.
+        """
+        verify_token = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "zenverse_secure_webhook_123")
+        mode = request.GET.get("hub.mode")
+        token = request.GET.get("hub.verify_token")
+        challenge = request.GET.get("hub.challenge")
+
+        if mode and token:
+            if mode == "subscribe" and token == verify_token:
+                from django.http import HttpResponse
+                return HttpResponse(challenge, status=200)
+            else:
+                return Response({'error': 'Verification failed'}, status=403)
+        return Response({'error': 'Invalid request'}, status=400)
+
+    def post(self, request):
+        """
+        Receives incoming WhatsApp messages from customers.
+        """
+        try:
+            data = request.data
+            
+            # Basic validation of WhatsApp webhook payload
+            if data.get("object") == "whatsapp_business_account":
+                for entry in data.get("entry", []):
+                    for change in entry.get("changes", []):
+                        value = change.get("value", {})
+                        
+                        # Check if this is a new message
+                        if "messages" in value:
+                            for msg in value["messages"]:
+                                sender_phone = msg.get("from")
+                                message_text = msg.get("text", {}).get("body", "")
+                                message_id = msg.get("id")
+                                
+                                # Find the business phone number ID this was sent to
+                                recipient_phone_id = value.get("metadata", {}).get("phone_number_id")
+                                
+                                # TODO: AI AUTO-RESPONDER HOOK GOES HERE
+                                # 1. Find TenantFeatureConfig by recipient_phone_id
+                                # 2. Find or create CommunicationThread
+                                # 3. Save CommunicationMessage
+                                # 4. If config.is_ai_enabled, trigger OpenAI task
+                                
+                                # For now, just print to console
+                                print(f"📞 Incoming WhatsApp from {sender_phone}: {message_text}")
+                                
+                return Response("EVENT_RECEIVED", status=200)
+            return Response(status=404)
+        except Exception as e:
+            print(f"Webhook Error: {e}")
+            return Response(status=500)
