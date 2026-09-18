@@ -5,6 +5,52 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from api.models.custom_service import CustomServiceRequest
 from api.serializers import CustomServiceRequestSerializer
 from django.utils import timezone
+from django.conf import settings
+import requests
+import threading
+
+def send_telegram_notification(data):
+    """Background task to send Telegram notification for new leads"""
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+    chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', None)
+    
+    if not bot_token or not chat_id:
+        return
+        
+    message = (
+        f"🚀 *New Expert Meeting Request!* 🚀
+
+"
+        f"👤 *Name:* {data.get('name')}
+"
+        f"🏢 *Company:* {data.get('company_name', 'N/A')}
+"
+        f"📞 *Phone:* {data.get('phone')}
+"
+        f"✉️ *Email:* {data.get('email')}
+"
+        f"🛠 *Service:* {data.get('service_type')}
+"
+        f"💰 *Budget:* {data.get('budget_range', 'N/A')}
+"
+        f"📅 *Timeline:* {data.get('timeline', 'N/A')}
+
+"
+        f"📝 *Description:*
+{data.get('description', '')}"
+    )
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': message,
+        'parse_mode': 'Markdown'
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Failed to send telegram notification: {e}")
+
 
 class CustomServiceRequestCreateView(APIView):
     """API endpoint to create custom service requests from homepage"""
@@ -14,6 +60,10 @@ class CustomServiceRequestCreateView(APIView):
         serializer = CustomServiceRequestSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            
+            # Send Telegram notification in background to not block response
+            threading.Thread(target=send_telegram_notification, args=(serializer.data,)).start()
+            
             return Response({
                 'success': True,
                 'message': 'Your request has been submitted successfully! We will contact you soon.',
