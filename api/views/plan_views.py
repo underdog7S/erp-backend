@@ -6,6 +6,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.user import UserProfile, Tenant
 from rest_framework import status
 from api.models.plan import Plan
+from api.models.tenant_features import TenantFeatureConfig
 from api.utils.subscription_utils import handle_user_limit_exceeded, reactivate_suspended_users
 
 PLANS = [
@@ -195,3 +196,36 @@ class PlanChangeView(APIView):
             return Response({"message": f"Plan changed to {plan_instance.name}.", "plan": plan_instance.name})
         except Plan.DoesNotExist:
             return Response({"error": "Plan object not found in DB."}, status=status.HTTP_400_BAD_REQUEST)
+
+class TenantFeatureUsageView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = UserProfile.objects.get(user=request.user)
+        tenant = profile.tenant
+        
+        # Get or create feature config
+        config, created = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+        
+        return Response({
+            "email": {
+                "enabled": config.is_custom_email_enabled,
+                "domain": config.custom_domain
+            },
+            "sms": {
+                "enabled": config.is_sms_enabled,
+                "used": config.sms_used_this_month,
+                "limit": config.sms_monthly_limit
+            },
+            "whatsapp": {
+                "enabled": config.is_whatsapp_enabled,
+                "used": config.whatsapp_used_this_month,
+                "limit": config.whatsapp_monthly_limit
+            },
+            "ai": {
+                "enabled": config.is_ai_enabled,
+                "used": config.ai_tokens_used_this_month,
+                "limit": config.ai_tokens_monthly_limit
+            }
+        })

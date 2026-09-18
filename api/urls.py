@@ -280,6 +280,7 @@ urlpatterns = [
     # Plans
     path('plans/', plan_views.PlanListView.as_view(), name='plans'),
     path('plans/change/', plan_views.PlanChangeView.as_view(), name='change-plan'),
+    path('plans/saas-usage/', plan_views.TenantFeatureUsageView.as_view(), name='saas-usage'),
     
     # Dashboard
     path('dashboard/', dashboard_views.DashboardView.as_view(), name='dashboard'),
