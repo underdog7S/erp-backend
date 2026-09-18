@@ -3,9 +3,9 @@ from openai import OpenAI
 from api.models.communications import CommunicationThread, CommunicationMessage
 from api.models.tenant_features import TenantFeatureConfig
 
-# Initialize client globally (it will pick up OPENAI_API_KEY from environment)
-# For a VAR model, you'd use your master ZenVerse key.
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize client globally but allow fallback for Django checks
+api_key = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
+client = OpenAI(api_key=api_key)
 
 def generate_smart_reply(thread: CommunicationThread, max_tokens: int = 150) -> str:
     """

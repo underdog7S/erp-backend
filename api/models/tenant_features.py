@@ -14,7 +14,7 @@ class TenantFeatureConfig(models.Model):
     # 2. SMS Configuration (Managed by Master Account)
     is_sms_enabled = models.BooleanField(default=False)
     sms_used_this_month = models.IntegerField(default=0)
-    sms_monthly_limit = models.IntegerField(default=500)
+    sms_monthly_limit = models.IntegerField(default=0)
     
     # 3. WhatsApp Cloud API (Meta Embedded Signup)
     is_whatsapp_enabled = models.BooleanField(default=False)
@@ -22,12 +22,12 @@ class TenantFeatureConfig(models.Model):
     whatsapp_phone_number_id = models.CharField(max_length=100, blank=True, null=True)
     whatsapp_waba_id = models.CharField(max_length=100, blank=True, null=True, help_text="WhatsApp Business Account ID")
     whatsapp_used_this_month = models.IntegerField(default=0)
-    whatsapp_monthly_limit = models.IntegerField(default=500)
+    whatsapp_monthly_limit = models.IntegerField(default=0)
     
     # 4. OpenAI Integration (Managed by Master Account)
     is_ai_enabled = models.BooleanField(default=False)
     ai_tokens_used_this_month = models.IntegerField(default=0)
-    ai_tokens_monthly_limit = models.IntegerField(default=100000)
+    ai_tokens_monthly_limit = models.IntegerField(default=0)
     
     # 5. Telegram Integration (Optional BYOK for small tenants)
     is_telegram_enabled = models.BooleanField(default=False)
