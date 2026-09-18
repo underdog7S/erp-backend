@@ -1,3 +1,4 @@
+from api.views import email_webhook_views
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -576,6 +577,7 @@ urlpatterns += [
     # WhatsApp manual send
     path('integrations/whatsapp/send/', whatsapp_views.WhatsAppSendView.as_view(), name='whatsapp-send'),
     path('webhooks/whatsapp/', whatsapp_views.WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
+    path('webhooks/email/', email_webhook_views.EmailWebhookView.as_view(), name='email-webhook'),
     
     # Import endpoints
     path('pharmacy/medicines/import/', import_views.MedicineImportView.as_view(), name='pharmacy-medicines-import'),
