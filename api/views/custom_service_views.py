@@ -17,28 +17,18 @@ def send_telegram_notification(data):
     if not bot_token or not chat_id:
         return
         
-    message = (
-        f"🚀 *New Expert Meeting Request!* 🚀
+    message = f"""🚀 *New Expert Meeting Request!* 🚀
 
-"
-        f"👤 *Name:* {data.get('name')}
-"
-        f"🏢 *Company:* {data.get('company_name', 'N/A')}
-"
-        f"📞 *Phone:* {data.get('phone')}
-"
-        f"✉️ *Email:* {data.get('email')}
-"
-        f"🛠 *Service:* {data.get('service_type')}
-"
-        f"💰 *Budget:* {data.get('budget_range', 'N/A')}
-"
-        f"📅 *Timeline:* {data.get('timeline', 'N/A')}
+👤 *Name:* {data.get('name')}
+🏢 *Company:* {data.get('company_name', 'N/A')}
+📞 *Phone:* {data.get('phone')}
+✉️ *Email:* {data.get('email')}
+🛠 *Service:* {data.get('service_type')}
+💰 *Budget:* {data.get('budget_range', 'N/A')}
+📅 *Timeline:* {data.get('timeline', 'N/A')}
 
-"
-        f"📝 *Description:*
-{data.get('description', '')}"
-    )
+📝 *Description:*
+{data.get('description', '')}"""
     
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
