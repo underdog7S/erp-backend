@@ -23,7 +23,8 @@ def create_notification(
     reference_type: Optional[str] = None,
     reference_id: Optional[int] = None,
     icon: Optional[str] = None,
-    expires_in_days: Optional[int] = None
+    expires_in_days: Optional[int] = None,
+    recipient_phone: Optional[str] = None
 ) -> Notification:
     """
     Create a new notification for a user
@@ -74,8 +75,8 @@ def create_notification(
         status='sent'
     )
     
-    # TODO: Send email/SMS based on user preferences
-    # _send_notification_channels(notification)
+    # Try sending via SMS if it's a critical notification and tenant has SMS enabled
+    _send_notification_channels(notification, recipient_phone)
     
     return notification
 
@@ -219,4 +220,73 @@ def get_user_unread_count(user: User) -> int:
     ).exclude(
         expires_at__lt=timezone.now()
     ).count()
+
+def _send_notification_channels(notification: Notification, recipient_phone: Optional[str] = None):
+    """
+    Internal function to route notifications to external channels like SMS
+    using the SaaS Add-on system.
+    """
+    # Only route high priority or specific types to SMS to save money
+    if notification.priority not in ['high', 'urgent'] and notification.notification_type not in ['alert', 'reminder']:
+        return
+
+    # Check Tenant limits
+    from api.models.tenant_features import TenantFeatureConfig
+    try:
+        config = TenantFeatureConfig.objects.get(tenant=notification.tenant)
+    except TenantFeatureConfig.DoesNotExist:
+        return
+        
+    if not config.is_sms_enabled or config.sms_used_this_month >= config.sms_monthly_limit:
+        return
+
+    # Determine phone number
+    phone = recipient_phone
+    if not phone and notification.user:
+        try:
+            phone = notification.user.userprofile.phone
+        except Exception:
+            pass
+            
+    if not phone:
+        return
+        
+    # Send SMS using AWS SNS (boto3)
+    try:
+        import boto3
+        from django.conf import settings
+        
+        # Initialize boto3 client
+        # It relies on AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
+        client = boto3.client('sns', region_name=getattr(settings, 'AWS_REGION', 'us-east-1'))
+        
+        message_body = f"[{notification.tenant.name}] {notification.title}\n{notification.message}"
+        
+        response = client.publish(
+            PhoneNumber=phone,
+            Message=message_body
+        )
+        
+        # Increment SaaS Usage
+        config.sms_used_this_month += 1
+        config.save()
+        
+        # Log SMS Delivery
+        from api.models.notifications import NotificationLog
+        NotificationLog.objects.create(
+            notification=notification,
+            delivery_method='sms',
+            status='sent',
+            error_message=response.get('MessageId', '')
+        )
+        
+    except Exception as e:
+        from api.models.notifications import NotificationLog
+        NotificationLog.objects.create(
+            notification=notification,
+            delivery_method='sms',
+            status='failed',
+            error_message=str(e)
+        )
+
 
