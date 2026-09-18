@@ -48,3 +48,10 @@ PyYAML==6.0.2
 # CORS
 urllib3==2.5.0
 certifi==2025.6.15
+# WebSockets & ASGI
+channels
+daphne
+
+# AI & Cloud
+openai
+boto3
