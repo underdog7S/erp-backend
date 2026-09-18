@@ -154,8 +154,23 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                     body_html = body_html.replace(f'{{{{{key}}}}}', str(value))
                     body_text = body_text.replace(f'{{{{{key}}}}}', str(value))
                 
-                # Create email
-                from_email = campaign.from_email or user_profile.tenant.name
+                # --- SAAS EMAIL ROUTING LOGIC ---
+                from api.models.tenant_features import TenantFeatureConfig
+                config = TenantFeatureConfig.objects.filter(tenant=user_profile.tenant).first()
+                
+                # Default system domain
+                system_domain = "zenverse.in"
+                
+                if config and config.is_custom_email_enabled and config.custom_domain:
+                    # They bought the Add-on. Try to use their requested email if it matches their domain
+                    if campaign.from_email and config.custom_domain in campaign.from_email:
+                        from_email = campaign.from_email
+                    else:
+                        from_email = f"info@{config.custom_domain}"
+                else:
+                    # Free tier: Force fallback to verified system email to prevent AWS crash
+                    from_email = f"no-reply@{system_domain}"
+                
                 from_name = campaign.from_name or user_profile.tenant.name
                 reply_to = campaign.reply_to or from_email
                 
