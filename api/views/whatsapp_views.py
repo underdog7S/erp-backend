@@ -113,14 +113,59 @@ class WhatsAppWebhookView(APIView):
                                 # Find the business phone number ID this was sent to
                                 recipient_phone_id = value.get("metadata", {}).get("phone_number_id")
                                 
-                                # TODO: AI AUTO-RESPONDER HOOK GOES HERE
-                                # 1. Find TenantFeatureConfig by recipient_phone_id
-                                # 2. Find or create CommunicationThread
-                                # 3. Save CommunicationMessage
-                                # 4. If config.is_ai_enabled, trigger OpenAI task
+                                # --- SAAS & AI AUTO-RESPONDER LOGIC ---
+                                from api.models.tenant_features import TenantFeatureConfig
+                                from api.models.communications import CommunicationThread, CommunicationMessage
+                                from api.utils.ai_utils import generate_smart_reply
                                 
-                                # For now, just print to console
                                 print(f"📞 Incoming WhatsApp from {sender_phone}: {message_text}")
+                                
+                                # 1. Find Tenant by the WhatsApp Phone Number ID they connected
+                                config = TenantFeatureConfig.objects.filter(whatsapp_phone_number_id=recipient_phone_id).first()
+                                
+                                if config and config.tenant:
+                                    tenant = config.tenant
+                                    
+                                    # 2. Find or create the Chat Thread for this customer
+                                    thread, _ = CommunicationThread.objects.get_or_create(
+                                        tenant=tenant,
+                                        source='whatsapp',
+                                        external_thread_id=sender_phone
+                                    )
+                                    thread.has_unread = True
+                                    thread.save()
+                                    
+                                    # 3. Save incoming message to database
+                                    CommunicationMessage.objects.create(
+                                        thread=thread,
+                                        sender_type='client',
+                                        content=message_text,
+                                        external_message_id=message_id
+                                    )
+                                    
+                                    # 4. Trigger AI Auto-Responder if enabled
+                                    if config.is_ai_enabled and config.ai_tokens_used_this_month < config.ai_tokens_monthly_limit:
+                                        # Get AI response
+                                        ai_reply = generate_smart_reply(thread)
+                                        
+                                        # Save AI's reply to database
+                                        CommunicationMessage.objects.create(
+                                            thread=thread,
+                                            sender_type='ai',
+                                            content=ai_reply
+                                        )
+                                        
+                                        # Send reply back via Meta WhatsApp API
+                                        import requests, json, os
+                                        token = config.whatsapp_access_token or os.getenv('WHATSAPP_TOKEN')
+                                        url = f"https://graph.facebook.com/v17.0/{recipient_phone_id}/messages"
+                                        headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+                                        payload = {'messaging_product': 'whatsapp', 'to': sender_phone, 'type': 'text', 'text': {'body': ai_reply}}
+                                        requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
+                                        
+                                        # Increment WhatsApp usage bill
+                                        config.whatsapp_used_this_month += 1
+                                        config.save(update_fields=['whatsapp_used_this_month'])
                                 
                 return Response("EVENT_RECEIVED", status=200)
             return Response(status=404)
