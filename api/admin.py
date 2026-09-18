@@ -1,3 +1,4 @@
+from .models.tenant_features import TenantFeatureConfig
 from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
@@ -667,6 +668,13 @@ class TicketSLAAdmin(admin.ModelAdmin):
 secure_admin_site.register(TicketSLA, TicketSLAAdmin)
 
 # Tenant Admin
+
+class TenantFeatureConfigInline(admin.StackedInline):
+    model = TenantFeatureConfig
+    can_delete = False
+    verbose_name_plural = 'SaaS API & Feature Configurations'
+    fk_name = 'tenant'
+
 class TenantAdmin(admin.ModelAdmin):
     list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'public_settings_unlocked', 'get_percentage_method')
     list_filter = ('industry', 'subscription_status', 'percentage_calculation_method')

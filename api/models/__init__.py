@@ -1,5 +1,6 @@
 from .plan import Plan
 from .user import UserProfile, Role, Tenant
+from .tenant_features import TenantFeatureConfig
 from .payments import PaymentTransaction
 from .audit import AuditLog
 from .notifications import Notification, NotificationPreference, NotificationTemplate, NotificationLog
@@ -17,4 +18,4 @@ __all__ = [
     'CustomServiceRequest', 'Contact', 'Company', 'ContactTag', 'Activity', 'Deal', 'DealStage',
     'EmailTemplate', 'ContactList', 'EmailCampaign', 'EmailActivity', 'EmailSequence', 'EmailSequenceStep',
     'VisitorLead'
-] 
+, 'TenantFeatureConfig'] 
