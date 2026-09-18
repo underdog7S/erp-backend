@@ -96,6 +96,73 @@ class RazorpayPaymentVerifyView(APIView):
                 tenant = profile.tenant
                 plan = None
                 verified_amount = None
+                
+                # Check if this payment is for an Add-on
+                addon_name = request.data.get('addon')
+                
+                if addon_name:
+                    # 1. Fetch Razorpay payment to get actual paid amount
+                    if razorpay is None:
+                        return Response({'error': 'Razorpay is not available.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                    client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                    razorpay_payment = client.payment.fetch(payment_id)
+                    if razorpay_payment.get('status') != 'captured':
+                        return Response({'error': f"Payment not captured. Status: {razorpay_payment.get('status')}"}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    paid_paise = int(razorpay_payment.get('amount') or 0)
+                    
+                    # 2. Define Add-on Pricing (in Paise)
+                    addon_prices = {
+                        'whatsapp': 149900,  # 1499 INR
+                        'email': 99900,      # 999 INR
+                        'ai': 249900,        # 2499 INR
+                        'sms': 49900         # 499 INR
+                    }
+                    
+                    expected_paise = addon_prices.get(addon_name)
+                    if not expected_paise:
+                        return Response({'error': 'Invalid Add-on requested.'}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                    if paid_paise < expected_paise:
+                        return Response({'error': 'Paid amount does not cover the Add-on price.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # 3. Unlock the feature in the database
+                    from api.models.tenant_features import TenantFeatureConfig
+                    config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+                    
+                    if addon_name == 'whatsapp':
+                        config.is_whatsapp_enabled = True
+                        config.whatsapp_monthly_limit += 1000
+                    elif addon_name == 'email':
+                        config.is_custom_email_enabled = True
+                    elif addon_name == 'ai':
+                        config.is_ai_enabled = True
+                        config.ai_tokens_monthly_limit += 1000000
+                    elif addon_name == 'sms':
+                        config.is_sms_enabled = True
+                        config.sms_monthly_limit += 1000
+                        
+                    config.save()
+                    verified_amount = Decimal(paid_paise) / Decimal(100)
+                    
+                    # Record the transaction
+                    PaymentTransaction._default_manager.create(
+                        tenant=tenant,
+                        payment_id=payment_id,
+                        order_id=order_id,
+                        signature=signature,
+                        amount=verified_amount,
+                        currency=razorpay_payment.get('currency', 'INR'),
+                        status='success',
+                        payment_method=razorpay_payment.get('method', ''),
+                        description=f"{addon_name.upper()} Add-on Purchase"
+                    )
+                    
+                    return Response({
+                        'status': 'Payment verified and Add-on unlocked successfully.',
+                        'addon': addon_name
+                    }, status=status.HTTP_200_OK)
+                    
                 if plan_name:
                     try:
                         plan = Plan._default_manager.get(name__iexact=plan_name)
