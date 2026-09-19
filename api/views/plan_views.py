@@ -90,3 +90,37 @@ class PlanChangeView(APIView):
                 reactivate_suspended_users(tenant)
 
         return Response({"message": f"Successfully changed plan to {plan_instance.name}."})
+
+
+class TenantFeatureUsageView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            tenant = profile.tenant
+            if not tenant:
+                return Response({'error': 'Tenant not found'}, status=status.HTTP_404_NOT_FOUND)
+                
+            config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+            
+            return Response({
+                'sms': {
+                    'enabled': config.is_sms_enabled,
+                    'used': config.sms_used_this_month,
+                    'limit': config.sms_monthly_limit
+                },
+                'whatsapp': {
+                    'enabled': config.is_whatsapp_enabled,
+                    'used': config.whatsapp_used_this_month,
+                    'limit': config.whatsapp_monthly_limit
+                },
+                'ai': {
+                    'enabled': config.is_ai_enabled,
+                    'used': config.ai_tokens_used_this_month,
+                    'limit': config.ai_tokens_monthly_limit
+                }
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
