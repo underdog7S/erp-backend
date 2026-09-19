@@ -584,6 +584,7 @@ urlpatterns += [
     path('admin/import-data/', admin_views.AdminImportDataView.as_view(), name='admin-import-data'),
     path('admin/tenant-public-settings/', admin_views.TenantPublicSettingsView.as_view(), name='tenant-public-settings'),
     path('admin/tenant-logo/', admin_views.TenantLogoView.as_view(), name='tenant-logo'),
+    path('admin/seed-plans/', admin_views.SeedPlansView.as_view(), name='admin-seed-plans'),
 
     # WhatsApp manual send
     path('integrations/whatsapp/send/', whatsapp_views.WhatsAppSendView.as_view(), name='whatsapp-send'),
