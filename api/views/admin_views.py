@@ -78,7 +78,7 @@ class RoleSerializer(serializers.ModelSerializer):
 		fields = ['id', 'name', 'description']
 
 class AdminExportDataView(APIView):
-	authentication_classes = [JWTAuthentication]
+	
 	permission_classes = [IsAuthenticated]
 	
 	def get(self, request):
@@ -272,7 +272,7 @@ To import this data, use the Import Data feature in the Admin Dashboard.
 			return Response({'error': f'Export failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class AdminImportDataView(APIView):
-	authentication_classes = [JWTAuthentication]
+	
 	permission_classes = [IsAuthenticated]
 	
 	def post(self, request):
@@ -363,7 +363,7 @@ class AdminImportDataView(APIView):
 			return Response({'error': f'Import failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 class TenantPublicSettingsView(APIView):
-	authentication_classes = [JWTAuthentication]
+	
 	permission_classes = [IsAuthenticated]
 
 	def get(self, request):
@@ -557,7 +557,7 @@ class TenantPublicSettingsView(APIView):
 
 class TenantLogoView(APIView):
 	"""Dedicated endpoint for tenant logo upload/delete"""
-	authentication_classes = [JWTAuthentication]
+	
 	permission_classes = [IsAuthenticated]
 
 	def get(self, request):
@@ -678,7 +678,7 @@ from api.models.plan import Plan
 from django.db import transaction
 
 class SeedPlansView(APIView):
-    authentication_classes = [JWTAuthentication]
+    
     permission_classes = [AllowAny]
 
     def post(self, request):
