@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import serializers
 from api.models.user import UserProfile, Tenant, Role
+from api.models.tenant_features import TenantFeatureConfig
 from api.models.plan import Plan
 from education.models import Student, Class, FeeStructure, FeePayment, Attendance, ReportCard, Department
 from pharmacy.models import Medicine, MedicineBatch, Customer, Sale, SaleItem, Prescription
