@@ -136,7 +136,14 @@ router.register(r'education/hostels', HostelViewSet, basename='education-hostels
 router.register(r'education/hostel-rooms', HostelRoomViewSet, basename='education-hostel-rooms')
 router.register(r'education/hostel-allocations', HostelAllocationViewSet, basename='education-hostel-allocations')
 
+from api.views.omnichannel_views import OmnichannelThreadListView, OmnichannelMessageListView, OmnichannelReplyView, OmnichannelAiSuggestView
+
 urlpatterns = [
+    path('omnichannel/threads/', OmnichannelThreadListView.as_view(), name='omnichannel-threads'),
+    path('omnichannel/threads/<int:thread_id>/messages/', OmnichannelMessageListView.as_view(), name='omnichannel-messages'),
+    path('omnichannel/threads/<int:thread_id>/reply/', OmnichannelReplyView.as_view(), name='omnichannel-reply'),
+    path('omnichannel/threads/<int:thread_id>/ai-suggest/', OmnichannelAiSuggestView.as_view(), name='omnichannel-ai-suggest'),
+
     path('admin/dashboard-stats/', AdminDashboardStatsView.as_view(), name='admin-dashboard-stats'),
     # API Root
     path('', public_views.APIRootView.as_view(), name='api-root'),
