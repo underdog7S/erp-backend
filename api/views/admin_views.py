@@ -49,20 +49,26 @@ class DecimalEncoder(json.JSONEncoder):
 		return super().default(obj)
 
 # Simple serializers for admin export
+class TenantFeatureConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenantFeatureConfig
+        fields = ['is_sms_enabled', 'sms_monthly_limit', 'is_whatsapp_enabled', 'whatsapp_monthly_limit', 'is_ai_enabled', 'ai_tokens_monthly_limit', 'is_telegram_enabled']
+
 class TenantSerializer(serializers.ModelSerializer):
-	logo_url = serializers.SerializerMethodField()
-	
-	class Meta:
-		model = Tenant
-		fields = ['id', 'name', 'industry', 'created_at', 'plan', 'storage_used_mb', 'has_hotel', 'has_restaurant', 'has_salon', 'logo', 'logo_url']
-	
-	def get_logo_url(self, obj):
-		if obj.logo:
-			request = self.context.get('request')
-			if request:
-				return request.build_absolute_uri(obj.logo.url)
-			return obj.logo.url
-		return None
+    logo_url = serializers.SerializerMethodField()
+    feature_config = TenantFeatureConfigSerializer(read_only=True)
+    
+    class Meta:
+        model = Tenant
+        fields = ['id', 'name', 'industry', 'created_at', 'plan', 'storage_used_mb', 'has_hotel', 'has_restaurant', 'has_salon', 'logo', 'logo_url', 'feature_config']
+    
+    def get_logo_url(self, obj):
+        if obj.logo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.logo.url)
+            return obj.logo.url
+        return None
 
 class RoleSerializer(serializers.ModelSerializer):
 	class Meta:
@@ -636,9 +642,23 @@ class SuperAdminUserSerializer(serializers.ModelSerializer):
 		fields = '__all__'
 
 class AdminTenantViewSet(viewsets.ModelViewSet):
-	queryset = Tenant.objects.all()
-	serializer_class = TenantSerializer
-	permission_classes = [IsAuthenticated, IsAdminUser]
+    queryset = Tenant.objects.all()
+    serializer_class = TenantSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def update(self, request, *args, **kwargs):
+        tenant = self.get_object()
+        
+        # Handle feature config updates explicitly
+        feature_data = request.data.get('feature_config')
+        if feature_data:
+            config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+            for field, value in feature_data.items():
+                if hasattr(config, field):
+                    setattr(config, field, value)
+            config.save()
+            
+        return super().update(request, *args, **kwargs)
 
 class AdminUserViewSet(viewsets.ModelViewSet):
 	queryset = UserProfile.objects.all()
