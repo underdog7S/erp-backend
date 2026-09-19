@@ -679,7 +679,8 @@ from django.db import transaction
 
 class SeedPlansView(APIView):
     
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    authentication_classes = [JWTAuthentication]
 
     def post(self, request):
         try:
