@@ -1,3 +1,4 @@
+from rest_framework.permissions import AllowAny
 import os
 import json
 import zipfile
@@ -645,7 +646,7 @@ class SuperAdminUserSerializer(serializers.ModelSerializer):
 class AdminTenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
-    permission_classes = [AllowAny] # TEMPORARY UNLOCK
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
     def update(self, request, *args, **kwargs):
         tenant = self.get_object()
@@ -664,7 +665,7 @@ class AdminTenantViewSet(viewsets.ModelViewSet):
 class AdminUserViewSet(viewsets.ModelViewSet):
 	queryset = UserProfile.objects.all()
 	serializer_class = SuperAdminUserSerializer
-	permission_classes = [AllowAny] # TEMPORARY UNLOCK
+	permission_classes = [IsAuthenticated, IsAdminUser]
 
 from api.models.invoice import Invoice
 from api.models.serializers import InvoiceSerializer
@@ -672,13 +673,13 @@ from api.models.serializers import InvoiceSerializer
 class AdminInvoiceViewSet(viewsets.ModelViewSet):
 	queryset = Invoice.objects.all()
 	serializer_class = InvoiceSerializer
-	permission_classes = [AllowAny] # TEMPORARY UNLOCK
+	permission_classes = [IsAuthenticated, IsAdminUser]
 from api.models.plan import Plan
 from django.db import transaction
 
 class SeedPlansView(APIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [AllowAny] # TEMPORARY UNLOCK
+    permission_classes = [AllowAny]
 
     def post(self, request):
         try:
