@@ -693,7 +693,7 @@ class SeedPlansView(APIView):
                 # Fix isolation for shadab1
                 user = UserProfile.objects.filter(user__username='shadab1').first()
                 if user:
-                    user.tenant = None
+                    # user.tenant = None  # Model requires tenant
                     user.user.is_superuser = True
                     user.user.is_staff = True
                     user.user.save()
