@@ -7,6 +7,10 @@ class TenantFeatureConfig(models.Model):
     """
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name="feature_config")
     
+    # 0. Managed Telecom Assets (White-Glove Fulfillment)
+    managed_phone_number = models.CharField(max_length=20, blank=True, null=True, help_text="The dedicated Twilio/Meta number you purchased for this tenant")
+    managed_email_address = models.CharField(max_length=100, blank=True, null=True, help_text="The dedicated support email (e.g., info@tenant-domain.com)")
+    
     # 1. Custom Domain & Email
     custom_domain = models.CharField(max_length=255, blank=True, null=True, help_text="e.g., mail.theirsalon.com")
     is_custom_email_enabled = models.BooleanField(default=False)

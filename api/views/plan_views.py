@@ -19,6 +19,15 @@ def serialize_plan(p):
     if p.has_daily_backups: features.append("Daily Backups")
     if p.has_white_label: features.append("White-Label Ready")
     if p.has_custom_reports: features.append("Custom Reports")
+
+    if p.name.lower() == 'starter':
+        features.append("Dedicated SMS Number")
+        features.append("Dedicated Support Email")
+    elif p.name.lower() == 'pro':
+        features.append("Dedicated SMS/WhatsApp Number")
+        features.append("Dedicated Support Email")
+    elif p.name.lower() == 'enterprise':
+        features.append("Bring Your Own Key (BYOK)")
     
     return {
         "key": p.name.lower(),
@@ -101,6 +110,21 @@ class PlanChangeView(APIView):
             
         config.save()
 
+        # White-Glove Fulfillment Alert
+        if plan_name in ['starter', 'pro']:
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                send_mail(
+                    subject=f"URGENT: Telecom Fulfillment Required for {tenant.name}",
+                    message=f"Tenant {tenant.name} just upgraded to the {plan_name.upper()} plan.\n\nPlease purchase their dedicated Twilio phone number and domain email alias immediately, and paste them into the Django Admin under their Tenant Feature Config.",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=['shadabsheikh314@gmail.com'],
+                    fail_silently=True
+                )
+            except Exception as e:
+                pass # Non-critical if email fails during testing
+
         # Trigger logic based on new plan constraints
         if tenant.plan.max_users is not None:
             active_users = UserProfile.objects.filter(tenant=tenant, is_active=True).count()
@@ -139,6 +163,10 @@ class TenantFeatureUsageView(APIView):
                     'enabled': config.is_ai_enabled,
                     'used': config.ai_tokens_used_this_month,
                     'limit': config.ai_tokens_monthly_limit
+                },
+                'managed_assets': {
+                    'phone_number': config.managed_phone_number,
+                    'email_address': config.managed_email_address
                 }
             })
         except Exception as e:
