@@ -676,6 +676,7 @@ class TenantFeatureConfigInline(admin.StackedInline):
     fk_name = 'tenant'
 
 class TenantAdmin(admin.ModelAdmin):
+    inlines = [TenantFeatureConfigInline]
     list_display = ('name', 'industry', 'subscription_status', 'subscription_end_date', 'public_settings_unlocked', 'get_percentage_method')
     list_filter = ('industry', 'subscription_status', 'percentage_calculation_method')
     search_fields = ('name', 'slug')
