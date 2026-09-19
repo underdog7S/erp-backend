@@ -10,7 +10,9 @@ from api.models.custom_service import CustomServiceRequest
 
 class AdminDashboardStatsView(APIView):
     """Returns analytics data for the Django SuperAdmin Dashboard"""
-    from rest_framework.authentication import SessionAuthentication, BasicAuthentication\n    authentication_classes = [SessionAuthentication, BasicAuthentication]\n    permission_classes = [IsAdminUser]
+    from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         now = timezone.now()
