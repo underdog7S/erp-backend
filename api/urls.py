@@ -1,4 +1,5 @@
-from api.views.admin_dashboard_views import AdminDashboardStatsView\nfrom api.views import email_webhook_views
+from api.views.admin_dashboard_views import AdminDashboardStatsView
+from api.views import email_webhook_views
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
