@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import status
 from api.models.communications import CommunicationThread, CommunicationMessage
+from api.models.tenant_features import TenantFeatureConfig
 from api.models.user import UserProfile
 from api.utils.ai_utils import generate_smart_reply
 import logging
@@ -85,16 +86,30 @@ class OmnichannelReplyView(APIView):
             if not content:
                 return Response({'error': 'Message content is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Save the agent's reply
+            config, _ = TenantFeatureConfig.objects.get_or_create(tenant=profile.tenant)
+            
+            if thread.source == 'sms':
+                if not config.is_sms_enabled:
+                    return Response({'error': 'SMS is locked on your current plan.'}, status=status.HTTP_403_FORBIDDEN)
+                if config.sms_used_this_month >= config.sms_monthly_limit:
+                    return Response({'error': 'Monthly SMS limit reached. Upgrade plan.'}, status=status.HTTP_403_FORBIDDEN)
+                config.sms_used_this_month += 1
+                
+            elif thread.source == 'whatsapp':
+                if not config.is_whatsapp_enabled:
+                    return Response({'error': 'WhatsApp is locked on your current plan.'}, status=status.HTTP_403_FORBIDDEN)
+                if config.whatsapp_used_this_month >= config.whatsapp_monthly_limit:
+                    return Response({'error': 'Monthly WhatsApp limit reached. Upgrade plan.'}, status=status.HTTP_403_FORBIDDEN)
+                config.whatsapp_used_this_month += 1
+                
+            config.save()
+
             msg = CommunicationMessage.objects.create(
                 thread=thread,
                 sender_type='agent',
                 agent=request.user,
                 content=content
             )
-            
-            # Here we would normally trigger Celery to actually dispatch the SMS/WhatsApp/Email
-            # For now, we just simulate the dispatch success.
             
             return Response({
                 'id': msg.id,
@@ -116,11 +131,20 @@ class OmnichannelAiSuggestView(APIView):
             profile = UserProfile.objects.get(user=request.user)
             thread = CommunicationThread.objects.get(id=thread_id, tenant=profile.tenant)
             
-            # Use our existing ai_utils smart reply generator
+            config, _ = TenantFeatureConfig.objects.get_or_create(tenant=profile.tenant)
+            if not config.is_ai_enabled:
+                return Response({'error': 'AI services are locked on your current plan.'}, status=status.HTTP_403_FORBIDDEN)
+            if config.ai_tokens_used_this_month >= config.ai_tokens_monthly_limit:
+                return Response({'error': 'Monthly AI Token limit reached. Upgrade plan.'}, status=status.HTTP_403_FORBIDDEN)
+            
             suggestion = generate_smart_reply(thread)
             
             if suggestion:
+                # Simulate using 50 tokens per reply generation
+                config.ai_tokens_used_this_month += 50
+                config.save()
                 return Response({'suggestion': suggestion})
+                
             return Response({'error': 'AI failed to generate suggestion'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
         except CommunicationThread.DoesNotExist:
