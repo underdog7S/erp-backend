@@ -50,6 +50,8 @@ def HasFeaturePermissionFactory(feature_name):
                 profile = UserProfile._default_manager.get(user=request.user)
                 tenant = profile.tenant
                 
+                if getattr(request.user, "is_staff", False) or getattr(request.user, "is_superuser", False):
+                    return True
                 if not tenant:
                     return False
                 
@@ -141,6 +143,8 @@ class IsPaidUser(BasePermission):
             profile = UserProfile._default_manager.get(user=request.user)
             tenant = profile.tenant
             
+            if getattr(request.user, "is_staff", False) or getattr(request.user, "is_superuser", False):
+                return True
             if not tenant:
                 return False
             
