@@ -1,5 +1,222 @@
 {% extends "admin/index.html" %}
-{% load i18n %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    /* Dashboard Widget Styles */
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+        padding-top: 20px;
+    }
+    .kpi-card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center;
+        border-top: 4px solid #417690;
+    }
+    .kpi-card h3 {
+        margin: 0;
+        font-size: 14px;
+        color: #666;
+        text-transform: uppercase;
+    }
+    .kpi-card .value {
+        font-size: 32px;
+        font-weight: bold;
+        color: #333;
+        margin-top: 10px;
+    }
+    .chart-container {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        height: 350px;
+    }
+    .chart-container h2 {
+        margin-top: 0;
+        font-size: 16px;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .chart-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .activity-feed {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    .activity-feed li {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 13px;
+    }
+    .activity-feed li .time {
+        color: #888;
+        font-size: 11px;
+        display: block;
+        margin-bottom: 4px;
+    }
+    
+    /* Dark mode support for Django 4.2+ */
+    @media (prefers-color-scheme: dark) {
+        .kpi-card, .chart-container {
+            background: #2b2b2b;
+            color: #ddd;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .kpi-card h3, .chart-container h2 {
+            color: #ccc;
+            border-bottom-color: #444;
+        }
+        .kpi-card .value { color: #fff; }
+        .activity-feed li { border-bottom-color: #444; }
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="saas-mission-control">
+    <h1>ZenVerse Platform Analytics</h1>
+    
+    <div class="dashboard-container">
+        <div class="kpi-card">
+            <h3>Total Tenants</h3>
+            <div class="value" id="kpi-tenants">-</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Total Users</h3>
+            <div class="value" id="kpi-users">-</div>
+        </div>
+        <div class="kpi-card">
+            <h3>Service/Bug Requests</h3>
+            <div class="value" id="kpi-requests">-</div>
+        </div>
+    </div>
+
+    <div class="chart-row">
+        <div class="chart-container">
+            <h2>Tenant Growth (Last 30 Days)</h2>
+            <canvas id="signupChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h2>Industry Distribution</h2>
+            <canvas id="industryChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="chart-row">
+        <div class="chart-container" style="height: auto;">
+            <h2>Tenants by Plan</h2>
+            <canvas id="planChart" style="max-height: 250px;"></canvas>
+        </div>
+        
+        <div class="chart-container" style="height: auto;">
+            <h2>Live Activity Feed</h2>
+            <ul class="activity-feed" id="activity-list">
+                <li>Loading activity...</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch data from our new API endpoint
+        fetch('/api/admin/dashboard-stats/')
+            .then(response => response.json())
+            .then(data => {
+                // Update KPIs
+                document.getElementById('kpi-tenants').innerText = data.total_tenants;
+                document.getElementById('kpi-users').innerText = data.total_users;
+                document.getElementById('kpi-requests').innerText = data.total_requests;
+                
+                // Update Activity Feed
+                const activityList = document.getElementById('activity-list');
+                activityList.innerHTML = '';
+                data.recent_activity.forEach(act => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="time">${act.time}</span>${act.message}`;
+                    activityList.appendChild(li);
+                });
+
+                // Setup Chart defaults for dark mode if needed
+                Chart.defaults.color = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? '#ccc' : '#666';
+
+                // 1. Line Chart (Signups)
+                new Chart(document.getElementById('signupChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.signup_labels,
+                        datasets: [{
+                            label: 'New Tenants',
+                            data: data.signup_counts,
+                            borderColor: '#417690',
+                            backgroundColor: 'rgba(65, 118, 144, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { maintainAspectRatio: false }
+                });
+
+                // 2. Donut Chart (Industry)
+                new Chart(document.getElementById('industryChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.industry_labels,
+                        datasets: [{
+                            data: data.industry_counts,
+                            backgroundColor: ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336', '#e91e63']
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, cutout: '70%' }
+                });
+
+                // 3. Bar Chart (Plans)
+                new Chart(document.getElementById('planChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.plan_labels,
+                        datasets: [{
+                            label: 'Tenants',
+                            data: data.plan_counts,
+                            backgroundColor: '#79aec8'
+                        }]
+                    },
+                    options: { 
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error("Error loading dashboard stats:", error);
+            });
+    });
+</script>
+
+<hr style="margin: 40px 0; border: 0; border-top: 1px solid #ddd;">
+<h2>Database Tables</h2>
+{{ block.super }}
+{% endblock %}
 
 {% block sidebar %}
     {{ block.super }}
@@ -22,15 +239,8 @@
                         {% trans 'Sales Pitch Deck' %}
                     </a>
                 </li>
-            
                 <li class="changelink">
-                    <a href="{{ site_url }}/docs/presentation.html?file=api_registration_postpaid_guide.md" target="_blank" title="API Registration Guide">
-                        API Setup & Registration Guide
-                    </a>
-                </li>
-            
-                <li class="changelink">
-                    <a href="{{ site_url }}/docs/presentation.html?file=tenant_api_documentation.md" target="_blank" title="Tenant API Integration Docs">
+                    <a href="{{ site_url }}/docs/presentation.html?file=tenant_api_documentation.md" target="_blank" title="API Registration Guide">
                         Client API Integration Docs (For Tenants)
                     </a>
                 </li>

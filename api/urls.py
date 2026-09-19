@@ -136,6 +136,7 @@ router.register(r'education/hostel-rooms', HostelRoomViewSet, basename='educatio
 router.register(r'education/hostel-allocations', HostelAllocationViewSet, basename='education-hostel-allocations')
 
 urlpatterns = [
+    path('admin/dashboard-stats/', AdminDashboardStatsView.as_view(), name='admin-dashboard-stats'),
     # API Root
     path('', public_views.APIRootView.as_view(), name='api-root'),
     path('sitemap.xml', public_views.SitemapView.as_view(), name='sitemap'),
