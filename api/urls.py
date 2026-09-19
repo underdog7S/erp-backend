@@ -10,6 +10,7 @@ from api.views.education_views import (
 )
 
 from .views import (
+    integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
@@ -332,6 +333,7 @@ urlpatterns = [
     # API Documentation
     path('docs/', api_docs_views.APIDocumentationView.as_view(), name='api-docs'),
     path('docs/examples/', api_docs_views.api_examples, name='api-examples'),
+    path('settings/integrations/', integration_views.TenantIntegrationSettingsView.as_view(), name='tenant-integrations'),
     
     # # Support
     # path('support/tickets/<int:ticket_id>/assign/', SupportTicketViewSet.as_view({'post': 'assign'}), name='assign-ticket'),

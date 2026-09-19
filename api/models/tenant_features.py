@@ -15,6 +15,17 @@ class TenantFeatureConfig(models.Model):
     is_sms_enabled = models.BooleanField(default=False)
     sms_used_this_month = models.IntegerField(default=0)
     sms_monthly_limit = models.IntegerField(default=0)
+
+    # BYOK SMS (Twilio)
+    twilio_account_sid = models.CharField(max_length=255, blank=True, null=True)
+    twilio_auth_token = models.CharField(max_length=255, blank=True, null=True)
+    twilio_phone_number = models.CharField(max_length=50, blank=True, null=True)
+
+    # BYOK SMS (AWS SNS)
+    aws_access_key_id = models.CharField(max_length=255, blank=True, null=True)
+    aws_secret_access_key = models.CharField(max_length=255, blank=True, null=True)
+    aws_region = models.CharField(max_length=50, blank=True, null=True, default='ap-south-1')
+
     
     # 3. WhatsApp Cloud API (Meta Embedded Signup)
     is_whatsapp_enabled = models.BooleanField(default=False)

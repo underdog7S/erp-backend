@@ -1,0 +1,28 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block sidebar %}
+    {{ block.super }}
+    <div id="content-related">
+        <div class="module" id="recent-actions-module">
+            <h2>{% trans 'Important Links' %}</h2>
+            <ul class="actionlist">
+                <li class="addlink">
+                    <a href="{{ site_url }}docs/developer_training_presentation.md" target="_blank" title="Developer Architecture Training">
+                        {% trans 'Developer Training Docs' %}
+                    </a>
+                </li>
+                <li class="changelink">
+                    <a href="{{ site_url }}docs/employee_training_presentation.md" target="_blank" title="Staff Usage Training">
+                        {% trans 'Employee Training Docs' %}
+                    </a>
+                </li>
+                <li class="changelink">
+                    <a href="{{ site_url }}docs/zenverse_sales_pitch.md" target="_blank" title="Sales Pitch PPT">
+                        {% trans 'Sales Pitch Deck' %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+{% endblock %}

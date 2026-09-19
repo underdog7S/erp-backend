@@ -7,6 +7,7 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from api.utils.notification_utils import send_admin_telegram_alert
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from django.contrib.auth.models import User
 from api.models.user import Tenant, UserProfile, Role
@@ -211,6 +212,10 @@ class RegisterView(APIView):
             is_oauth = data.get("is_oauth", False)
             
             # Create user and activate immediately (email verification disabled)
+            
+            # Notify Platform Admin
+            send_admin_telegram_alert(f"🚀 New User Registered: {data['username']} ({data['email']})\nCompany: {data['company']}\nIndustry: {data['industry']}")
+
             user = User.objects.create_user(
                 username=data["username"],
                 email=data["email"],

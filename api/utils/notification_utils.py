@@ -290,3 +290,22 @@ def _send_notification_channels(notification: Notification, recipient_phone: Opt
         )
 
 
+
+
+def send_admin_telegram_alert(message):
+    import threading
+    import requests
+    from django.conf import settings
+    
+    def _send():
+        bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+        chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', None)
+        if not bot_token or not chat_id:
+            return
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        try:
+            requests.post(url, json={"chat_id": chat_id, "text": message})
+        except Exception as e:
+            pass
+            
+    threading.Thread(target=_send).start()
