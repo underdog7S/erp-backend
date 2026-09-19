@@ -26,6 +26,11 @@ class TenantIntegrationSettingsView(APIView):
             'aws_access_key_id': config.aws_access_key_id or '',
             'aws_secret_access_key': config.aws_secret_access_key or '',
             'aws_region': config.aws_region or 'ap-south-1',
+            'smtp_host': config.smtp_host or '',
+            'smtp_port': config.smtp_port or 587,
+            'smtp_username': config.smtp_username or '',
+            'smtp_password': config.smtp_password or '',
+            'smtp_use_tls': config.smtp_use_tls,
         })
 
     def post(self, request):
@@ -57,6 +62,17 @@ class TenantIntegrationSettingsView(APIView):
             config.aws_secret_access_key = data['aws_secret_access_key']
         if 'aws_region' in data:
             config.aws_region = data['aws_region']
+            
+        if 'smtp_host' in data:
+            config.smtp_host = data['smtp_host']
+        if 'smtp_port' in data:
+            config.smtp_port = data['smtp_port']
+        if 'smtp_username' in data:
+            config.smtp_username = data['smtp_username']
+        if 'smtp_password' in data:
+            config.smtp_password = data['smtp_password']
+        if 'smtp_use_tls' in data:
+            config.smtp_use_tls = data['smtp_use_tls']
             
         config.save()
         

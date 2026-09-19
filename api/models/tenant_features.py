@@ -15,6 +15,13 @@ class TenantFeatureConfig(models.Model):
     custom_domain = models.CharField(max_length=255, blank=True, null=True, help_text="e.g., mail.theirsalon.com")
     is_custom_email_enabled = models.BooleanField(default=False)
     
+    # BYOK Email (SMTP)
+    smtp_host = models.CharField(max_length=255, blank=True, null=True, help_text="e.g., smtp.gmail.com")
+    smtp_port = models.IntegerField(blank=True, null=True, help_text="e.g., 587 or 465")
+    smtp_username = models.CharField(max_length=255, blank=True, null=True)
+    smtp_password = models.CharField(max_length=255, blank=True, null=True, help_text="App Password")
+    smtp_use_tls = models.BooleanField(default=True)
+    
     # 2. SMS Configuration (Managed by Master Account)
     is_sms_enabled = models.BooleanField(default=False)
     sms_used_this_month = models.IntegerField(default=0)
