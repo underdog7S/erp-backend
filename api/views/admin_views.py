@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import serializers
 from api.models.user import UserProfile, Tenant, Role
@@ -79,7 +79,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
 class AdminExportDataView(APIView):
 	
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, IsAdminUser]
 	
 	def get(self, request):
 		"""Export all system data as a ZIP file"""
@@ -273,7 +273,7 @@ To import this data, use the Import Data feature in the Admin Dashboard.
 
 class AdminImportDataView(APIView):
 	
-	permission_classes = [IsAuthenticated]
+	permission_classes = [IsAuthenticated, IsAdminUser]
 	
 	def post(self, request):
 		"""Import system data from a ZIP file"""
@@ -635,7 +635,6 @@ class TenantLogoView(APIView):
 
 
 from rest_framework import viewsets
-from rest_framework.permissions import IsAdminUser
 from django.contrib.auth.models import User
 
 class SuperAdminUserSerializer(serializers.ModelSerializer):
