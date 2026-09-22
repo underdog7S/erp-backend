@@ -89,6 +89,7 @@ MIDDLEWARE.extend([
     'django.contrib.auth.middleware.AuthenticationMiddleware',  # Must come before RateLimitMiddleware
     'api.middleware.security.RateLimitMiddleware',  # Add rate limiting (after auth so request.user exists)
     'api.middleware.security.SecurityHeadersMiddleware',  # Add security headers
+    'api.middleware.subscription_middleware.SubscriptionMiddleware',  # Block/limit access for expired subscriptions
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Optional: Uncomment to enable docs protection middleware

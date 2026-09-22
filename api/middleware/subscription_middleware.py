@@ -4,6 +4,8 @@ Checks subscription status for API requests and enforces restrictions
 """
 from django.utils import timezone
 from django.http import JsonResponse
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from api.models.user import UserProfile
 
 class SubscriptionMiddleware:
@@ -12,18 +14,21 @@ class SubscriptionMiddleware:
     This protects all API endpoints except authentication and public endpoints
     """
     
-    # Endpoints that don't require subscription check
+    # Endpoints that don't require subscription check. A tenant who is
+    # expired must still be able to reach these, or they'd be locked out
+    # of the very flow needed to renew and pay their way back in.
     EXEMPT_PATHS = [
         '/api/login/',
         '/api/register/',
         '/api/token/refresh/',
-        '/api/plans/',
-        '/api/payments/create-order/',
-        '/api/payments/verify/',
+        '/api/plans/',  # covers /plans/, /plans/change/ (free downgrade), /plans/saas-usage/
+        '/api/payments/razorpay/order/',
+        '/api/payments/razorpay/verify/',
         '/api/auth/google/',
         '/api/auth/google/callback/',
         '/api/verify-email/',
         '/api/resend-verification/',
+        '/api/users/me/',  # frontend needs this to even render a renew prompt
     ]
     
     # Read-only methods (allowed in grace period)
@@ -36,13 +41,22 @@ class SubscriptionMiddleware:
         # Check if path should be exempt
         if any(request.path.startswith(exempt) for exempt in self.EXEMPT_PATHS):
             return self.get_response(request)
-        
-        # Only check authenticated requests
-        if not request.user.is_authenticated:
-            return self.get_response(request)
-        
+
+        # This runs as plain Django middleware, BEFORE DRF's view dispatch -
+        # request.user is still AnonymousUser here even on a valid JWT
+        # request (DRF's JWTAuthentication only runs inside the view layer).
+        # Authenticate the bearer token directly so this actually enforces
+        # anything, instead of silently no-op'ing on every request.
         try:
-            profile = UserProfile.objects.get(user=request.user)
+            auth_result = JWTAuthentication().authenticate(request)
+        except (InvalidToken, TokenError):
+            auth_result = None
+        if auth_result is None:
+            return self.get_response(request)
+        user, _token = auth_result
+
+        try:
+            profile = UserProfile.objects.get(user=user)
             tenant = profile.tenant
             
             # Check if subscription has expired
