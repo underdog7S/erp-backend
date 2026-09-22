@@ -150,5 +150,7 @@ supabase
 channels
 daphne
 openai
+google-generativeai
+anthropic
 boto3
 twilio

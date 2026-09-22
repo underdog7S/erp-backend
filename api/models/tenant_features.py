@@ -53,7 +53,29 @@ class TenantFeatureConfig(models.Model):
     
     # BYOK OpenAI key — Pro/Enterprise/Platform tenants can bring their own
     openai_api_key = models.CharField(max_length=255, blank=True, null=True, help_text="BYOK OpenAI API key (sk-proj-...)")
-    
+
+    # BYOK AI provider selection — which provider's key to actually use for AI replies
+    AI_PROVIDER_CHOICES = [
+        ('openai', 'OpenAI'),
+        ('azure_openai', 'Azure OpenAI'),
+        ('gemini', 'Google Gemini'),
+        ('claude', 'Anthropic Claude'),
+    ]
+    ai_provider = models.CharField(max_length=20, choices=AI_PROVIDER_CHOICES, default='openai', help_text="Which AI provider to use for AI Auto-Responder replies")
+
+    # BYOK Azure OpenAI
+    azure_openai_api_key = models.CharField(max_length=255, blank=True, null=True)
+    azure_openai_endpoint = models.CharField(max_length=255, blank=True, null=True, help_text="e.g., https://your-resource.openai.azure.com/")
+    azure_openai_deployment_name = models.CharField(max_length=100, blank=True, null=True, help_text="Your deployed model's name, e.g., gpt-4o-mini")
+
+    # BYOK Google Gemini
+    gemini_api_key = models.CharField(max_length=255, blank=True, null=True)
+    gemini_model = models.CharField(max_length=100, blank=True, null=True, default='gemini-1.5-flash')
+
+    # BYOK Anthropic Claude
+    claude_api_key = models.CharField(max_length=255, blank=True, null=True)
+    claude_model = models.CharField(max_length=100, blank=True, null=True, default='claude-3-5-sonnet-latest')
+
     # 5. Telegram Integration (Optional BYOK for small tenants)
     is_telegram_enabled = models.BooleanField(default=False)
     telegram_bot_token = models.CharField(max_length=255, blank=True, null=True)

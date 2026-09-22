@@ -43,6 +43,18 @@ class TenantIntegrationSettingsView(APIView):
             # OpenAI — masked
             'openai_api_key': '••••••••' if config.openai_api_key else '',
             'has_openai': bool(config.openai_api_key),
+            # AI provider selection + BYOK credentials — masked
+            'ai_provider': config.ai_provider or 'openai',
+            'azure_openai_api_key': '••••••••' if config.azure_openai_api_key else '',
+            'azure_openai_endpoint': config.azure_openai_endpoint or '',
+            'azure_openai_deployment_name': config.azure_openai_deployment_name or '',
+            'has_azure_openai': bool(config.azure_openai_api_key and config.azure_openai_endpoint and config.azure_openai_deployment_name),
+            'gemini_api_key': '••••••••' if config.gemini_api_key else '',
+            'gemini_model': config.gemini_model or 'gemini-1.5-flash',
+            'has_gemini': bool(config.gemini_api_key),
+            'claude_api_key': '••••••••' if config.claude_api_key else '',
+            'claude_model': config.claude_model or 'claude-3-5-sonnet-latest',
+            'has_claude': bool(config.claude_api_key),
         })
 
     def post(self, request):
@@ -89,7 +101,24 @@ class TenantIntegrationSettingsView(APIView):
         
         if 'openai_api_key' in data and data['openai_api_key'] != MASKED:
             config.openai_api_key = data['openai_api_key']
-            
+
+        if 'ai_provider' in data and data['ai_provider'] in dict(TenantFeatureConfig.AI_PROVIDER_CHOICES):
+            config.ai_provider = data['ai_provider']
+        if 'azure_openai_api_key' in data and data['azure_openai_api_key'] != MASKED:
+            config.azure_openai_api_key = data['azure_openai_api_key']
+        if 'azure_openai_endpoint' in data:
+            config.azure_openai_endpoint = data['azure_openai_endpoint']
+        if 'azure_openai_deployment_name' in data:
+            config.azure_openai_deployment_name = data['azure_openai_deployment_name']
+        if 'gemini_api_key' in data and data['gemini_api_key'] != MASKED:
+            config.gemini_api_key = data['gemini_api_key']
+        if 'gemini_model' in data:
+            config.gemini_model = data['gemini_model']
+        if 'claude_api_key' in data and data['claude_api_key'] != MASKED:
+            config.claude_api_key = data['claude_api_key']
+        if 'claude_model' in data:
+            config.claude_model = data['claude_model']
+
         config.save()
         
         return Response({'status': 'Integrations updated successfully'})

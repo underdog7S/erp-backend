@@ -1,13 +1,18 @@
 import os
 import json
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 from api.models.communications import CommunicationThread, CommunicationMessage
 from api.models.tenant_features import TenantFeatureConfig
 from api.models.user import Tenant
 from api.models.crm import Contact, Deal
 
-api_key = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
-client = OpenAI(api_key=api_key)
+PLATFORM_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
+
+
+def _track_tokens(config, count):
+    if config and count:
+        config.ai_tokens_used_this_month += count
+        config.save(update_fields=['ai_tokens_used_this_month'])
 
 # Define the tools for RAG and CRM Lead Capture
 TOOLS = [
@@ -95,85 +100,142 @@ def execute_create_hot_lead(tenant, customer_name, intent_summary):
     except Exception as e:
         return f"ERROR creating lead: {str(e)}"
 
+def _reply_via_openai_compatible(config, system_prompt, messages_payload, tenant, max_tokens):
+    """Full-featured path (tool calling for inventory/lead capture) shared by
+    OpenAI and Azure OpenAI, since Azure OpenAI uses the same chat-completions
+    interface as the openai package - just a different client/model."""
+    if config and config.ai_provider == 'azure_openai' and config.azure_openai_api_key and config.azure_openai_endpoint and config.azure_openai_deployment_name:
+        client = AzureOpenAI(
+            api_key=config.azure_openai_api_key,
+            azure_endpoint=config.azure_openai_endpoint,
+            api_version="2024-02-01"
+        )
+        model = config.azure_openai_deployment_name
+    else:
+        # Plain OpenAI: prefer the tenant's own BYOK key, fall back to the
+        # platform key (also used when a non-OpenAI provider was selected
+        # but its credentials weren't fully filled in).
+        api_key = (config.openai_api_key if config and config.openai_api_key else PLATFORM_OPENAI_API_KEY)
+        client = OpenAI(api_key=api_key)
+        model = "gpt-4o-mini"
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages_payload,
+        max_tokens=max_tokens,
+        temperature=0.7,
+        tools=TOOLS,
+        tool_choice="auto"
+    )
+
+    message = response.choices[0].message
+    if hasattr(response, 'usage'):
+        _track_tokens(config, response.usage.total_tokens)
+
+    if message.tool_calls:
+        for tool_call in message.tool_calls:
+            function_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+
+            tool_result = ""
+            if function_name == "check_inventory":
+                tool_result = execute_check_inventory(tenant, args.get("search_term"))
+            elif function_name == "create_hot_lead":
+                tool_result = execute_create_hot_lead(tenant, args.get("customer_name"), args.get("intent_summary"))
+
+            messages_payload.append(message)
+            messages_payload.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": tool_result
+            })
+
+        second_response = client.chat.completions.create(
+            model=model,
+            messages=messages_payload,
+            max_tokens=max_tokens,
+            temperature=0.7
+        )
+        if hasattr(second_response, 'usage'):
+            _track_tokens(config, second_response.usage.total_tokens)
+        return second_response.choices[0].message.content
+
+    return message.content
+
+
+def _reply_via_gemini(config, system_prompt, history, max_tokens):
+    """Plain conversational reply via Google Gemini. No tool-calling support
+    yet (inventory check / lead capture) - Gemini's function-calling schema
+    differs enough from OpenAI's that it needs its own implementation later."""
+    import google.generativeai as genai
+    genai.configure(api_key=config.gemini_api_key)
+    model = genai.GenerativeModel(
+        model_name=config.gemini_model or 'gemini-1.5-flash',
+        system_instruction=system_prompt
+    )
+    contents = [{"role": ("user" if m["role"] == "user" else "model"), "parts": [m["content"]]} for m in history]
+    response = model.generate_content(contents, generation_config={"max_output_tokens": max_tokens, "temperature": 0.7})
+
+    if hasattr(response, 'usage_metadata') and response.usage_metadata:
+        _track_tokens(config, getattr(response.usage_metadata, 'total_token_count', 0))
+
+    return response.text
+
+
+def _reply_via_claude(config, system_prompt, history, max_tokens):
+    """Plain conversational reply via Anthropic Claude. No tool-calling
+    support yet - see _reply_via_gemini for why."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=config.claude_api_key)
+    response = client.messages.create(
+        model=config.claude_model or 'claude-3-5-sonnet-latest',
+        system=system_prompt,
+        messages=[{"role": m["role"], "content": m["content"]} for m in history],
+        max_tokens=max_tokens
+    )
+
+    if hasattr(response, 'usage') and response.usage:
+        _track_tokens(config, (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0))
+
+    return response.content[0].text if response.content else ""
+
+
 def generate_smart_reply(thread: CommunicationThread, max_tokens: int = 150) -> str:
     tenant = thread.tenant
-    
+    config = TenantFeatureConfig.objects.filter(tenant=tenant).first()
+
     system_prompt = f"You are a helpful, professional assistant for '{tenant.name}'."
     if tenant.industry:
         system_prompt += f" Industry: {tenant.industry}."
-    
+
     system_prompt += (
         " You have tools to check live inventory and create CRM leads. "
         "1. If a customer asks if you have something in stock, USE the check_inventory tool! Do not guess. "
         "2. If a customer says they want to buy, book, or says 'I am interested', USE the create_hot_lead tool! "
         "Keep answers concise and friendly."
     )
-    
-    messages_payload = [{"role": "system", "content": system_prompt}]
-    
+
     history = CommunicationMessage.objects.filter(thread=thread).order_by('-created_at')[:10]
     history = list(history)[::-1]
-    
-    for msg in history:
-        role = "user" if msg.sender_type == 'client' else "assistant"
-        messages_payload.append({"role": role, "content": msg.content})
-        
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages_payload,
-            max_tokens=max_tokens,
-            temperature=0.7,
-            tools=TOOLS,
-            tool_choice="auto"
-        )
-        
-        message = response.choices[0].message
-        
-        # Track Tokens
-        config = TenantFeatureConfig.objects.filter(tenant=tenant).first()
-        if config and hasattr(response, 'usage'):
-            config.ai_tokens_used_this_month += response.usage.total_tokens
-            config.save(update_fields=['ai_tokens_used_this_month'])
+    history_payload = [
+        {"role": ("user" if msg.sender_type == 'client' else "assistant"), "content": msg.content}
+        for msg in history
+    ]
 
-        # Check if the AI wanted to call a tool
-        if message.tool_calls:
-            for tool_call in message.tool_calls:
-                function_name = tool_call.function.name
-                args = json.loads(tool_call.function.arguments)
-                
-                tool_result = ""
-                if function_name == "check_inventory":
-                    tool_result = execute_check_inventory(tenant, args.get("search_term"))
-                elif function_name == "create_hot_lead":
-                    tool_result = execute_create_hot_lead(tenant, args.get("customer_name"), args.get("intent_summary"))
-                
-                # Append the tool call and result to the messages
-                messages_payload.append(message)
-                messages_payload.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": function_name,
-                    "content": tool_result
-                })
-            
-            # Get the final answer from OpenAI after seeing the tool result
-            second_response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages_payload,
-                max_tokens=max_tokens,
-                temperature=0.7
-            )
-            
-            # Track Tokens for second call
-            if config and hasattr(second_response, 'usage'):
-                config.ai_tokens_used_this_month += second_response.usage.total_tokens
-                config.save(update_fields=['ai_tokens_used_this_month'])
-                
-            return second_response.choices[0].message.content
-            
-        return message.content
-        
+    provider = config.ai_provider if config else 'openai'
+
+    try:
+        if provider == 'gemini' and config and config.gemini_api_key:
+            return _reply_via_gemini(config, system_prompt, history_payload, max_tokens)
+        if provider == 'claude' and config and config.claude_api_key:
+            return _reply_via_claude(config, system_prompt, history_payload, max_tokens)
+
+        # openai, azure_openai, or an unconfigured non-OpenAI provider
+        # (falls back to OpenAI so replies keep working either way)
+        messages_payload = [{"role": "system", "content": system_prompt}] + history_payload
+        return _reply_via_openai_compatible(config, system_prompt, messages_payload, tenant, max_tokens)
+
     except Exception as e:
-        print(f"OpenAI API Error: {e}")
+        print(f"AI provider ({provider}) error: {e}")
         return "I'm sorry, I'm having trouble processing that right now. Please try again later."
