@@ -148,6 +148,7 @@ class RazorpayPaymentVerifyView(APIView):
                     
                     # Record the transaction
                     PaymentTransaction._default_manager.create(
+                        user=request.user,
                         tenant=tenant,
                         payment_id=payment_id,
                         order_id=order_id,
@@ -500,8 +501,12 @@ class PaymentReceiptPDFView(APIView):
             p.drawString(25 * mm, y - 8, 'CUSTOMER INFORMATION')
             y -= 18
             
-            customer_name = transaction.user.get_full_name() or transaction.user.username
-            customer_email = transaction.user.email or 'N/A'
+            if transaction.user:
+                customer_name = transaction.user.get_full_name() or transaction.user.username
+                customer_email = transaction.user.email or 'N/A'
+            else:
+                customer_name = 'N/A'
+                customer_email = 'N/A'
             tenant_name = transaction.tenant.name if transaction.tenant else 'N/A'
             
             # IMPROVED: Better spacing with proper column boundaries
