@@ -226,6 +226,11 @@ class RazorpayPaymentVerifyView(APIView):
                         tenant.subscription_status = 'active'
                         tenant.grace_period_end_date = None  # Clear grace period if exists
                         tenant.save()
+
+                        # Turn on the SMS/WhatsApp/AI toggles that go with this
+                        # tier now that the payment has been verified above.
+                        from api.utils.subscription_utils import provision_tenant_plan_features
+                        provision_tenant_plan_features(tenant, plan)
                     except Plan._default_manager.model.DoesNotExist:
                         return Response({'error': 'Selected plan does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
                 # Store transaction record (use the Razorpay-verified amount when

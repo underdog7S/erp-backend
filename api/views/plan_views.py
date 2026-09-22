@@ -6,7 +6,6 @@ from api.models.user import UserProfile, Tenant
 from rest_framework import status
 from api.models.plan import Plan
 from api.models.tenant_features import TenantFeatureConfig
-from api.utils.subscription_utils import handle_user_limit_exceeded, reactivate_suspended_users
 
 def serialize_plan(p):
     """Serialize a Plan model instance into the dictionary expected by the frontend"""
@@ -70,7 +69,7 @@ class PlanChangeView(APIView):
         
         tenant = profile.tenant
         plan_key = request.data.get("plan")
-        
+
         # Look up by name lowercased
         try:
             plan_instance = Plan.objects.get(name__iexact=plan_key)
@@ -81,74 +80,24 @@ class PlanChangeView(APIView):
         old_price = old_plan.price if old_plan and old_plan.price is not None else 0
         new_price = plan_instance.price
 
-        if new_price > old_price and plan_instance.name.lower() != "free":
-             pass
+        # SECURITY: this endpoint is not payment-verified. It may only ever
+        # move a tenant DOWN to a cheaper/free plan for self-service
+        # downgrades. Any upgrade to a plan that costs more must go through
+        # RazorpayPaymentVerifyView, which actually confirms payment with
+        # Razorpay before calling provision_tenant_plan_features(). Without
+        # this check, anyone could POST {"plan":"enterprise"} here and get
+        # a paid tier for free.
+        if new_price is None or new_price > old_price:
+            return Response(
+                {"error": "Upgrading to a paid plan requires completing checkout. Please use the billing/upgrade flow instead."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         tenant.plan = plan_instance
         tenant.save()
 
-        # Create missing config if needed
-        config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
-        
-        # Auto-provision APIs based on the new plan
-        plan_name = plan_instance.name.lower()
-        if plan_name == 'platform':
-            # BYOK plan — user brings own keys, enable channels so BYOK works
-            config.is_sms_enabled = True
-            config.sms_monthly_limit = 0   # 0 = unlimited via their own Twilio
-            config.is_whatsapp_enabled = True
-            config.whatsapp_monthly_limit = 0
-            config.is_ai_enabled = True
-            config.ai_tokens_monthly_limit = 0
-        elif plan_name == 'starter':
-            config.is_sms_enabled = True
-            config.sms_monthly_limit = 1000
-            config.is_whatsapp_enabled = False
-            config.is_ai_enabled = True
-            config.ai_tokens_monthly_limit = 500
-        elif plan_name == 'pro':
-            config.is_sms_enabled = True
-            config.sms_monthly_limit = 5000
-            config.is_whatsapp_enabled = True
-            config.whatsapp_monthly_limit = 1000
-            config.is_ai_enabled = True
-            config.ai_tokens_monthly_limit = 2000
-        elif plan_name == 'enterprise':
-            config.is_sms_enabled = True
-            config.sms_monthly_limit = 20000
-            config.is_whatsapp_enabled = True
-            config.whatsapp_monthly_limit = 10000
-            config.is_ai_enabled = True
-            config.ai_tokens_monthly_limit = 10000
-        elif plan_name == 'free':
-            config.is_sms_enabled = False
-            config.is_whatsapp_enabled = False
-            config.is_ai_enabled = False
-            
-        config.save()
-
-        # White-Glove Fulfillment Alert
-        if plan_name in ['starter', 'pro']:
-            try:
-                from django.core.mail import send_mail
-                from django.conf import settings
-                send_mail(
-                    subject=f"URGENT: Telecom Fulfillment Required for {tenant.name}",
-                    message=f"Tenant {tenant.name} just upgraded to the {plan_name.upper()} plan.\n\nPlease purchase their dedicated Twilio phone number and domain email alias immediately, and paste them into the Django Admin under their Tenant Feature Config.",
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=['shadabsheikh314@gmail.com'],
-                    fail_silently=True
-                )
-            except Exception as e:
-                pass # Non-critical if email fails during testing
-
-        # Trigger logic based on new plan constraints
-        if tenant.plan.max_users is not None:
-            active_users = UserProfile.objects.filter(tenant=tenant, is_active=True).count()
-            if active_users > tenant.plan.max_users:
-                handle_user_limit_exceeded(tenant)
-            else:
-                reactivate_suspended_users(tenant)
+        from api.utils.subscription_utils import provision_tenant_plan_features
+        provision_tenant_plan_features(tenant, plan_instance)
 
         return Response({"message": f"Successfully changed plan to {plan_instance.name}."})
 

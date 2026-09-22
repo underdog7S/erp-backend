@@ -6,6 +6,79 @@ from api.models.user import UserProfile, Tenant
 from api.utils.notification_utils import create_module_notification
 from django.utils import timezone
 
+
+def provision_tenant_plan_features(tenant, plan_instance):
+    """
+    Turn on the SMS/WhatsApp/AI feature toggles and limits that go with a
+    plan tier, send the white-glove fulfillment alert for managed plans, and
+    apply the plan's user-limit consequences. Shared by every code path that
+    actually sets tenant.plan - callers are responsible for verifying the
+    tenant is entitled to that plan (payment or a free-tier change) BEFORE
+    calling this; it does not check payment itself.
+    """
+    from api.models.tenant_features import TenantFeatureConfig
+
+    config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+    plan_name = plan_instance.name.lower()
+
+    if plan_name == 'platform':
+        # BYOK plan — user brings own keys, enable channels so BYOK works
+        config.is_sms_enabled = True
+        config.sms_monthly_limit = 0   # 0 = unlimited via their own Twilio
+        config.is_whatsapp_enabled = True
+        config.whatsapp_monthly_limit = 0
+        config.is_ai_enabled = True
+        config.ai_tokens_monthly_limit = 0
+    elif plan_name == 'starter':
+        config.is_sms_enabled = True
+        config.sms_monthly_limit = 1000
+        config.is_whatsapp_enabled = False
+        config.is_ai_enabled = True
+        config.ai_tokens_monthly_limit = 500
+    elif plan_name == 'pro':
+        config.is_sms_enabled = True
+        config.sms_monthly_limit = 5000
+        config.is_whatsapp_enabled = True
+        config.whatsapp_monthly_limit = 1000
+        config.is_ai_enabled = True
+        config.ai_tokens_monthly_limit = 2000
+    elif plan_name == 'enterprise':
+        config.is_sms_enabled = True
+        config.sms_monthly_limit = 20000
+        config.is_whatsapp_enabled = True
+        config.whatsapp_monthly_limit = 10000
+        config.is_ai_enabled = True
+        config.ai_tokens_monthly_limit = 10000
+    elif plan_name == 'free':
+        config.is_sms_enabled = False
+        config.is_whatsapp_enabled = False
+        config.is_ai_enabled = False
+
+    config.save()
+
+    # White-Glove Fulfillment Alert for plans ZenVerse provisions manually
+    if plan_name in ('starter', 'pro'):
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            send_mail(
+                subject=f"URGENT: Telecom Fulfillment Required for {tenant.name}",
+                message=f"Tenant {tenant.name} just upgraded to the {plan_name.upper()} plan.\n\nPlease purchase their dedicated Twilio phone number and domain email alias immediately, and paste them into the Django Admin under their Tenant Feature Config.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=['shadabsheikh314@gmail.com'],
+                fail_silently=True
+            )
+        except Exception:
+            pass  # Non-critical if email fails
+
+    # Trigger logic based on new plan's user-limit constraints
+    if tenant.plan.max_users is not None:
+        active_users = UserProfile.objects.filter(tenant=tenant, is_active=True).count()
+        if active_users > tenant.plan.max_users:
+            handle_user_limit_exceeded(tenant)
+        else:
+            reactivate_suspended_users(tenant)
+
 def handle_user_limit_exceeded(tenant):
     """
     Handle users exceeding plan limit when plan changes or expires
