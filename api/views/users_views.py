@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.contrib.auth.models import User
 from api.models.user import UserProfile, Tenant, Role
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from django.utils.crypto import get_random_string
@@ -275,7 +275,7 @@ class InviteUserView(APIView):
         token = get_random_string(32)
         # Store token in a simple way (in production, use a model)
         # For demo, send token in email
-        activation_link = f"https://erp-frontend-psi-six.vercel.app/activate?email={email}&token={token}"
+        activation_link = f"{settings.FRONTEND_URL}/activate?email={email}&token={token}"
         send_mail(
             "You're invited to Zenith ERP",
             f"Click the link to activate your account: {activation_link}",
@@ -303,26 +303,34 @@ class ActivateUserView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         email = request.data.get("email")
         if not email:
             return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Always return the same generic response whether or not the email
+        # is registered - returning 404 for unknown emails lets an attacker
+        # enumerate which addresses have accounts.
+        generic_response = Response({"message": "If that email is registered, a password reset link has been sent."})
         try:
             user = User.objects.get(email=email)
-            token = default_token_generator.make_token(user)
-            reset_link = f"https://your-frontend-url.com/reset-password?email={email}&token={token}"
-            send_mail(
-                "Password Reset Request",
-                f"Click the link to reset your password: {reset_link}",
-                settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=True,
-            )
-            return Response({"message": "Password reset email sent."})
         except User.DoesNotExist:  # type: ignore
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return generic_response
+        token = default_token_generator.make_token(user)
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?email={email}&token={token}"
+        send_mail(
+            "Password Reset Request",
+            f"Click the link to reset your password: {reset_link}",
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=True,
+        )
+        return generic_response
 
 class PasswordResetConfirmView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         email = request.data.get("email")
         token = request.data.get("token")

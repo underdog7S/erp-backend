@@ -165,7 +165,11 @@ urlpatterns = [
     # Email Verification
     path('verify-email/', auth_views.EmailVerificationView.as_view(), name='verify-email'),
     path('resend-verification/', auth_views.ResendVerificationEmailView.as_view(), name='resend-verification'),
-    
+
+    # Password Reset
+    path('password-reset/request/', users_views.PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/', users_views.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+
     # TODO: Uncomment these when views are properly implemented
     # # Authentication
     # path('logout/', users_views.LogoutView.as_view(), name='logout'),
