@@ -389,6 +389,7 @@ urlpatterns += [
     path('education/analytics/monthly-report/export/', ExportMonthlyReportCSVView.as_view(), name='export-monthly-report'),
     path('payments/razorpay/order/', payments_views.RazorpayOrderCreateView.as_view(), name='razorpay-order'),
     path('payments/razorpay/verify/', payments_views.RazorpayPaymentVerifyView.as_view(), name='razorpay-verify'),
+    path('payments/razorpay/webhook/', payments_views.RazorpayWebhookView.as_view(), name='razorpay-platform-webhook'),
     path('payments/options/', payments_views.TenantPaymentOptionsView.as_view(), name='tenant-payment-options'),
     path('payments/upi-settings/', payments_views.TenantUPISettingsView.as_view(), name='tenant-upi-settings'),
     path('payments/receipt/<int:pk>/', payments_views.PaymentReceiptPDFView.as_view(), name='payment-receipt-pdf'),
