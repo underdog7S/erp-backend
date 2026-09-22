@@ -73,7 +73,7 @@ def provision_tenant_plan_features(tenant, plan_instance):
 
     # Trigger logic based on new plan's user-limit constraints
     if tenant.plan.max_users is not None:
-        active_users = UserProfile.objects.filter(tenant=tenant, is_active=True).count()
+        active_users = UserProfile.objects.filter(tenant=tenant, user__is_active=True).count()
         if active_users > tenant.plan.max_users:
             handle_user_limit_exceeded(tenant)
         else:

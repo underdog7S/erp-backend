@@ -300,7 +300,7 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
         profile = UserProfile._default_manager.filter(user=self.request.user).first()
         if not profile or not profile.tenant:
             return PaymentTransaction.objects.none()
-        return PaymentTransaction.objects.filter(tenant=profile.tenant).order_by('id')
+        return PaymentTransaction.objects.filter(tenant=profile.tenant).order_by('-created_at')
 
     def destroy(self, request, *args, **kwargs):
         profile = UserProfile._default_manager.get(user=request.user)
