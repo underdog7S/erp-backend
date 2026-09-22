@@ -17,8 +17,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
 from api.models.user import Tenant
-from hotel.models import RoomType, Room, Guest, Booking
-from api.serializers import RoomTypeSerializer, RoomSerializer, GuestSerializer, BookingSerializer
+from hotel.models import RoomType, Room, Guest, Booking, HousekeepingTask, RoomServiceOrder
+from api.serializers import RoomTypeSerializer, RoomSerializer, GuestSerializer, BookingSerializer, HousekeepingTaskSerializer, RoomServiceOrderSerializer
 
 
 class RoomTypeListCreateView(generics.ListCreateAPIView):
@@ -177,6 +177,14 @@ class BookingCheckOutView(APIView):
 			# Update room status
 			booking.room.status = 'available'
 			booking.room.save(update_fields=['status'])
+			# Queue a cleaning task for housekeeping - room stays bookable
+			# immediately (status above), this just tracks the cleaning work.
+			HousekeepingTask.objects.create(
+				tenant=request.user.userprofile.tenant,
+				room=booking.room,
+				task_type='Checkout Cleaning',
+				status='pending'
+			)
 			return Response({'message': 'Guest checked out successfully', 'status': booking.status})
 		except Booking.DoesNotExist:
 			return Response({'error': 'Booking not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -350,15 +358,31 @@ class HotelBookingFolioView(APIView):
         p.drawRightString(width - margin, y, f"₹{room_total:.2f}")
         y -= 12
 
-        p.drawString(margin, y, 'Other Charges')
-        y -= 12
-        other_charges = float(booking.total_amount or 0) - room_total
-        if other_charges < 0:
-            other_charges = 0
-        p.drawRightString(width - margin, y, f"₹{other_charges:.2f}")
-        y -= 12
+        # Itemize actual room-service charges placed during this stay,
+        # instead of guessing a lump "Other Charges" figure from whatever
+        # total_amount happens to be.
+        service_orders = RoomServiceOrder.objects.filter(
+            tenant=booking.tenant, room=booking.room,
+            ordered_at__gte=booking.check_in, ordered_at__lte=booking.check_out
+        ).order_by('ordered_at')
+        service_total = 0.0
+        if service_orders:
+            for order in service_orders:
+                item_names = ', '.join(i.get('name', str(i)) if isinstance(i, dict) else str(i) for i in (order.items or []))
+                p.drawString(margin, y, f"Room Service: {item_names[:60] or 'Order #' + str(order.id)}")
+                y -= 12
+                order_amount = float(order.total_amount or 0)
+                service_total += order_amount
+                p.drawRightString(width - margin, y, f"₹{order_amount:.2f}")
+                y -= 12
+        else:
+            p.drawString(margin, y, 'Room Service / Other Charges')
+            y -= 12
+            p.drawRightString(width - margin, y, "₹0.00")
+            y -= 12
 
-        total_amount = float(booking.total_amount or 0)
+        computed_total = room_total + service_total
+        total_amount = float(booking.total_amount or 0) or computed_total
         p.setFont('Helvetica-Bold', 12)
         p.drawString(margin, y, 'Total Amount')
         p.drawRightString(width - margin, y, f"₹{total_amount:.2f}")
@@ -375,6 +399,68 @@ class HotelBookingFolioView(APIView):
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="hotel_folio_{booking.id}.pdf"'
         return response
+
+
+class HousekeepingTaskListCreateView(generics.ListCreateAPIView):
+	"""Cleaning work queue. Tasks are normally auto-created on checkout
+	(see BookingCheckOutView) but can also be raised manually (e.g. a
+	mid-stay tidy request)."""
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+	serializer_class = HousekeepingTaskSerializer
+
+	def get_queryset(self):
+		queryset = HousekeepingTask.objects.filter(
+			tenant=self.request.user.userprofile.tenant
+		).select_related('room').order_by('-created_at')
+		status_param = self.request.query_params.get('status')
+		if status_param:
+			queryset = queryset.filter(status=status_param)
+		else:
+			# Default view is the active work queue, not the full history
+			queryset = queryset.exclude(status='completed')
+		return queryset
+
+	def perform_create(self, serializer):
+		serializer.save(tenant=self.request.user.userprofile.tenant)
+
+
+class HousekeepingTaskCompleteView(APIView):
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+
+	def post(self, request, pk):
+		try:
+			task = HousekeepingTask.objects.get(id=pk, tenant=request.user.userprofile.tenant)
+		except HousekeepingTask.DoesNotExist:
+			return Response({'error': 'Task not found.'}, status=status.HTTP_404_NOT_FOUND)
+		task.status = 'completed'
+		task.completed_at = timezone.now()
+		task.save(update_fields=['status', 'completed_at'])
+		return Response(HousekeepingTaskSerializer(task).data)
+
+
+class RoomServiceOrderListCreateView(generics.ListCreateAPIView):
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+	serializer_class = RoomServiceOrderSerializer
+
+	def get_queryset(self):
+		queryset = RoomServiceOrder.objects.filter(
+			tenant=self.request.user.userprofile.tenant
+		).select_related('room').order_by('-ordered_at')
+		room_id = self.request.query_params.get('room')
+		if room_id:
+			queryset = queryset.filter(room_id=room_id)
+		return queryset
+
+	def perform_create(self, serializer):
+		serializer.save(tenant=self.request.user.userprofile.tenant)
+
+
+class RoomServiceOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
+	permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+	serializer_class = RoomServiceOrderSerializer
+
+	def get_queryset(self):
+		return RoomServiceOrder.objects.filter(tenant=self.request.user.userprofile.tenant)
 
 
 class BookingBulkDeleteView(APIView):

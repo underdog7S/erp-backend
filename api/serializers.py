@@ -20,7 +20,7 @@ from retail.models import (
     PriceList as RetailPriceList, PriceListItem as RetailPriceListItem,
     Quotation as RetailQuotation, QuotationItem as RetailQuotationItem
 )
-from hotel.models import RoomType, Room, Guest, Booking
+from hotel.models import RoomType, Room, Guest, Booking, HousekeepingTask, RoomServiceOrder
 from salon.models import ServiceCategory, Service, Stylist, Appointment
 from restaurant.models import MenuCategory, MenuItem, Table, Order, OrderItem, ExternalAPIIntegration, MenuSyncLog
 
@@ -762,6 +762,22 @@ class BookingSerializer(serializers.ModelSerializer):
 			if overlap_qs.exists():
 				raise serializers.ValidationError('This room is already booked for the selected dates.')
 		return data
+
+class HousekeepingTaskSerializer(serializers.ModelSerializer):
+	room_number = serializers.CharField(source='room.room_number', read_only=True)
+
+	class Meta:
+		model = HousekeepingTask
+		fields = '__all__'
+		read_only_fields = ('tenant', 'completed_at')
+
+class RoomServiceOrderSerializer(serializers.ModelSerializer):
+	room_number = serializers.CharField(source='room.room_number', read_only=True)
+
+	class Meta:
+		model = RoomServiceOrder
+		fields = '__all__'
+		read_only_fields = ('tenant',)
 
 # Restaurant Serializers
 class MenuCategorySerializer(serializers.ModelSerializer):

@@ -447,6 +447,10 @@ urlpatterns += [
     path('hotel/bookings/bulk-status-update/', hotel_views.BookingBulkStatusUpdateView.as_view(), name='hotel-bookings-bulk-status'),
     path('hotel/analytics/', hotel_views.HotelAnalyticsView.as_view(), name='hotel-analytics'),
     path('hotel/bookings/<int:pk>/folio/', hotel_views.HotelBookingFolioView.as_view(), name='hotel-booking-folio'),
+    path('hotel/housekeeping/', hotel_views.HousekeepingTaskListCreateView.as_view(), name='hotel-housekeeping'),
+    path('hotel/housekeeping/<int:pk>/complete/', hotel_views.HousekeepingTaskCompleteView.as_view(), name='hotel-housekeeping-complete'),
+    path('hotel/room-service/', hotel_views.RoomServiceOrderListCreateView.as_view(), name='hotel-room-service'),
+    path('hotel/room-service/<int:pk>/', hotel_views.RoomServiceOrderDetailView.as_view(), name='hotel-room-service-detail'),
     
     # Restaurant API endpoints
     path('restaurant/menu-categories/', restaurant_views.MenuCategoryListCreateView.as_view(), name='restaurant-menu-categories'),
