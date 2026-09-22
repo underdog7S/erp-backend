@@ -23,7 +23,7 @@ from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
-    razorpay_views
+    razorpay_views, twilio_views
 )
 from .views.timetable_views import (
     PeriodListCreateView, PeriodDetailView, RoomListCreateView, RoomDetailView,
@@ -606,6 +606,7 @@ urlpatterns += [
     # WhatsApp manual send
     path('integrations/whatsapp/send/', whatsapp_views.WhatsAppSendView.as_view(), name='whatsapp-send'),
     path('webhooks/whatsapp/', whatsapp_views.WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
+    path('webhooks/twilio/sms/', twilio_views.TwilioSMSWebhookView.as_view(), name='twilio-sms-webhook'),
     path('webhooks/email/', email_webhook_views.EmailWebhookView.as_view(), name='email-webhook'),
     
     # Import endpoints
