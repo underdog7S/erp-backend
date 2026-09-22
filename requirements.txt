@@ -151,3 +151,4 @@ channels
 daphne
 openai
 boto3
+twilio

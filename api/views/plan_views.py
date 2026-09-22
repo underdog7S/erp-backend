@@ -20,14 +20,23 @@ def serialize_plan(p):
     if p.has_white_label: features.append("White-Label Ready")
     if p.has_custom_reports: features.append("Custom Reports")
 
-    if p.name.lower() == 'starter':
-        features.append("Dedicated SMS Number")
-        features.append("Dedicated Support Email")
+    if p.name.lower() == 'platform':
+        features.append("Plug In Your Own WhatsApp")
+        features.append("Plug In Your Own SMS Gateway")
+        features.append("Plug In Your Own Email (SMTP)")
+        features.append("Full ERP Platform Access")
+    elif p.name.lower() == 'starter':
+        features.append("Dedicated SMS Number (We Set Up)")
+        features.append("Dedicated WhatsApp Number (We Set Up)")
+        features.append("Dedicated Support Email (We Set Up)")
     elif p.name.lower() == 'pro':
-        features.append("Dedicated SMS/WhatsApp Number")
-        features.append("Dedicated Support Email")
+        features.append("Dedicated SMS/WhatsApp Number (We Set Up)")
+        features.append("Dedicated Support Email (We Set Up)")
+        features.append("Priority White-Glove Onboarding")
     elif p.name.lower() == 'enterprise':
-        features.append("Bring Your Own Key (BYOK)")
+        features.append("Bring Your Own Key (Full BYOK)")
+        features.append("Unlimited Users")
+        features.append("White-Label Branding")
     
     return {
         "key": p.name.lower(),
@@ -83,7 +92,15 @@ class PlanChangeView(APIView):
         
         # Auto-provision APIs based on the new plan
         plan_name = plan_instance.name.lower()
-        if plan_name == 'starter':
+        if plan_name == 'platform':
+            # BYOK plan — user brings own keys, enable channels so BYOK works
+            config.is_sms_enabled = True
+            config.sms_monthly_limit = 0   # 0 = unlimited via their own Twilio
+            config.is_whatsapp_enabled = True
+            config.whatsapp_monthly_limit = 0
+            config.is_ai_enabled = True
+            config.ai_tokens_monthly_limit = 0
+        elif plan_name == 'starter':
             config.is_sms_enabled = True
             config.sms_monthly_limit = 1000
             config.is_whatsapp_enabled = False
@@ -149,6 +166,7 @@ class TenantFeatureUsageView(APIView):
             config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
             
             return Response({
+                'plan': tenant.plan.name if tenant.plan else 'free',
                 'sms': {
                     'enabled': config.is_sms_enabled,
                     'used': config.sms_used_this_month,

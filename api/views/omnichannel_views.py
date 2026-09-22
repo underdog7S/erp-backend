@@ -8,6 +8,7 @@ from api.models.tenant_features import TenantFeatureConfig
 from api.models.user import UserProfile
 from api.utils.ai_utils import generate_smart_reply
 import logging
+import requests as http_requests
 
 logger = logging.getLogger(__name__)
 
@@ -91,18 +92,68 @@ class OmnichannelReplyView(APIView):
             if thread.source == 'sms':
                 if not config.is_sms_enabled:
                     return Response({'error': 'SMS is locked on your current plan.'}, status=status.HTTP_403_FORBIDDEN)
-                if config.sms_used_this_month >= config.sms_monthly_limit:
+                # For managed plans (limit > 0), enforce quota. Platform/Enterprise (limit=0) = unlimited via own keys.
+                if config.sms_monthly_limit > 0 and config.sms_used_this_month >= config.sms_monthly_limit:
                     return Response({'error': 'Monthly SMS limit reached. Upgrade plan.'}, status=status.HTTP_403_FORBIDDEN)
                 config.sms_used_this_month += 1
+                config.save()
+                
+                # --- REAL SMS DELIVERY via Twilio ---
+                if config.twilio_account_sid and config.twilio_auth_token and config.twilio_phone_number:
+                    try:
+                        from twilio.rest import Client as TwilioClient
+                        twilio = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
+                        recipient_phone = thread.contact.phone if thread.contact and thread.contact.phone else None
+                        if recipient_phone:
+                            twilio.messages.create(
+                                body=content,
+                                from_=config.twilio_phone_number,
+                                to=recipient_phone
+                            )
+                            logger.info(f"SMS sent to {recipient_phone} for tenant {profile.tenant.name}")
+                        else:
+                            logger.warning(f"No phone number on contact for thread {thread_id}")
+                    except Exception as sms_err:
+                        logger.error(f"Twilio SMS failed: {sms_err}")
+                        # Don't block the message save — record it in DB regardless
+                else:
+                    logger.warning(f"Tenant {profile.tenant.name} has no Twilio credentials configured. Message saved to DB only.")
                 
             elif thread.source == 'whatsapp':
                 if not config.is_whatsapp_enabled:
                     return Response({'error': 'WhatsApp is locked on your current plan.'}, status=status.HTTP_403_FORBIDDEN)
-                if config.whatsapp_used_this_month >= config.whatsapp_monthly_limit:
+                if config.whatsapp_monthly_limit > 0 and config.whatsapp_used_this_month >= config.whatsapp_monthly_limit:
                     return Response({'error': 'Monthly WhatsApp limit reached. Upgrade plan.'}, status=status.HTTP_403_FORBIDDEN)
                 config.whatsapp_used_this_month += 1
+                config.save()
                 
-            config.save()
+                # --- REAL WHATSAPP DELIVERY via Meta Cloud API ---
+                if config.whatsapp_phone_number_id and config.whatsapp_access_token:
+                    try:
+                        recipient_phone = thread.contact.phone if thread.contact and thread.contact.phone else None
+                        if recipient_phone:
+                            meta_url = f"https://graph.facebook.com/v18.0/{config.whatsapp_phone_number_id}/messages"
+                            payload = {
+                                "messaging_product": "whatsapp",
+                                "to": recipient_phone,
+                                "type": "text",
+                                "text": {"body": content}
+                            }
+                            headers = {
+                                "Authorization": f"Bearer {config.whatsapp_access_token}",
+                                "Content-Type": "application/json"
+                            }
+                            resp = http_requests.post(meta_url, json=payload, headers=headers, timeout=10)
+                            if resp.status_code != 200:
+                                logger.error(f"Meta WhatsApp API error: {resp.status_code} {resp.text}")
+                            else:
+                                logger.info(f"WhatsApp sent to {recipient_phone} for tenant {profile.tenant.name}")
+                        else:
+                            logger.warning(f"No phone number on contact for WA thread {thread_id}")
+                    except Exception as wa_err:
+                        logger.error(f"Meta WhatsApp send failed: {wa_err}")
+                else:
+                    logger.warning(f"Tenant {profile.tenant.name} has no WhatsApp credentials. Message saved to DB only.")
 
             msg = CommunicationMessage.objects.create(
                 thread=thread,

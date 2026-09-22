@@ -1,3 +1,11 @@
+
+# Initialize dynamic storage tracking signals
+try:
+    from api.signals import register_storage_signals
+    register_storage_signals()
+except Exception:
+    pass
+
 from api.views.admin_dashboard_views import AdminDashboardStatsView
 from api.views import email_webhook_views
 

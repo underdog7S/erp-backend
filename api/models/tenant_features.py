@@ -51,6 +51,9 @@ class TenantFeatureConfig(models.Model):
     ai_tokens_used_this_month = models.IntegerField(default=0)
     ai_tokens_monthly_limit = models.IntegerField(default=0)
     
+    # BYOK OpenAI key — Pro/Enterprise/Platform tenants can bring their own
+    openai_api_key = models.CharField(max_length=255, blank=True, null=True, help_text="BYOK OpenAI API key (sk-proj-...)")
+    
     # 5. Telegram Integration (Optional BYOK for small tenants)
     is_telegram_enabled = models.BooleanField(default=False)
     telegram_bot_token = models.CharField(max_length=255, blank=True, null=True)

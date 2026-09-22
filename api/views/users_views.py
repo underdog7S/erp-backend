@@ -652,7 +652,9 @@ def user_me(request):
             "plan": tenant.plan.name if tenant and tenant.plan else None,
             "department_id": profile.department.id if hasattr(profile, 'department') and profile.department else None,
             "modules": modules,
-            # Add more fields as needed
+            # Platform-level flags — used by ProtectedAdminRoute to allow ONLY platform superadmins
+            "is_staff": request.user.is_staff,
+            "is_superuser": request.user.is_superuser,
         }
         return Response(data)
     except Exception as e:
