@@ -241,6 +241,10 @@ SIMPLE_JWT = {
 # Razorpay API keys (from .env)
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+# Separate secret configured in the Razorpay dashboard's Webhooks section for
+# THIS platform-level webhook (distinct from tenant-level webhook secrets,
+# which are per-tenant and stored on the Tenant model instead).
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET")
 
 # Email Configuration (Gmail SMTP)
 if DEBUG:

@@ -262,6 +262,23 @@ class RazorpayWebhookView(APIView):
     def post(self, request):
         try:
             payload = request.body.decode('utf-8')
+
+            # SECURITY: verify this actually came from Razorpay before
+            # trusting it to flip a transaction's status. Without this,
+            # anyone who knows (or guesses) a payment_id could POST a fake
+            # payment.captured event. Configure the same secret in the
+            # Razorpay dashboard's Webhooks section for this endpoint's URL.
+            if not settings.RAZORPAY_WEBHOOK_SECRET:
+                return Response({'error': 'Webhook secret not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            received_signature = request.headers.get('X-Razorpay-Signature', '')
+            expected_signature = hmac.new(
+                settings.RAZORPAY_WEBHOOK_SECRET.encode(),
+                payload.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(received_signature, expected_signature):
+                return Response({'error': 'Invalid webhook signature.'}, status=status.HTTP_400_BAD_REQUEST)
+
             event = json.loads(payload)
             # Example: handle payment.captured event
             if event.get('event') == 'payment.captured':
