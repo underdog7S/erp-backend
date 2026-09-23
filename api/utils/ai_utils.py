@@ -8,6 +8,14 @@ from api.models.crm import Contact, Deal
 
 PLATFORM_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
 
+# Team Chat's AI Assistant is platform-funded (the founder's own Azure key,
+# set directly on Render) rather than per-tenant BYOK - it's meant to be
+# available to every tenant on every plan, unlike the customer-facing
+# Omnichannel AI which is gated behind BYOK/managed-plan quotas.
+PLATFORM_AZURE_OPENAI_API_KEY = os.getenv("TEAM_CHAT_AZURE_OPENAI_API_KEY")
+PLATFORM_AZURE_OPENAI_ENDPOINT = os.getenv("TEAM_CHAT_AZURE_OPENAI_ENDPOINT")
+PLATFORM_AZURE_OPENAI_DEPLOYMENT = os.getenv("TEAM_CHAT_AZURE_OPENAI_DEPLOYMENT")
+
 
 def _track_tokens(config, count):
     if config and count:
@@ -214,6 +222,84 @@ def _reply_via_claude(config, system_prompt, history, max_tokens):
         _track_tokens(config, (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0))
 
     return response.content[0].text if response.content else ""
+
+
+def _team_chat_track_tokens(tenant, count):
+    if not count:
+        return
+    config, _ = TenantFeatureConfig.objects.get_or_create(tenant=tenant)
+    config.team_chat_ai_tokens_used += count
+    config.save(update_fields=['team_chat_ai_tokens_used'])
+
+
+def generate_team_chat_ai_reply(tenant, history, max_tokens: int = 300):
+    """AI Assistant reply for a user's personal Team Chat channel. Always
+    uses the platform's own Azure OpenAI key (see PLATFORM_AZURE_OPENAI_*
+    above) - never a tenant's BYOK config - since this feature is meant to
+    be free to every tenant regardless of plan. Returns a fixed message if
+    the platform key isn't configured, or None if the API call itself fails.
+    """
+    if not (PLATFORM_AZURE_OPENAI_API_KEY and PLATFORM_AZURE_OPENAI_ENDPOINT and PLATFORM_AZURE_OPENAI_DEPLOYMENT):
+        return "AI Assistant isn't set up yet on this server. Ask your platform admin to configure the TEAM_CHAT_AZURE_OPENAI_* environment variables."
+
+    system_prompt = (
+        f"You are an internal AI assistant for the staff at '{tenant.name}'."
+        + (f" Industry: {tenant.industry}." if tenant.industry else "")
+        + " You have tools to check live inventory and create CRM leads on the team's behalf. "
+        "1. If a teammate asks whether something is in stock, USE the check_inventory tool - don't guess. "
+        "2. If a teammate describes a customer who wants to buy/book, USE the create_hot_lead tool to log it. "
+        "Keep answers concise and helpful."
+    )
+    messages_payload = [{"role": "system", "content": system_prompt}] + history
+
+    endpoint = PLATFORM_AZURE_OPENAI_ENDPOINT.strip()
+    if '/v1' in endpoint:
+        base_url = endpoint[:endpoint.index('/v1') + len('/v1')] + '/'
+        client = OpenAI(api_key=PLATFORM_AZURE_OPENAI_API_KEY, base_url=base_url)
+    else:
+        client = AzureOpenAI(
+            api_key=PLATFORM_AZURE_OPENAI_API_KEY,
+            azure_endpoint=endpoint,
+            api_version="2024-02-01"
+        )
+    model = PLATFORM_AZURE_OPENAI_DEPLOYMENT
+
+    try:
+        response = client.chat.completions.create(
+            model=model, messages=messages_payload, max_tokens=max_tokens,
+            temperature=0.7, tools=TOOLS, tool_choice="auto"
+        )
+        if hasattr(response, 'usage'):
+            _team_chat_track_tokens(tenant, response.usage.total_tokens)
+
+        message = response.choices[0].message
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                function_name = tool_call.function.name
+                args = json.loads(tool_call.function.arguments)
+                if function_name == "check_inventory":
+                    tool_result = execute_check_inventory(tenant, args.get("search_term"))
+                elif function_name == "create_hot_lead":
+                    tool_result = execute_create_hot_lead(tenant, args.get("customer_name"), args.get("intent_summary"))
+                else:
+                    tool_result = ""
+                messages_payload.append(message)
+                messages_payload.append({
+                    "role": "tool", "tool_call_id": tool_call.id,
+                    "name": function_name, "content": tool_result
+                })
+
+            second_response = client.chat.completions.create(
+                model=model, messages=messages_payload, max_tokens=max_tokens, temperature=0.7
+            )
+            if hasattr(second_response, 'usage'):
+                _team_chat_track_tokens(tenant, second_response.usage.total_tokens)
+            return second_response.choices[0].message.content
+
+        return message.content
+    except Exception as e:
+        print(f"Team Chat AI error: {e}")
+        return None
 
 
 def generate_smart_reply(thread: CommunicationThread, max_tokens: int = 150) -> str:

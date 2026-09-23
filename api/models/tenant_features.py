@@ -50,6 +50,12 @@ class TenantFeatureConfig(models.Model):
     is_ai_enabled = models.BooleanField(default=False)
     ai_tokens_used_this_month = models.IntegerField(default=0)
     ai_tokens_monthly_limit = models.IntegerField(default=0)
+
+    # Team Chat's AI Assistant runs on the platform's own Azure OpenAI key
+    # (env vars, not BYOK) and is free to every tenant regardless of plan -
+    # tracked separately from ai_tokens_used_this_month so it never eats
+    # into a tenant's paid Omnichannel AI quota. No cap enforced on this one.
+    team_chat_ai_tokens_used = models.IntegerField(default=0)
     
     # BYOK OpenAI key — Pro/Enterprise/Platform tenants can bring their own
     openai_api_key = models.CharField(max_length=255, blank=True, null=True, help_text="BYOK OpenAI API key (sk-proj-...)")

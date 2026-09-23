@@ -6,6 +6,7 @@ class ChatChannel(models.Model):
     CHANNEL_TYPE_CHOICES = [
         ('direct', 'Direct Message'),
         ('group', 'Group'),
+        ('ai', 'AI Assistant'),
     ]
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='chat_channels')

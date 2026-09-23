@@ -9,18 +9,36 @@ from rest_framework import status
 from django.contrib.auth.models import User
 from api.models.user import UserProfile
 from api.models.team_chat import ChatChannel, ChatChannelMembership, ChatMessage
+from api.utils.ai_utils import generate_team_chat_ai_reply
 
 logger = logging.getLogger(__name__)
 
 
 def _channel_display(channel, membership_user):
     """Name + other-member info for a channel, from membership_user's point of view."""
+    if channel.channel_type == 'ai':
+        return 'AI Assistant'
     if channel.channel_type == 'group':
         return channel.name or 'Group'
     other = ChatChannelMembership.objects.filter(channel=channel).exclude(user=membership_user).select_related('user').first()
     if other and other.user:
         return other.user.get_full_name() or other.user.username
     return channel.name or 'Direct Message'
+
+
+def _get_or_create_ai_channel(profile, user):
+    membership = ChatChannelMembership.objects.filter(user=user, channel__channel_type='ai', channel__tenant=profile.tenant).first()
+    if membership:
+        return membership.channel
+    channel = ChatChannel.objects.create(tenant=profile.tenant, channel_type='ai', created_by=user)
+    ChatChannelMembership.objects.create(channel=channel, user=user)
+    return channel
+
+
+def _sender_name(message, channel):
+    if message.sender_id is None:
+        return 'AI Assistant' if channel.channel_type == 'ai' else 'Deleted user'
+    return message.sender.get_full_name() or message.sender.username
 
 
 class TeamMembersListView(APIView):
@@ -47,6 +65,9 @@ class ChannelListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        profile = UserProfile.objects.get(user=request.user)
+        _get_or_create_ai_channel(profile, request.user)
+
         memberships = ChatChannelMembership.objects.filter(user=request.user).select_related('channel')
         data = []
         for m in memberships:
@@ -61,7 +82,8 @@ class ChannelListCreateView(APIView):
                 'last_message_at': last_msg.created_at if last_msg else channel.created_at,
                 'unread_count': unread_count,
             })
-        data.sort(key=lambda c: c['last_message_at'], reverse=True)
+        # AI Assistant is always available and pinned first for discoverability.
+        data.sort(key=lambda c: (c['channel_type'] == 'ai', c['last_message_at']), reverse=True)
         return Response(data)
 
     def post(self, request):
@@ -126,12 +148,13 @@ class ChannelMessagesView(APIView):
         if not membership:
             return Response({'error': 'Not a member of this channel'}, status=status.HTTP_403_FORBIDDEN)
 
-        messages = membership.channel.messages.select_related('sender').order_by('created_at')
+        channel = membership.channel
+        messages = channel.messages.select_related('sender').order_by('created_at')
         data = [{
             'id': m.id,
             'content': m.content,
             'sender_id': m.sender_id,
-            'sender_name': (m.sender.get_full_name() or m.sender.username) if m.sender else 'Deleted user',
+            'sender_name': _sender_name(m, channel),
             'is_mine': m.sender_id == request.user.id,
             'created_at': m.created_at,
         } for m in messages]
@@ -146,18 +169,40 @@ class ChannelMessagesView(APIView):
         if not content:
             return Response({'error': 'Message content is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        message = ChatMessage.objects.create(channel=membership.channel, sender=request.user, content=content)
+        channel = membership.channel
+        message = ChatMessage.objects.create(channel=channel, sender=request.user, content=content)
         membership.last_read_at = message.created_at
         membership.save(update_fields=['last_read_at'])
 
-        return Response({
+        response_data = {
             'id': message.id,
             'content': message.content,
             'sender_id': message.sender_id,
             'sender_name': request.user.get_full_name() or request.user.username,
             'is_mine': True,
             'created_at': message.created_at,
-        }, status=status.HTTP_201_CREATED)
+        }
+
+        if channel.channel_type == 'ai':
+            profile = UserProfile.objects.get(user=request.user)
+            history = channel.messages.select_related('sender').order_by('-created_at')[:10]
+            history_payload = [
+                {"role": ("assistant" if m.sender_id is None else "user"), "content": m.content}
+                for m in reversed(list(history))
+            ]
+            ai_text = generate_team_chat_ai_reply(profile.tenant, history_payload)
+            if ai_text:
+                ai_message = ChatMessage.objects.create(channel=channel, sender=None, content=ai_text)
+                response_data['ai_reply'] = {
+                    'id': ai_message.id,
+                    'content': ai_message.content,
+                    'sender_id': None,
+                    'sender_name': 'AI Assistant',
+                    'is_mine': False,
+                    'created_at': ai_message.created_at,
+                }
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class MarkChannelReadView(APIView):
