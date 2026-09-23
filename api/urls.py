@@ -23,7 +23,7 @@ from .views import (
     users_views, plan_views, dashboard_views, payments_views, 
     education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
-    razorpay_views, twilio_views
+    razorpay_views, twilio_views, manufacturing_views
 )
 from .views.timetable_views import (
     PeriodListCreateView, PeriodDetailView, RoomListCreateView, RoomDetailView,
@@ -605,7 +605,46 @@ urlpatterns += [
     path('retail/returns/', retail_views.SaleReturnListCreateView.as_view(), name='retail-returns'),
     path('retail/returns/<int:pk>/', retail_views.SaleReturnDetailView.as_view(), name='retail-return-detail'),
     path('retail/returns/<int:pk>/process/', retail_views.SaleReturnProcessView.as_view(), name='retail-return-process'),
-    
+
+    # Manufacturing
+    path('manufacturing/overview/', manufacturing_views.ManufacturingOverviewView.as_view(), name='manufacturing-overview'),
+    path('manufacturing/suppliers/', manufacturing_views.SupplierListCreateView.as_view(), name='manufacturing-suppliers'),
+    path('manufacturing/suppliers/<int:pk>/', manufacturing_views.SupplierDetailView.as_view(), name='manufacturing-supplier-detail'),
+    path('manufacturing/warehouses/', manufacturing_views.WarehouseListCreateView.as_view(), name='manufacturing-warehouses'),
+    path('manufacturing/warehouses/<int:pk>/', manufacturing_views.WarehouseDetailView.as_view(), name='manufacturing-warehouse-detail'),
+    path('manufacturing/raw-materials/', manufacturing_views.RawMaterialListCreateView.as_view(), name='manufacturing-raw-materials'),
+    path('manufacturing/raw-materials/<int:pk>/', manufacturing_views.RawMaterialDetailView.as_view(), name='manufacturing-raw-material-detail'),
+    path('manufacturing/raw-material-inventory/', manufacturing_views.RawMaterialInventoryListCreateView.as_view(), name='manufacturing-raw-material-inventory'),
+    path('manufacturing/raw-material-inventory/<int:pk>/', manufacturing_views.RawMaterialInventoryDetailView.as_view(), name='manufacturing-raw-material-inventory-detail'),
+    path('manufacturing/finished-goods/', manufacturing_views.FinishedGoodListCreateView.as_view(), name='manufacturing-finished-goods'),
+    path('manufacturing/finished-goods/<int:pk>/', manufacturing_views.FinishedGoodDetailView.as_view(), name='manufacturing-finished-good-detail'),
+    path('manufacturing/finished-good-inventory/', manufacturing_views.FinishedGoodInventoryListCreateView.as_view(), name='manufacturing-finished-good-inventory'),
+    path('manufacturing/finished-good-inventory/<int:pk>/', manufacturing_views.FinishedGoodInventoryDetailView.as_view(), name='manufacturing-finished-good-inventory-detail'),
+    path('manufacturing/boms/', manufacturing_views.BillOfMaterialListCreateView.as_view(), name='manufacturing-boms'),
+    path('manufacturing/boms/<int:pk>/', manufacturing_views.BillOfMaterialDetailView.as_view(), name='manufacturing-bom-detail'),
+    path('manufacturing/bom-items/', manufacturing_views.BOMItemListCreateView.as_view(), name='manufacturing-bom-items'),
+    path('manufacturing/bom-items/<int:pk>/', manufacturing_views.BOMItemDetailView.as_view(), name='manufacturing-bom-item-detail'),
+    path('manufacturing/production-orders/', manufacturing_views.ProductionOrderListCreateView.as_view(), name='manufacturing-production-orders'),
+    path('manufacturing/production-orders/<int:pk>/', manufacturing_views.ProductionOrderDetailView.as_view(), name='manufacturing-production-order-detail'),
+    path('manufacturing/production-orders/<int:pk>/start/', manufacturing_views.ProductionOrderStartView.as_view(), name='manufacturing-production-order-start'),
+    path('manufacturing/production-orders/<int:pk>/complete/', manufacturing_views.ProductionOrderCompleteView.as_view(), name='manufacturing-production-order-complete'),
+    path('manufacturing/quality-checks/', manufacturing_views.QualityCheckListCreateView.as_view(), name='manufacturing-quality-checks'),
+    path('manufacturing/quality-checks/<int:pk>/', manufacturing_views.QualityCheckDetailView.as_view(), name='manufacturing-quality-check-detail'),
+    path('manufacturing/purchase-orders/', manufacturing_views.PurchaseOrderListCreateView.as_view(), name='manufacturing-purchase-orders'),
+    path('manufacturing/purchase-orders/<int:pk>/', manufacturing_views.PurchaseOrderDetailView.as_view(), name='manufacturing-purchase-order-detail'),
+    path('manufacturing/purchase-order-items/', manufacturing_views.PurchaseOrderItemListCreateView.as_view(), name='manufacturing-purchase-order-items'),
+    path('manufacturing/purchase-order-items/<int:pk>/', manufacturing_views.PurchaseOrderItemDetailView.as_view(), name='manufacturing-purchase-order-item-detail'),
+    path('manufacturing/goods-receipts/', manufacturing_views.GoodsReceiptListCreateView.as_view(), name='manufacturing-goods-receipts'),
+    path('manufacturing/goods-receipts/<int:pk>/', manufacturing_views.GoodsReceiptDetailView.as_view(), name='manufacturing-goods-receipt-detail'),
+    path('manufacturing/goods-receipt-items/', manufacturing_views.GoodsReceiptItemListCreateView.as_view(), name='manufacturing-goods-receipt-items'),
+    path('manufacturing/goods-receipt-items/<int:pk>/', manufacturing_views.GoodsReceiptItemDetailView.as_view(), name='manufacturing-goods-receipt-item-detail'),
+    path('manufacturing/customers/', manufacturing_views.CustomerListCreateView.as_view(), name='manufacturing-customers'),
+    path('manufacturing/customers/<int:pk>/', manufacturing_views.CustomerDetailView.as_view(), name='manufacturing-customer-detail'),
+    path('manufacturing/sales-orders/', manufacturing_views.SalesOrderListCreateView.as_view(), name='manufacturing-sales-orders'),
+    path('manufacturing/sales-orders/<int:pk>/', manufacturing_views.SalesOrderDetailView.as_view(), name='manufacturing-sales-order-detail'),
+    path('manufacturing/sales-order-items/', manufacturing_views.SalesOrderItemListCreateView.as_view(), name='manufacturing-sales-order-items'),
+    path('manufacturing/sales-order-items/<int:pk>/', manufacturing_views.SalesOrderItemDetailView.as_view(), name='manufacturing-sales-order-item-detail'),
+
     # Admin Import/Export endpoints
     path('admin/export-data/', admin_views.AdminExportDataView.as_view(), name='admin-export-data'),
     path('admin/import-data/', admin_views.AdminImportDataView.as_view(), name='admin-import-data'),

@@ -90,6 +90,10 @@ class Plan(models.Model):
         default=False,
         help_text="Healthcare Management: Patients, Appointments, Medical records (Future feature)"
     )
+    has_manufacturing = models.BooleanField(
+        default=False,
+        help_text="Manufacturing: Raw materials, BOM, Production Orders, Quality Control, wholesale sales"
+    )
     
     # Feature flags - Core Features
     has_dashboard = models.BooleanField(
