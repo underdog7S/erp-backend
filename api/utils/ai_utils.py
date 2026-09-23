@@ -105,11 +105,20 @@ def _reply_via_openai_compatible(config, system_prompt, messages_payload, tenant
     OpenAI and Azure OpenAI, since Azure OpenAI uses the same chat-completions
     interface as the openai package - just a different client/model."""
     if config and config.ai_provider == 'azure_openai' and config.azure_openai_api_key and config.azure_openai_endpoint and config.azure_openai_deployment_name:
-        client = AzureOpenAI(
-            api_key=config.azure_openai_api_key,
-            azure_endpoint=config.azure_openai_endpoint,
-            api_version="2024-02-01"
-        )
+        endpoint = config.azure_openai_endpoint.strip()
+        if '/v1' in endpoint:
+            # Azure's newer unified "v1" API surface (what Foundry's "Use your
+            # model in code" snippet now generates by default) is addressed
+            # like a plain OpenAI-compatible endpoint - it rejects the
+            # api_version query param the classic AzureOpenAI client adds.
+            client = OpenAI(api_key=config.azure_openai_api_key, base_url=endpoint)
+        else:
+            # Classic Azure OpenAI endpoint (https://<resource>.openai.azure.com/)
+            client = AzureOpenAI(
+                api_key=config.azure_openai_api_key,
+                azure_endpoint=endpoint,
+                api_version="2024-02-01"
+            )
         model = config.azure_openai_deployment_name
     else:
         # Plain OpenAI: prefer the tenant's own BYOK key, fall back to the
