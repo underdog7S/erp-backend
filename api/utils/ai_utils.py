@@ -1,10 +1,13 @@
 import os
+import logging
 import json
-from openai import OpenAI, AzureOpenAI
+from openai import OpenAI, AzureOpenAI, BadRequestError
 from api.models.communications import CommunicationThread, CommunicationMessage
 from api.models.tenant_features import TenantFeatureConfig
 from api.models.user import Tenant
 from api.models.crm import Contact, Deal
+
+logger = logging.getLogger(__name__)
 
 PLATFORM_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
 
@@ -264,16 +267,32 @@ def generate_team_chat_ai_reply(tenant, history, max_tokens: int = 300):
         )
     model = PLATFORM_AZURE_OPENAI_DEPLOYMENT
 
+    def create(**kwargs):
+        # Newer Azure/OpenAI models (o-series, gpt-5 family) reject
+        # max_tokens and any temperature other than the default - retry with
+        # the parameter each error message says it wants instead of failing.
+        params = dict(model=model, max_tokens=max_tokens, temperature=0.7, **kwargs)
+        for _ in range(3):
+            try:
+                return client.chat.completions.create(**params)
+            except BadRequestError as e:
+                text = str(e)
+                if 'max_completion_tokens' in text and 'max_tokens' in params:
+                    params['max_completion_tokens'] = params.pop('max_tokens')
+                elif 'temperature' in text and 'temperature' in params:
+                    params.pop('temperature')
+                else:
+                    raise
+        return client.chat.completions.create(**params)
+
     try:
-        response = client.chat.completions.create(
-            model=model, messages=messages_payload, max_tokens=max_tokens,
-            temperature=0.7, tools=TOOLS, tool_choice="auto"
-        )
-        if hasattr(response, 'usage'):
+        response = create(messages=messages_payload, tools=TOOLS, tool_choice="auto")
+        if hasattr(response, 'usage') and response.usage:
             _team_chat_track_tokens(tenant, response.usage.total_tokens)
 
         message = response.choices[0].message
         if message.tool_calls:
+            messages_payload.append(message)
             for tool_call in message.tool_calls:
                 function_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
@@ -283,23 +302,24 @@ def generate_team_chat_ai_reply(tenant, history, max_tokens: int = 300):
                     tool_result = execute_create_hot_lead(tenant, args.get("customer_name"), args.get("intent_summary"))
                 else:
                     tool_result = ""
-                messages_payload.append(message)
                 messages_payload.append({
                     "role": "tool", "tool_call_id": tool_call.id,
                     "name": function_name, "content": tool_result
                 })
 
-            second_response = client.chat.completions.create(
-                model=model, messages=messages_payload, max_tokens=max_tokens, temperature=0.7
-            )
-            if hasattr(second_response, 'usage'):
-                _team_chat_track_tokens(tenant, second_response.usage.total_tokens)
-            return second_response.choices[0].message.content
+            response = create(messages=messages_payload)
+            if hasattr(response, 'usage') and response.usage:
+                _team_chat_track_tokens(tenant, response.usage.total_tokens)
+            message = response.choices[0].message
 
-        return message.content
+        return message.content or "The AI returned an empty answer. Try rephrasing your question."
     except Exception as e:
-        print(f"Team Chat AI error: {e}")
-        return None
+        logger.exception("Team Chat AI call failed")
+        status = getattr(e, 'status_code', None)
+        detail = str(e).replace(PLATFORM_AZURE_OPENAI_API_KEY, '***')[:160]
+        return (f"AI Assistant couldn't reach Azure OpenAI ({type(e).__name__}"
+                f"{f' {status}' if status else ''}: {detail}). "
+                "Ask your platform admin to check the TEAM_CHAT_AZURE_OPENAI_* settings on Render.")
 
 
 def generate_smart_reply(thread: CommunicationThread, max_tokens: int = 150) -> str:
