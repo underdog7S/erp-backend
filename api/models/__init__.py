@@ -12,11 +12,13 @@ from .email_marketing import (
 )
 from .visitor_lead import VisitorLead
 from .communications import CommunicationThread, CommunicationMessage
+from .team_chat import ChatChannel, ChatChannelMembership, ChatMessage
 
 __all__ = [
     'Plan', 'UserProfile', 'Role', 'Tenant', 'PaymentTransaction', 'AuditLog',
     'Notification', 'NotificationPreference', 'NotificationTemplate', 'NotificationLog',
     'CustomServiceRequest', 'Contact', 'Company', 'ContactTag', 'Activity', 'Deal', 'DealStage',
     'EmailTemplate', 'ContactList', 'EmailCampaign', 'EmailActivity', 'EmailSequence', 'EmailSequenceStep',
-    'VisitorLead', 'CommunicationThread', 'CommunicationMessage'
-, 'TenantFeatureConfig'] 
+    'VisitorLead', 'CommunicationThread', 'CommunicationMessage',
+    'ChatChannel', 'ChatChannelMembership', 'ChatMessage',
+    'TenantFeatureConfig'] 
