@@ -186,3 +186,29 @@ class UserProfile(models.Model):
         role = self.role.name if self.role else "NoRole"
         tenant = self.tenant.name if self.tenant else "NoTenant"
         return f"{username} ({role}) in {tenant}"
+
+
+class UserInvitation(models.Model):
+    """A pending invite for someone who doesn't have an account yet.
+    The activation token lives here so ActivateUserView can actually verify
+    it server-side, instead of trusting whatever token/email pair shows up
+    in the request (the old "for demo" version had no way to check this)."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='invitations')
+    email = models.EmailField()
+    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
+    token = models.CharField(max_length=64, unique=True)
+    invited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_invitations')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_valid(self):
+        from django.utils import timezone
+        return self.accepted_at is None and self.expires_at >= timezone.now()
+
+    def __str__(self):
+        status = "accepted" if self.accepted_at else ("expired" if not self.is_valid() else "pending")
+        return f"Invite for {self.email} to {self.tenant.name} ({status})"

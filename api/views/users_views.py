@@ -267,37 +267,87 @@ class InviteUserView(APIView):
             return Response({"error": "Only admins can invite users."}, status=status.HTTP_403_FORBIDDEN)
         tenant = profile.tenant
         data = request.data
-        email = data.get("email")
+        email = (data.get("email") or "").strip().lower()
         role_name = data.get("role", "staff")
         if not email:
             return Response({"error": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
-        # Generate activation token
-        token = get_random_string(32)
-        # Store token in a simple way (in production, use a model)
-        # For demo, send token in email
+
+        if User.objects.filter(username=email).exists():
+            return Response({"error": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from api.utils.subscription_utils import validate_user_limit_before_adding
+        allowed, limit_message = validate_user_limit_before_adding(tenant)
+        if not allowed:
+            return Response({"error": limit_message}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            role = Role.objects.get(name__iexact=role_name)
+        except Role.DoesNotExist:
+            return Response({"error": f"Invalid role '{role_name}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from api.models.user import UserInvitation
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Replace any earlier pending invite for this email in this tenant,
+        # rather than accumulating dead rows every time an admin re-invites.
+        UserInvitation.objects.filter(tenant=tenant, email=email, accepted_at__isnull=True).delete()
+
+        token = get_random_string(48)
+        UserInvitation.objects.create(
+            tenant=tenant,
+            email=email,
+            role=role,
+            token=token,
+            invited_by=request.user,
+            expires_at=timezone.now() + timedelta(days=7),
+        )
+
         activation_link = f"{settings.FRONTEND_URL}/activate?email={email}&token={token}"
         send_mail(
-            "You're invited to Zenith ERP",
-            f"Click the link to activate your account: {activation_link}",
+            f"You're invited to join {tenant.name} on ZenVerse",
+            f"You've been invited to join {tenant.name} as {role.name}.\n\n"
+            f"Click the link to activate your account: {activation_link}\n\n"
+            f"This link expires in 7 days.",
             settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=True,
         )
-        # In production, store token and email in a model for later verification
         return Response({"message": f"Invitation sent to {email}."})
 
 class ActivateUserView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # In production, verify token from DB
-        email = request.data.get("email")
+        email = (request.data.get("email") or "").strip().lower()
         token = request.data.get("token")
         password = request.data.get("password")
         if not all([email, token, password]):
             return Response({"error": "Missing fields."}, status=status.HTTP_400_BAD_REQUEST)
-        # For demo, just create user
+
+        from api.models.user import UserInvitation
         try:
+            invitation = UserInvitation.objects.get(email=email, token=token)
+        except UserInvitation.DoesNotExist:
+            return Response({"error": "Invalid or expired invitation."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not invitation.is_valid():
+            return Response({"error": "This invitation has expired or was already used."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(username=email).exists():
+            return Response({"error": "An account with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from api.utils.subscription_utils import validate_user_limit_before_adding
+        allowed, limit_message = validate_user_limit_before_adding(invitation.tenant)
+        if not allowed:
+            return Response({"error": limit_message}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            from django.utils import timezone
             user = User.objects.create_user(username=email, email=email, password=password)
-            # Assign to tenant and role as needed
+            UserProfile.objects.create(user=user, tenant=invitation.tenant, role=invitation.role)
+            invitation.accepted_at = timezone.now()
+            invitation.save(update_fields=['accepted_at'])
             return Response({"message": "Account activated. You can now log in."})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
