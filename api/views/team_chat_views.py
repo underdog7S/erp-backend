@@ -23,6 +23,25 @@ def _channel_display(channel, membership_user):
     return channel.name or 'Direct Message'
 
 
+class TeamMembersListView(APIView):
+    """Tenant teammates available to start a DM/group with. The existing
+    /users/ list endpoint nests everything under UserProfile and never
+    exposes the underlying auth User id that team-chat's DM/group
+    endpoints key off of, so this returns a minimal shape instead."""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = UserProfile.objects.get(user=request.user)
+        profiles = UserProfile.objects.filter(tenant=profile.tenant).exclude(user=request.user).select_related('user')
+        data = [{
+            'id': p.user.id,
+            'name': p.user.get_full_name() or p.user.username,
+            'email': p.user.email,
+        } for p in profiles if p.user]
+        return Response(data)
+
+
 class ChannelListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]

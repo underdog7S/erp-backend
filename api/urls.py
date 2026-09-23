@@ -145,7 +145,7 @@ router.register(r'education/hostel-rooms', HostelRoomViewSet, basename='educatio
 router.register(r'education/hostel-allocations', HostelAllocationViewSet, basename='education-hostel-allocations')
 
 from api.views.omnichannel_views import OmnichannelThreadListView, OmnichannelMessageListView, OmnichannelReplyView, OmnichannelAiSuggestView, OmnichannelAttachmentUploadView
-from api.views.team_chat_views import ChannelListCreateView, DirectMessageView, ChannelMessagesView, MarkChannelReadView
+from api.views.team_chat_views import TeamMembersListView, ChannelListCreateView, DirectMessageView, ChannelMessagesView, MarkChannelReadView
 
 urlpatterns = [
     path('omnichannel/threads/', OmnichannelThreadListView.as_view(), name='omnichannel-threads'),
@@ -154,6 +154,7 @@ urlpatterns = [
     path('omnichannel/threads/<int:thread_id>/ai-suggest/', OmnichannelAiSuggestView.as_view(), name='omnichannel-ai-suggest'),
     path('omnichannel/attachments/upload/', OmnichannelAttachmentUploadView.as_view(), name='omnichannel-attachment-upload'),
 
+    path('team-chat/members/', TeamMembersListView.as_view(), name='team-chat-members'),
     path('team-chat/channels/', ChannelListCreateView.as_view(), name='team-chat-channels'),
     path('team-chat/dm/<int:user_id>/', DirectMessageView.as_view(), name='team-chat-dm'),
     path('team-chat/channels/<int:channel_id>/messages/', ChannelMessagesView.as_view(), name='team-chat-messages'),
