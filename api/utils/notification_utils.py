@@ -182,6 +182,34 @@ def notify_new_booking(user: User, tenant: Tenant, booking_details: Dict[str, An
     )
 
 
+def notify_new_inbound_message(tenant: Tenant, source: str, sender_label: str, preview: str, **kwargs):
+    """Notify every user in the tenant that a new customer message arrived
+    in the Omnichannel Inbox. Uses 'info'/'medium' (not 'alert'/'high') so
+    this never triggers the SMS delivery channel in _send_notification_channels
+    - an SMS-triggered inbound message notifying-by-SMS would be a feedback loop."""
+    from api.models.user import UserProfile
+    users = [p.user for p in UserProfile.objects.filter(tenant=tenant).select_related('user')]
+    if not users:
+        return []
+    trimmed = preview.strip()
+    if len(trimmed) > 120:
+        trimmed = trimmed[:117] + '...'
+    return create_bulk_notification(
+        users=users,
+        tenant=tenant,
+        title=f'New {source.upper()} message from {sender_label}',
+        message=trimmed or '(no content)',
+        notification_type='info',
+        module='general',
+        priority='medium',
+        action_url='/crm/inbox',
+        action_label='Open Inbox',
+        reference_type='CommunicationThread',
+        icon='chat',
+        **kwargs
+    )
+
+
 def notify_appointment_reminder(user: User, tenant: Tenant, appointment_details: Dict[str, Any], **kwargs):
     """Create reminder notification"""
     return create_module_notification(

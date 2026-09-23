@@ -142,30 +142,36 @@ class WhatsAppWebhookView(APIView):
                                         content=message_text,
                                         external_message_id=message_id
                                     )
-                                    
+
+                                    from api.utils.notification_utils import notify_new_inbound_message
+                                    notify_new_inbound_message(tenant, 'whatsapp', sender_phone, message_text)
+
                                     # 4. Trigger AI Auto-Responder if enabled
                                     if config.is_ai_enabled and config.ai_tokens_used_this_month < config.ai_tokens_monthly_limit:
                                         # Get AI response
                                         ai_reply = generate_smart_reply(thread)
-                                        
-                                        # Save AI's reply to database
-                                        CommunicationMessage.objects.create(
-                                            thread=thread,
-                                            sender_type='ai',
-                                            content=ai_reply
-                                        )
-                                        
-                                        # Send reply back via Meta WhatsApp API
-                                        import requests, json, os
-                                        token = config.whatsapp_access_token or os.getenv('WHATSAPP_TOKEN')
-                                        url = f"https://graph.facebook.com/v17.0/{recipient_phone_id}/messages"
-                                        headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-                                        payload = {'messaging_product': 'whatsapp', 'to': sender_phone, 'type': 'text', 'text': {'body': ai_reply}}
-                                        requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
-                                        
-                                        # Increment WhatsApp usage bill
-                                        config.whatsapp_used_this_month += 1
-                                        config.save(update_fields=['whatsapp_used_this_month'])
+
+                                        if ai_reply:
+                                            # Save AI's reply to database
+                                            CommunicationMessage.objects.create(
+                                                thread=thread,
+                                                sender_type='ai',
+                                                content=ai_reply
+                                            )
+
+                                            # Send reply back via Meta WhatsApp API
+                                            import requests, json, os
+                                            token = config.whatsapp_access_token or os.getenv('WHATSAPP_TOKEN')
+                                            url = f"https://graph.facebook.com/v17.0/{recipient_phone_id}/messages"
+                                            headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+                                            payload = {'messaging_product': 'whatsapp', 'to': sender_phone, 'type': 'text', 'text': {'body': ai_reply}}
+                                            requests.post(url, headers=headers, data=json.dumps(payload), timeout=15)
+
+                                            # Increment WhatsApp usage bill
+                                            config.whatsapp_used_this_month += 1
+                                            config.save(update_fields=['whatsapp_used_this_month'])
+                                        else:
+                                            print(f"⚠️ AI auto-reply failed for thread {thread.id}; no reply sent to {sender_phone}")
                                 
                 return Response("EVENT_RECEIVED", status=200)
             return Response(status=404)

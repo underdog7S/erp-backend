@@ -253,4 +253,4 @@ def generate_smart_reply(thread: CommunicationThread, max_tokens: int = 150) -> 
 
     except Exception as e:
         print(f"AI provider ({provider}) error: {e}")
-        return "I'm sorry, I'm having trouble processing that right now. Please try again later."
+        return None

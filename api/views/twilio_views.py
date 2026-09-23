@@ -55,30 +55,36 @@ class TwilioSMSWebhookView(APIView):
                         external_message_id=message_sid
                     )
 
+                    from api.utils.notification_utils import notify_new_inbound_message
+                    notify_new_inbound_message(tenant, 'sms', sender_phone, message_text)
+
                     if config.is_ai_enabled and config.ai_tokens_used_this_month < config.ai_tokens_monthly_limit:
                         ai_reply = generate_smart_reply(thread)
 
-                        CommunicationMessage.objects.create(
-                            thread=thread,
-                            sender_type='ai',
-                            content=ai_reply
-                        )
+                        if ai_reply:
+                            CommunicationMessage.objects.create(
+                                thread=thread,
+                                sender_type='ai',
+                                content=ai_reply
+                            )
 
-                        if config.twilio_account_sid and config.twilio_auth_token:
-                            try:
-                                from twilio.rest import Client as TwilioClient
-                                twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
-                                twilio_client.messages.create(
-                                    body=ai_reply,
-                                    from_=recipient_phone,
-                                    to=sender_phone
-                                )
-                            except Exception as sms_err:
-                                logger.error(f"Twilio AI auto-reply send failed: {sms_err}")
+                            if config.twilio_account_sid and config.twilio_auth_token:
+                                try:
+                                    from twilio.rest import Client as TwilioClient
+                                    twilio_client = TwilioClient(config.twilio_account_sid, config.twilio_auth_token)
+                                    twilio_client.messages.create(
+                                        body=ai_reply,
+                                        from_=recipient_phone,
+                                        to=sender_phone
+                                    )
+                                except Exception as sms_err:
+                                    logger.error(f"Twilio AI auto-reply send failed: {sms_err}")
 
-                        if config.sms_monthly_limit == 0 or config.sms_used_this_month < config.sms_monthly_limit:
-                            config.sms_used_this_month += 1
-                            config.save(update_fields=['sms_used_this_month'])
+                            if config.sms_monthly_limit == 0 or config.sms_used_this_month < config.sms_monthly_limit:
+                                config.sms_used_this_month += 1
+                                config.save(update_fields=['sms_used_this_month'])
+                        else:
+                            logger.warning(f"AI auto-reply failed for thread {thread.id}; no reply sent to {sender_phone}")
                 else:
                     logger.warning(f"No tenant found for Twilio number {recipient_phone}")
 
