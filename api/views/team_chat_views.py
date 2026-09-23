@@ -189,6 +189,11 @@ class ChannelMessagesView(APIView):
 
         channel = membership.channel
         messages = channel.messages.select_related('sender').order_by('created_at')
+        # Incremental polling: the frontend passes the last message id it has
+        # so each poll returns only what's new instead of the whole history.
+        after = request.query_params.get('after')
+        if after and after.isdigit():
+            messages = messages.filter(id__gt=int(after))
         data = [{
             'id': m.id,
             'content': m.content,
