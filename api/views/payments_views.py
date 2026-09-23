@@ -188,14 +188,26 @@ class RazorpayPaymentVerifyView(APIView):
                             return Response({'error': 'Paid amount does not cover the selected plan price.'}, status=status.HTTP_400_BAD_REQUEST)
                         verified_amount = Decimal(paid_paise) / 100
 
+                        previous_plan_id = tenant.plan_id
                         tenant.plan = plan
 
                         # Calculate subscription expiration date based on billing cycle
                         today = timezone.now().date()
-                        
-                        # Check if this is a renewal (existing subscription not expired)
+
+                        # Only treat this as a "renewal" (extend the existing
+                        # end date) when the tenant is re-buying the SAME plan
+                        # they already had. Otherwise this is a plan CHANGE -
+                        # without the previous_plan_id check, switching plans
+                        # while time remains on the old one stacked a full new
+                        # cycle on top of the unused days instead of replacing
+                        # them (e.g. 27 days left on Platform + a fresh 30-day
+                        # Starter cycle = 57 days for one cycle's price).
                         is_renewal = False
-                        if tenant.subscription_end_date and tenant.subscription_end_date >= today:
+                        if (
+                            tenant.subscription_end_date
+                            and tenant.subscription_end_date >= today
+                            and previous_plan_id == plan.id
+                        ):
                             is_renewal = True
                         
                         if plan.billing_cycle == 'annual':
