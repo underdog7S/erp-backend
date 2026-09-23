@@ -357,13 +357,6 @@ class EducationCRMStudentContactsView(APIView):
             logger.error(f"Error fetching CRM student contacts: {str(exc)}", exc_info=True)
             return Response({'error': f'An error occurred: {str(exc)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# TODO: Update Fee views to use new FeeStructure, FeePayment, FeeDiscount models
-# class FeeListCreateView(APIView):
-#     pass
-
-# class FeeDetailView(APIView):
-#     pass
-
 class AttendanceListCreateView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
