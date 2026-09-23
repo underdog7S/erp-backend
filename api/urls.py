@@ -145,6 +145,10 @@ router.register(r'education/hostel-rooms', HostelRoomViewSet, basename='educatio
 router.register(r'education/hostel-allocations', HostelAllocationViewSet, basename='education-hostel-allocations')
 
 from api.views.omnichannel_views import OmnichannelThreadListView, OmnichannelMessageListView, OmnichannelReplyView, OmnichannelAiSuggestView, OmnichannelAttachmentUploadView
+from api.views.lead_capture_views import (
+    PublicLeadFormConfigView, PublicLeadFormSubmitView, PublicLeadWidgetJsView,
+    LeadCaptureConfigView, CapturedLeadsView, ProspectSearchView, ProspectSaveView,
+)
 from api.views.team_chat_views import TeamMembersListView, ChannelListCreateView, DirectMessageView, ChannelMessagesView, MarkChannelReadView
 
 urlpatterns = [
@@ -154,6 +158,13 @@ urlpatterns = [
     path('omnichannel/threads/<int:thread_id>/ai-suggest/', OmnichannelAiSuggestView.as_view(), name='omnichannel-ai-suggest'),
     path('omnichannel/attachments/upload/', OmnichannelAttachmentUploadView.as_view(), name='omnichannel-attachment-upload'),
 
+    path('public/lead-form/<str:key>/config/', PublicLeadFormConfigView.as_view(), name='public-lead-form-config'),
+    path('public/lead-form/<str:key>/submit/', PublicLeadFormSubmitView.as_view(), name='public-lead-form-submit'),
+    path('public/lead-widget/<str:key>.js', PublicLeadWidgetJsView.as_view(), name='public-lead-widget'),
+    path('lead-capture/config/', LeadCaptureConfigView.as_view(), name='lead-capture-config'),
+    path('lead-capture/leads/', CapturedLeadsView.as_view(), name='lead-capture-leads'),
+    path('lead-capture/prospects/', ProspectSearchView.as_view(), name='lead-capture-prospects'),
+    path('lead-capture/prospects/save/', ProspectSaveView.as_view(), name='lead-capture-prospect-save'),
     path('team-chat/members/', TeamMembersListView.as_view(), name='team-chat-members'),
     path('team-chat/channels/', ChannelListCreateView.as_view(), name='team-chat-channels'),
     path('team-chat/dm/<int:user_id>/', DirectMessageView.as_view(), name='team-chat-dm'),

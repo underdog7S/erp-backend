@@ -13,6 +13,7 @@ from .email_marketing import (
 from .visitor_lead import VisitorLead
 from .communications import CommunicationThread, CommunicationMessage
 from .team_chat import ChatChannel, ChatChannelMembership, ChatMessage
+from .lead_capture import LeadCaptureConfig, GeocodeCache
 
 __all__ = [
     'Plan', 'UserProfile', 'Role', 'Tenant', 'PaymentTransaction', 'AuditLog',

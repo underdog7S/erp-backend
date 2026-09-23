@@ -61,12 +61,19 @@ class Contact(models.Model):
     postal_code = models.CharField(max_length=20, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
     
+    # Lead capture / location (set by the public enquiry form or prospect finder)
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    lead_source = models.CharField(max_length=50, blank=True, default='')
+    distance_km = models.FloatField(blank=True, null=True, help_text="Distance from the tenant's service-area center")
+    within_service_area = models.BooleanField(blank=True, null=True, help_text="None = unknown or no service area set")
+
     # Additional Information
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=20, blank=True, null=True)
     job_title = models.CharField(max_length=100, blank=True, null=True)
     company = models.ForeignKey('Company', on_delete=models.SET_NULL, blank=True, null=True, related_name='contacts')
-    
+
     # Communication Preferences
     email_opt_in = models.BooleanField(default=True)
     sms_opt_in = models.BooleanField(default=False)
