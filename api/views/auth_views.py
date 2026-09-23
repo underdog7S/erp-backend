@@ -48,6 +48,20 @@ class LoginView(TokenObtainPairView):
             return Response({
                 'error': 'This account is restricted. Please contact support.'
             }, status=status.HTTP_403_FORBIDDEN)
+
+        # Allow logging in with either a username or an email in the same
+        # field - simplejwt's default serializer only checks Django's
+        # USERNAME_FIELD ('username'), so a team member who only knows the
+        # email they were added with (not the separate username an admin
+        # picked for them in AddUserView) couldn't log in at all. Resolve
+        # email -> username before handing off; leave it alone if it's
+        # already a real username, to avoid an extra query on that path.
+        identifier = request.data.get('username')
+        if identifier and '@' in identifier and not User.objects.filter(username=identifier).exists():
+            matched_user = User.objects.filter(email__iexact=identifier).exclude(email='').first()
+            if matched_user:
+                request.data['username'] = matched_user.username
+
         response = None
         try:
             # First, get the tokens (this validates credentials)
