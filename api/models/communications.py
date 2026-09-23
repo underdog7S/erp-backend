@@ -41,12 +41,20 @@ class CommunicationMessage(models.Model):
     ]
     
     thread = models.ForeignKey(CommunicationThread, on_delete=models.CASCADE, related_name='messages')
-    
+
     sender_type = models.CharField(max_length=20, choices=SENDER_TYPE_CHOICES)
     agent = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="If agent sent this")
-    
-    content = models.TextField()
-    
+
+    content = models.TextField(blank=True, default='')
+
+    # Attachment - stored in Supabase Storage, not local disk (Render's
+    # filesystem is ephemeral and wiped on every deploy, which would break
+    # both the message history and any outbound MMS/WhatsApp media send
+    # that needs a stable, publicly-fetchable URL).
+    attachment_url = models.URLField(max_length=1000, blank=True, null=True)
+    attachment_name = models.CharField(max_length=255, blank=True, null=True)
+    attachment_type = models.CharField(max_length=20, blank=True, null=True, help_text="image, document, audio, or video")
+
     # Message metadata
     external_message_id = models.CharField(max_length=255, blank=True, null=True)
     is_read = models.BooleanField(default=False)

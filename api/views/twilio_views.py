@@ -1,4 +1,5 @@
 import logging
+import requests as http_requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
@@ -51,11 +52,38 @@ class TwilioSMSWebhookView(APIView):
                     thread.has_unread = True
                     thread.save()
 
+                    # MMS - Twilio's own MediaUrl expires after a while, so
+                    # re-host it in Supabase Storage for a durable link
+                    # (same reasoning as outbound attachments).
+                    attachment_url = attachment_name = attachment_type = None
+                    num_media = int(request.data.get('NumMedia', 0) or 0)
+                    if num_media > 0:
+                        media_source_url = request.data.get('MediaUrl0')
+                        media_content_type = request.data.get('MediaContentType0', '')
+                        try:
+                            media_resp = http_requests.get(
+                                media_source_url,
+                                auth=(config.twilio_account_sid, config.twilio_auth_token),
+                                timeout=15,
+                            )
+                            if media_resp.status_code == 200:
+                                import mimetypes
+                                from api.utils.supabase_storage import upload_file, classify_attachment
+                                ext = mimetypes.guess_extension(media_content_type.split(';')[0].strip()) or ''
+                                attachment_name = f"mms-media{ext}"
+                                attachment_url = upload_file(tenant.id, attachment_name, media_resp.content, media_content_type)
+                                attachment_type = classify_attachment(media_content_type, attachment_name)
+                        except Exception as media_err:
+                            logger.error(f"Failed to re-host inbound MMS media: {media_err}")
+
                     CommunicationMessage.objects.create(
                         thread=thread,
                         sender_type='client',
                         content=message_text,
-                        external_message_id=message_sid
+                        external_message_id=message_sid,
+                        attachment_url=attachment_url,
+                        attachment_name=attachment_name,
+                        attachment_type=attachment_type,
                     )
 
                     from api.utils.notification_utils import notify_new_inbound_message

@@ -110,6 +110,16 @@ class WhatsAppWebhookView(APIView):
                                 message_text = msg.get("text", {}).get("body", "")
                                 message_id = msg.get("id")
 
+                                # Media messages (image/document/audio/video) don't
+                                # carry a URL - just a media ID that has to be
+                                # resolved via a separate Graph API call, then
+                                # downloaded and re-hosted in Supabase Storage
+                                # (Meta's own media URLs expire after a short time).
+                                media_type = msg.get("type")
+                                media_meta = msg.get(media_type) if media_type in ('image', 'document', 'audio', 'video', 'sticker') else None
+                                if media_meta and not message_text:
+                                    message_text = media_meta.get('caption', '')
+
                                 # Meta includes the sender's WhatsApp display
                                 # name alongside the message, keyed by phone
                                 sender_name = None
@@ -146,12 +156,44 @@ class WhatsAppWebhookView(APIView):
                                     thread.has_unread = True
                                     thread.save()
                                     
+                                    # 2b. Resolve + download the media, if this message has any
+                                    attachment_url = attachment_name = attachment_type = None
+                                    if media_meta:
+                                        token = config.whatsapp_access_token or os.getenv('WHATSAPP_TOKEN')
+                                        try:
+                                            media_id = media_meta.get('id')
+                                            lookup = requests.get(
+                                                f"https://graph.facebook.com/v18.0/{media_id}",
+                                                headers={'Authorization': f'Bearer {token}'},
+                                                timeout=10,
+                                            )
+                                            lookup.raise_for_status()
+                                            temp_url = lookup.json().get('url')
+                                            content_type = media_meta.get('mime_type', '')
+                                            media_resp = requests.get(
+                                                temp_url,
+                                                headers={'Authorization': f'Bearer {token}'},
+                                                timeout=15,
+                                            )
+                                            if media_resp.status_code == 200:
+                                                import mimetypes
+                                                from api.utils.supabase_storage import upload_file, classify_attachment
+                                                ext = mimetypes.guess_extension(content_type.split(';')[0].strip()) or ''
+                                                attachment_name = f"whatsapp-media{ext}"
+                                                attachment_url = upload_file(tenant.id, attachment_name, media_resp.content, content_type)
+                                                attachment_type = classify_attachment(content_type, attachment_name)
+                                        except Exception as media_err:
+                                            print(f"⚠️ Failed to fetch/re-host inbound WhatsApp media: {media_err}")
+
                                     # 3. Save incoming message to database
                                     CommunicationMessage.objects.create(
                                         thread=thread,
                                         sender_type='client',
                                         content=message_text,
-                                        external_message_id=message_id
+                                        external_message_id=message_id,
+                                        attachment_url=attachment_url,
+                                        attachment_name=attachment_name,
+                                        attachment_type=attachment_type,
                                     )
 
                                     from api.utils.notification_utils import notify_new_inbound_message
