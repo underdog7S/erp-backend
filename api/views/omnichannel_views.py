@@ -155,6 +155,24 @@ class OmnichannelReplyView(APIView):
                 else:
                     logger.warning(f"Tenant {profile.tenant.name} has no WhatsApp credentials. Message saved to DB only.")
 
+            elif thread.source == 'email':
+                recipient_email = thread.contact.email if thread.contact and thread.contact.email else None
+                if recipient_email:
+                    try:
+                        from api.utils.dynamic_mailer import send_tenant_email
+                        subject = f"Re: {thread.subject}" if thread.subject else f"Message from {profile.tenant.name}"
+                        send_tenant_email(
+                            tenant=profile.tenant,
+                            subject=subject,
+                            message=content,
+                            recipient_list=[recipient_email],
+                        )
+                        logger.info(f"Email sent to {recipient_email} for tenant {profile.tenant.name}")
+                    except Exception as email_err:
+                        logger.error(f"Tenant email send failed: {email_err}")
+                else:
+                    logger.warning(f"No email address on contact for thread {thread_id}")
+
             msg = CommunicationMessage.objects.create(
                 thread=thread,
                 sender_type='agent',

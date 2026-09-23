@@ -45,6 +45,9 @@ class TwilioSMSWebhookView(APIView):
                         source='sms',
                         external_thread_id=sender_phone
                     )
+                    if not thread.contact:
+                        from api.utils.contact_utils import get_or_create_contact
+                        thread.contact = get_or_create_contact(tenant, phone=sender_phone)
                     thread.has_unread = True
                     thread.save()
 

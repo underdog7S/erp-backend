@@ -109,7 +109,15 @@ class WhatsAppWebhookView(APIView):
                                 sender_phone = msg.get("from")
                                 message_text = msg.get("text", {}).get("body", "")
                                 message_id = msg.get("id")
-                                
+
+                                # Meta includes the sender's WhatsApp display
+                                # name alongside the message, keyed by phone
+                                sender_name = None
+                                for c in value.get("contacts", []):
+                                    if c.get("wa_id") == sender_phone:
+                                        sender_name = c.get("profile", {}).get("name")
+                                        break
+
                                 # Find the business phone number ID this was sent to
                                 recipient_phone_id = value.get("metadata", {}).get("phone_number_id")
                                 
@@ -132,6 +140,9 @@ class WhatsAppWebhookView(APIView):
                                         source='whatsapp',
                                         external_thread_id=sender_phone
                                     )
+                                    if not thread.contact:
+                                        from api.utils.contact_utils import get_or_create_contact
+                                        thread.contact = get_or_create_contact(tenant, phone=sender_phone, name=sender_name)
                                     thread.has_unread = True
                                     thread.save()
                                     

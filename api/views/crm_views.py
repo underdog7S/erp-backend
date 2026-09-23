@@ -84,6 +84,39 @@ class ContactViewSet(viewsets.ModelViewSet):
         contact.last_contacted_at = timezone.now()
         contact.save()
         return Response({'status': 'Last contacted updated'})
+
+    @action(detail=True, methods=['post'], url_path='start-conversation')
+    def start_conversation(self, request, pk=None):
+        """Open (or find) the Omnichannel thread for this contact on a given
+        channel, so 'Message this contact' from Contact Management can jump
+        straight into the inbox instead of the contact only ever being
+        reachable if they message in first."""
+        contact = self.get_object()
+        channel = request.data.get('channel')
+        if channel not in ('sms', 'whatsapp', 'email'):
+            return Response({'error': "channel must be 'sms', 'whatsapp', or 'email'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if channel in ('sms', 'whatsapp'):
+            if not contact.phone:
+                return Response({'error': 'This contact has no phone number on file.'}, status=status.HTTP_400_BAD_REQUEST)
+            external_id = contact.phone
+        else:
+            if not contact.email:
+                return Response({'error': 'This contact has no email address on file.'}, status=status.HTTP_400_BAD_REQUEST)
+            external_id = contact.email
+
+        from api.models.communications import CommunicationThread
+        thread, _ = CommunicationThread.objects.get_or_create(
+            tenant=contact.tenant,
+            source=channel,
+            external_thread_id=external_id,
+            defaults={'contact': contact},
+        )
+        if not thread.contact:
+            thread.contact = contact
+            thread.save(update_fields=['contact'])
+
+        return Response({'thread_id': thread.id})
     
     @action(detail=False, methods=['get'])
     def stats(self, request):

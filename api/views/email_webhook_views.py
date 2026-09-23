@@ -50,6 +50,9 @@ class EmailWebhookView(APIView):
                     source='email',
                     external_thread_id=sender_email
                 )
+                if not thread.contact:
+                    from api.utils.contact_utils import get_or_create_contact
+                    thread.contact = get_or_create_contact(tenant, email=sender_email)
                 thread.has_unread = True
                 thread.subject = subject
                 thread.save()
@@ -86,38 +89,39 @@ class EmailWebhookView(APIView):
                 # 4. Trigger AI Auto-Responder if enabled
                 if config.is_ai_enabled and config.ai_tokens_used_this_month < config.ai_tokens_monthly_limit:
                     ai_reply = generate_smart_reply(thread)
-                    
-                    ai_msg = CommunicationMessage.objects.create(
-                        thread=thread,
-                        sender_type='ai',
-                        content=ai_reply
-                    )
-                    
-                    if channel_layer:
-                        async_to_sync(channel_layer.group_send)(
-                            room_name,
-                            {
-                                'type': 'new_message',
-                                'message_data': {
-                                    'id': ai_msg.id,
-                                    'thread_id': thread.id,
-                                    'text': ai_msg.content,
-                                    'sender': ai_msg.sender_type,
-                                    'source': thread.source,
-                                    'thread_name': thread.contact.full_name if thread.contact else str(thread.external_thread_id)
-                                }
-                            }
+
+                    if ai_reply:
+                        ai_msg = CommunicationMessage.objects.create(
+                            thread=thread,
+                            sender_type='ai',
+                            content=ai_reply
                         )
-                    
-                    # Send email back via Django Email logic
-                    from django.core.mail import send_mail
-                    send_mail(
-                        subject=f"Re: {subject}",
-                        message=ai_reply,
-                        from_email=recipient_email,
-                        recipient_list=[sender_email],
-                        fail_silently=True,
-                    )
+
+                        if channel_layer:
+                            async_to_sync(channel_layer.group_send)(
+                                room_name,
+                                {
+                                    'type': 'new_message',
+                                    'message_data': {
+                                        'id': ai_msg.id,
+                                        'thread_id': thread.id,
+                                        'text': ai_msg.content,
+                                        'sender': ai_msg.sender_type,
+                                        'source': thread.source,
+                                        'thread_name': thread.contact.full_name if thread.contact else str(thread.external_thread_id)
+                                    }
+                                }
+                            )
+
+                        # Send email back via the tenant's own SMTP (BYOK) if
+                        # configured, falling back to the platform's sender
+                        from api.utils.dynamic_mailer import send_tenant_email
+                        send_tenant_email(
+                            tenant=tenant,
+                            subject=f"Re: {subject}",
+                            message=ai_reply,
+                            recipient_list=[sender_email],
+                        )
                     
             return Response("OK", status=200)
         except Exception as e:
