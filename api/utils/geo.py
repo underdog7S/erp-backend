@@ -31,6 +31,26 @@ def haversine_km(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def _nominatim(params):
+    r = requests.get(NOMINATIM_URL, params=dict(params, format='json', limit=1, countrycodes='in'),
+                     headers={'User-Agent': USER_AGENT}, timeout=6)
+    _last_geocode_at[0] = time.time()
+    r.raise_for_status()
+    data = r.json()
+    return (float(data[0]['lat']), float(data[0]['lon'])) if data else None
+
+
+def _pincode_place_names(pin):
+    """Free India Post lookup (no key): 6-digit pincode -> ['Area, District, State', ...]."""
+    try:
+        r = requests.get(f"https://api.postalpincode.in/pincode/{pin}", timeout=6)
+        offices = (r.json()[0].get('PostOffice') or [])[:3]
+        return [f"{o['Name']}, {o['District']}, {o['State']}" for o in offices]
+    except Exception as e:
+        logger.warning("Pincode lookup failed for %s: %s", pin, e)
+        return []
+
+
 def geocode(query):
     """Returns (lat, lng) or None. Cached in the DB, misses included."""
     from api.models.lead_capture import GeocodeCache
@@ -47,13 +67,17 @@ def geocode(query):
         if wait > 0:
             time.sleep(wait)
         try:
-            r = requests.get(NOMINATIM_URL, params={'q': key, 'format': 'json', 'limit': 1, 'countrycodes': 'in'},
-                             headers={'User-Agent': USER_AGENT}, timeout=6)
-            _last_geocode_at[0] = time.time()
-            r.raise_for_status()
-            data = r.json()
-            if data:
-                result = (float(data[0]['lat']), float(data[0]['lon']))
+            import re
+            pin = re.search(r'(\d{6})', key)
+            result = _nominatim({'q': key})
+            if not result and pin:
+                result = _nominatim({'postalcode': pin.group(1), 'country': 'India'})
+            if not result and pin:  # OSM has patchy postcode data: go via the post-office area name
+                for name in _pincode_place_names(pin.group(1)):
+                    time.sleep(1.1)
+                    result = _nominatim({'q': name})
+                    if result:
+                        break
         except Exception as e:
             logger.warning("Geocoding failed for %r: %s", key, e)
             return None  # transient failure: don't cache as a miss
