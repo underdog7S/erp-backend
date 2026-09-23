@@ -199,6 +199,10 @@ class ProductImportView(APIView):
                         errors.append(f"Row {row_num}: Product name is required")
                         continue
                     
+                    if not row.get('sku'):
+                        errors.append(f"Row {row_num}: SKU is required")
+                        continue
+
                     # Get or create category
                     category_name = row.get('category', 'General')
                     category, created = ProductCategory.objects.get_or_create(
@@ -206,47 +210,50 @@ class ProductImportView(APIView):
                         tenant=tenant,
                         defaults={'description': f'Category for {category_name}'}
                     )
-                    
-                    # Create product
+
+                    # Field names below match retail.models.Product exactly -
+                    # the previous version used manufacturer/unit_price/
+                    # current_stock/location, none of which exist on that
+                    # model (it's brand/selling_price+mrp instead, and stock
+                    # lives on the separate per-warehouse Inventory model,
+                    # not on Product itself) - Product.objects.create() would
+                    # have raised a TypeError on every single row.
+                    selling_price = Decimal(row.get('selling_price') or row.get('unit_price') or '0.00')
                     product_data = {
                         'name': row.get('name'),
                         'description': row.get('description', ''),
                         'category': category,
-                        'manufacturer': row.get('manufacturer', ''),
-                        'sku': row.get('sku', ''),
-                        'barcode': row.get('barcode', ''),
-                        'unit_price': Decimal(row.get('unit_price', '0.00')),
+                        'brand': row.get('brand') or row.get('manufacturer', ''),
+                        'sku': row.get('sku'),
                         'cost_price': Decimal(row.get('cost_price', '0.00')),
-                        'reorder_level': int(row.get('reorder_level', 0)),
-                        'current_stock': int(row.get('current_stock', 0)),
-                        'location': row.get('location', ''),
+                        'selling_price': selling_price,
+                        # mrp is required with no default - fall back to
+                        # selling_price when the CSV doesn't specify one.
+                        'mrp': Decimal(row['mrp']) if row.get('mrp') else selling_price,
+                        'reorder_level': int(row.get('reorder_level', 10)),
                         'tenant': tenant
                     }
-                    
-                    # Check if product already exists
-                    existing_product = Product.objects.filter(
-                        name=product_data['name'],
-                        sku=product_data['sku'],
-                        tenant=tenant
-                    ).first()
-                    
-                    if existing_product:
-                        errors.append(f"Row {row_num}: Product '{product_data['name']}' already exists")
+
+                    # sku is globally unique on this model (not scoped to
+                    # tenant), so check for it directly rather than assuming
+                    # a collision only happens within this tenant's own data.
+                    if Product.objects.filter(sku=product_data['sku']).exists():
+                        errors.append(f"Row {row_num}: SKU '{product_data['sku']}' already exists")
                         continue
-                    
+
                     # Create product
                     product = Product.objects.create(**product_data)
                     imported_count += 1
-                    
+
                     # Add to preview
                     preview_data.append({
                         'name': product.name,
                         'description': product.description,
                         'category': product.category.name,
-                        'manufacturer': product.manufacturer,
+                        'brand': product.brand,
                         'sku': product.sku,
-                        'unit_price': float(product.unit_price),
-                        'current_stock': product.current_stock
+                        'selling_price': float(product.selling_price),
+                        'reorder_level': product.reorder_level
                     })
                     
                 except Exception as e:
@@ -299,10 +306,10 @@ Omeprazole 20mg,Omeprazole,Antacid,DEF Pharmaceuticals,20mg,CAPSULE,false,For ac
     
     def get_product_template(self):
         """Generate product import template"""
-        csv_content = """name,description,category,manufacturer,sku,barcode,unit_price,cost_price,reorder_level,current_stock,location
-Laptop HP 15,High performance laptop,Electronics,HP,HP15-001,123456789012,45000.00,40000.00,5,10,Warehouse A
-iPhone 15 Pro,Latest smartphone,Electronics,Apple,IP15P-001,987654321098,120000.00,110000.00,3,8,Warehouse B
-Samsung TV 55",4K Smart TV,Electronics,Samsung,SS55-001,456789123456,65000.00,60000.00,2,5,Warehouse A"""
+        csv_content = """name,description,category,brand,sku,selling_price,mrp,cost_price,reorder_level
+Laptop HP 15,High performance laptop,Electronics,HP,HP15-001,45000.00,48000.00,40000.00,5
+iPhone 15 Pro,Latest smartphone,Electronics,Apple,IP15P-001,120000.00,125000.00,110000.00,3
+Samsung TV 55",4K Smart TV,Electronics,Samsung,SS55-001,65000.00,68000.00,60000.00,2"""
         
         response = HttpResponse(csv_content, content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="product_import_template.csv"'
