@@ -40,15 +40,51 @@ def _nominatim(params):
     return (float(data[0]['lat']), float(data[0]['lon'])) if data else None
 
 
+def _zippo(pin):
+    r = requests.get(f"https://api.zippopotam.us/in/{pin}", timeout=6)
+    return r.json().get('places', []) if r.status_code == 200 else []
+
+
 def _pincode_place_names(pin):
-    """Free India Post lookup (no key): 6-digit pincode -> ['Area, District, State', ...]."""
+    """Free keyless India pincode lookups -> ['Area, State', ...] (tries two services)."""
     try:
-        r = requests.get(f"https://api.postalpincode.in/pincode/{pin}", timeout=6)
+        r = requests.get(f"https://api.postalpincode.in/pincode/{pin}", timeout=5)
         offices = (r.json()[0].get('PostOffice') or [])[:3]
-        return [f"{o['Name']}, {o['District']}, {o['State']}" for o in offices]
+        if offices:
+            return [f"{o['Name']}, {o['District']}, {o['State']}" for o in offices]
     except Exception as e:
-        logger.warning("Pincode lookup failed for %s: %s", pin, e)
+        logger.warning("postalpincode lookup failed for %s: %s", pin, e)
+    try:
+        return [f"{pl['place name']}, {pl['state']}" for pl in _zippo(pin)[:3]]
+    except Exception as e:
+        logger.warning("zippopotam lookup failed for %s: %s", pin, e)
         return []
+
+
+def _photon(q):
+    """Free, keyless OSM-based geocoder (komoot) - separate rate limits from Nominatim."""
+    r = requests.get("https://photon.komoot.io/api/", params={'q': q, 'limit': 1, 'bbox': '68,6,98,36'},
+                     headers={'User-Agent': USER_AGENT}, timeout=6)
+    r.raise_for_status()
+    feats = r.json().get('features') or []
+    if not feats:
+        return None
+    lng, lat = feats[0]['geometry']['coordinates']
+    return (float(lat), float(lng))
+
+
+def _via_post_office(pin):
+    for name in _pincode_place_names(pin):
+        res = _photon(name)
+        if res:
+            return res
+    # last resort: centre of the pincode's listed places (rough, but right city)
+    places = _zippo(pin)
+    if places:
+        lats = sorted(float(x['latitude']) for x in places)
+        lngs = sorted(float(x['longitude']) for x in places)
+        return (lats[len(lats) // 2], lngs[len(lngs) // 2])
+    return None
 
 
 def geocode(query):
@@ -66,20 +102,25 @@ def geocode(query):
         wait = 1.1 - (time.time() - _last_geocode_at[0])
         if wait > 0:
             time.sleep(wait)
-        try:
-            import re
-            pin = re.search(r'(\d{6})', key)
-            result = _nominatim({'q': key})
-            if not result and pin:
-                result = _nominatim({'postalcode': pin.group(1), 'country': 'India'})
-            if not result and pin:  # OSM has patchy postcode data: go via the post-office area name
-                for name in _pincode_place_names(pin.group(1)):
-                    time.sleep(1.1)
-                    result = _nominatim({'q': name})
-                    if result:
-                        break
-        except Exception as e:
-            logger.warning("Geocoding failed for %r: %s", key, e)
+        import re
+        pin = re.search(r'(\d{6})', key)
+        attempts = [lambda: _nominatim({'q': key})]
+        if pin:  # a bare pincode confuses name-based geocoders, so go via the post-office area name
+            attempts.append(lambda: _nominatim({'postalcode': pin.group(1), 'country': 'India'}))
+            attempts.append(lambda: _via_post_office(pin.group(1)))
+        else:
+            attempts.append(lambda: _photon(key))
+        failures = 0
+        for attempt in attempts:  # shared cloud IPs often get 429 from Nominatim: fall through to other free sources
+            try:
+                result = attempt()
+            except Exception as e:
+                failures += 1
+                logger.warning("Geocoding step failed for %r: %s", key, e)
+                continue
+            if result:
+                break
+        if not result and failures:
             return None  # transient failure: don't cache as a miss
     GeocodeCache.objects.get_or_create(query=key, defaults={'lat': result[0] if result else None, 'lng': result[1] if result else None})
     return result
