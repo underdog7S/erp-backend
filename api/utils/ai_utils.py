@@ -111,7 +111,13 @@ def _reply_via_openai_compatible(config, system_prompt, messages_payload, tenant
             # model in code" snippet now generates by default) is addressed
             # like a plain OpenAI-compatible endpoint - it rejects the
             # api_version query param the classic AzureOpenAI client adds.
-            client = OpenAI(api_key=config.azure_openai_api_key, base_url=endpoint)
+            # Foundry's snippet sometimes appends a specific route like
+            # "/responses" onto the v1 base (Azure's newer Responses API) -
+            # the openai SDK needs the bare ".../v1/" base and appends
+            # "/chat/completions" itself, so strip any such suffix back to
+            # the v1 root or the request 404s against a nonsense path.
+            base_url = endpoint[:endpoint.index('/v1') + len('/v1')] + '/'
+            client = OpenAI(api_key=config.azure_openai_api_key, base_url=base_url)
         else:
             # Classic Azure OpenAI endpoint (https://<resource>.openai.azure.com/)
             client = AzureOpenAI(
