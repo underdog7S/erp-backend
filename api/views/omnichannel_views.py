@@ -72,21 +72,32 @@ class OmnichannelThreadListView(APIView):
             if not tenant:
                 return Response({'error': 'Tenant not found'}, status=status.HTTP_404_NOT_FOUND)
 
-            threads = CommunicationThread.objects.filter(tenant=tenant)
-            
-            # Format for the frontend UI
+            # select_related('contact') avoids a query per thread for the
+            # name; bulk-fetching every message once and reducing to
+            # last-message-per-thread in Python avoids the second
+            # per-thread query this used to make - was a real contributor
+            # to "Omnichannel Inbox takes forever to load" with more than
+            # a couple of threads.
+            threads = list(CommunicationThread.objects.filter(tenant=tenant).select_related('contact'))
+            thread_ids = [t.id for t in threads]
+
+            messages = CommunicationMessage.objects.filter(thread_id__in=thread_ids).order_by('created_at').values('thread_id', 'content', 'created_at')
+            last_message_by_thread = {}
+            for msg in messages:
+                last_message_by_thread[msg['thread_id']] = msg  # last write wins, ordered ascending
+
             data = []
             for t in threads:
-                last_msg = t.messages.order_by('-created_at').first()
+                last_msg = last_message_by_thread.get(t.id)
                 data.append({
                     'id': t.id,
                     'name': t.contact.full_name if t.contact else 'Unknown Sender',
-                    'lastMessage': last_msg.content if last_msg else 'No messages yet',
-                    'time': last_msg.created_at.strftime('%I:%M %p') if last_msg else t.created_at.strftime('%I:%M %p'),
+                    'lastMessage': last_msg['content'] if last_msg else 'No messages yet',
+                    'time': (last_msg['created_at'] if last_msg else t.created_at).strftime('%I:%M %p'),
                     'source': t.source,
                     'unread': 1 if t.has_unread else 0
                 })
-                
+
             return Response(data)
         except Exception as e:
             logger.error(f"Error fetching threads: {str(e)}")

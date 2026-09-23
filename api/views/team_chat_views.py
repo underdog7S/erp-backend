@@ -68,19 +68,58 @@ class ChannelListCreateView(APIView):
         profile = UserProfile.objects.get(user=request.user)
         _get_or_create_ai_channel(profile, request.user)
 
-        memberships = ChatChannelMembership.objects.filter(user=request.user).select_related('channel')
+        # Was previously ~3 queries per channel (last message, unread count,
+        # other-member lookup for DM names) - polled every 8s from the
+        # frontend, so with even a handful of channels this alone was a real
+        # chunk of "Team Chat takes forever to load". Rewritten to a fixed
+        # small number of queries regardless of how many channels the user
+        # is in: one for memberships, one for every message across all of
+        # them (reduced to last-message-per-channel and unread-count-per-
+        # channel in Python), one for every membership across all of them
+        # (for DM display names).
+        memberships = list(ChatChannelMembership.objects.filter(user=request.user).select_related('channel'))
+        channel_ids = [m.channel_id for m in memberships]
+
+        messages = ChatMessage.objects.filter(channel_id__in=channel_ids).order_by('created_at').values('channel_id', 'content', 'created_at')
+        messages_by_channel = {}
+        for msg in messages:
+            messages_by_channel.setdefault(msg['channel_id'], []).append(msg)
+
+        last_message_by_channel = {cid: msgs[-1] for cid, msgs in messages_by_channel.items()}
+        unread_count_by_channel = {}
+        for m in memberships:
+            channel_messages = messages_by_channel.get(m.channel_id, [])
+            if m.last_read_at:
+                unread_count_by_channel[m.channel_id] = sum(1 for msg in channel_messages if msg['created_at'] > m.last_read_at)
+            else:
+                unread_count_by_channel[m.channel_id] = len(channel_messages)
+
+        other_members = ChatChannelMembership.objects.filter(
+            channel_id__in=channel_ids, channel__channel_type='direct'
+        ).exclude(user=request.user).select_related('user')
+        other_member_by_channel = {m.channel_id: m.user for m in other_members}
+
+        def display_name(channel):
+            if channel.channel_type == 'ai':
+                return 'AI Assistant'
+            if channel.channel_type == 'group':
+                return channel.name or 'Group'
+            other = other_member_by_channel.get(channel.id)
+            if other:
+                return other.get_full_name() or other.username
+            return channel.name or 'Direct Message'
+
         data = []
         for m in memberships:
             channel = m.channel
-            last_msg = channel.messages.order_by('-created_at').first()
-            unread_count = channel.messages.filter(created_at__gt=m.last_read_at).count() if m.last_read_at else channel.messages.count()
+            last_msg = last_message_by_channel.get(channel.id)
             data.append({
                 'id': channel.id,
-                'name': _channel_display(channel, request.user),
+                'name': display_name(channel),
                 'channel_type': channel.channel_type,
-                'last_message': last_msg.content if last_msg else None,
-                'last_message_at': last_msg.created_at if last_msg else channel.created_at,
-                'unread_count': unread_count,
+                'last_message': last_msg['content'] if last_msg else None,
+                'last_message_at': last_msg['created_at'] if last_msg else channel.created_at,
+                'unread_count': unread_count_by_channel.get(channel.id, 0),
             })
         # AI Assistant is always available and pinned first for discoverability.
         data.sort(key=lambda c: (c['channel_type'] == 'ai', c['last_message_at']), reverse=True)
