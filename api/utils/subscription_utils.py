@@ -32,7 +32,15 @@ def provision_tenant_plan_features(tenant, plan_instance):
     elif plan_name == 'starter':
         config.is_sms_enabled = True
         config.sms_monthly_limit = 1000
-        config.is_whatsapp_enabled = False
+        # Enabled per owner decision - routes through the same platform-level
+        # WHATSAPP_TOKEN/WHATSAPP_PHONE_ID fallback that Pro/Enterprise's
+        # managed WhatsApp already uses (see whatsapp_views.py), so this
+        # works today with no MSG91 integration needed. Quota kept modest
+        # relative to Pro's 1000/Enterprise's 10000 - re-price once real
+        # Meta/MSG91 per-conversation costs are known (see the audit's
+        # plan-economics section).
+        config.is_whatsapp_enabled = True
+        config.whatsapp_monthly_limit = 200
         config.is_ai_enabled = True
         config.ai_tokens_monthly_limit = 500
     elif plan_name == 'pro':
