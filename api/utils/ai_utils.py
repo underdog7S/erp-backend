@@ -15,9 +15,16 @@ PLATFORM_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "dummy_key_for_builds")
 # set directly on Render) rather than per-tenant BYOK - it's meant to be
 # available to every tenant on every plan, unlike the customer-facing
 # Omnichannel AI which is gated behind BYOK/managed-plan quotas.
-PLATFORM_AZURE_OPENAI_API_KEY = os.getenv("TEAM_CHAT_AZURE_OPENAI_API_KEY")
-PLATFORM_AZURE_OPENAI_ENDPOINT = os.getenv("TEAM_CHAT_AZURE_OPENAI_ENDPOINT")
-PLATFORM_AZURE_OPENAI_DEPLOYMENT = os.getenv("TEAM_CHAT_AZURE_OPENAI_DEPLOYMENT")
+def _clean_env(name):
+    # Pasted env values often carry surrounding spaces/quotes/newlines,
+    # which Azure reports as a plain 401.
+    v = os.getenv(name)
+    return v.strip().strip('"').strip("'").strip() if v else v
+
+
+PLATFORM_AZURE_OPENAI_API_KEY = _clean_env("TEAM_CHAT_AZURE_OPENAI_API_KEY")
+PLATFORM_AZURE_OPENAI_ENDPOINT = _clean_env("TEAM_CHAT_AZURE_OPENAI_ENDPOINT")
+PLATFORM_AZURE_OPENAI_DEPLOYMENT = _clean_env("TEAM_CHAT_AZURE_OPENAI_DEPLOYMENT")
 
 
 def _track_tokens(config, count):
@@ -260,6 +267,12 @@ def generate_team_chat_ai_reply(tenant, history, max_tokens: int = 300):
         base_url = endpoint[:endpoint.index('/v1') + len('/v1')] + '/'
         client = OpenAI(api_key=PLATFORM_AZURE_OPENAI_API_KEY, base_url=base_url)
     else:
+        # If a full request URL was pasted (.../openai/deployments/...?api-version=...),
+        # AzureOpenAI needs just scheme://host.
+        from urllib.parse import urlparse
+        parsed = urlparse(endpoint)
+        if parsed.scheme and parsed.netloc:
+            endpoint = f"{parsed.scheme}://{parsed.netloc}/"
         client = AzureOpenAI(
             api_key=PLATFORM_AZURE_OPENAI_API_KEY,
             azure_endpoint=endpoint,
