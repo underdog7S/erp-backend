@@ -208,6 +208,19 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    # Abuse protection. Limits are per client IP (anon) / per user; the login and
+    # password-reset scopes are much tighter. Kept generous for logged-in users
+    # because the UI polls notifications/chat in the background.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '120/min',
+        'user': '1200/min',
+        'login': '10/min',
+        'password_reset': '5/min',
+    },
 }
 
 # JWT Settings
@@ -279,6 +292,7 @@ if not DEBUG:
     # HTTPS Security (for production)
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_REDIRECT_EXEMPT = [r'^healthz/$']  # uptime checks hit plain HTTP
     
     # Cookie Security (read from environment, default to False for HTTP)
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'

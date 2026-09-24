@@ -14,6 +14,7 @@ from api.models.user import Tenant, UserProfile, Role
 from api.models.plan import Plan
 from api.models.email_verification import EmailVerification
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -40,6 +41,8 @@ def is_email_blocked(email):
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
     
     def post(self, request, *args, **kwargs):
         """Override to check subscription status before allowing login"""

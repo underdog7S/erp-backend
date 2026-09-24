@@ -4,7 +4,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import TemplateView
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework import permissions
 from rest_framework.permissions import IsAuthenticated
 from drf_yasg.views import get_schema_view
@@ -36,6 +36,7 @@ def redirect_admin(request):
 
 urlpatterns = [
     # Old admin path - redirect to secure admin or show error
+    path('healthz/', lambda request: HttpResponse('ok'), name='healthz'),
     path('admin/', redirect_admin, name='admin-redirect'),
     # Secure admin path (only accessible to superusers)
     path('secure-admin/', secure_admin_site.urls),
