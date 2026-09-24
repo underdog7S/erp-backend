@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.permissions import HasFeaturePermissionFactory
 from django.db import models, transaction
-from django.db.models import Q, Sum, Count, Min
+from django.db.models import Q, Sum, Count, Min, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError
@@ -118,6 +118,13 @@ class MedicineBarcodeSearchView(generics.RetrieveAPIView):
         return get_object_or_404(Medicine, barcode=barcode, tenant=self.request.user.userprofile.tenant)
 
 # Medicine Views
+def _next_batch(medicine_ref):
+    """Batches a sale would draw from, earliest expiry first."""
+    return MedicineBatch.objects.filter(
+        medicine=medicine_ref, quantity_available__gt=0, expiry_date__gte=timezone.now().date()
+    ).order_by('expiry_date', 'id')
+
+
 class MedicineListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = MedicineSerializer
@@ -126,6 +133,9 @@ class MedicineListCreateView(generics.ListCreateAPIView):
         queryset = Medicine.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category').annotate(
             total_stock=Coalesce(Sum('batches__quantity_available'), 0),
             nearest_expiry=Min('batches__expiry_date', filter=Q(batches__quantity_available__gt=0)),
+            # price and MRP of the batch the next sale will come from (earliest expiry, in date, in stock)
+            sale_price=Subquery(_next_batch(OuterRef('pk')).values('selling_price')[:1]),
+            sale_mrp=Subquery(_next_batch(OuterRef('pk')).values('mrp')[:1]),
         )
         category = self.request.query_params.get('category', None)
         search = self.request.query_params.get('search', None)

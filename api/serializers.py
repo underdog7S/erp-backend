@@ -101,11 +101,13 @@ class MedicineSerializer(serializers.ModelSerializer):
     # Filled by the list view's annotation, summed over in-stock batches
     total_stock = serializers.IntegerField(read_only=True, default=0)
     nearest_expiry = serializers.DateField(read_only=True, default=None)
+    sale_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True, default=None)
+    sale_mrp = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True, default=None)
     category_name = serializers.CharField(source='category.name', read_only=True)
     
     class Meta:
         model = Medicine
-        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name', 'hsn_code', 'gst_rate', 'price_includes_tax', 'total_stock', 'nearest_expiry']
+        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name', 'hsn_code', 'gst_rate', 'price_includes_tax', 'total_stock', 'nearest_expiry', 'sale_price', 'sale_mrp']
         read_only_fields = ('tenant',)
 
 class MedicineBatchSerializer(serializers.ModelSerializer):

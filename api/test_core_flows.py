@@ -558,6 +558,8 @@ class CatalogTests(APITestCase):
         self.assertEqual(row['total_stock'], 15)
         self.assertEqual(row['nearest_expiry'], str(today + timedelta(days=30)))  # empty batch ignored
         self.assertEqual(row['gst_rate'], '12.00')
+        self.assertEqual(row['sale_price'], '2.00')  # from the earliest-expiry batch with stock
+        self.assertEqual(row['sale_mrp'], '3.00')
 
     def test_product_create_without_sku_and_stock_total(self):
         from retail.models import Warehouse
