@@ -279,3 +279,19 @@ class PharmacyStockFlowTests(APITestCase):
         self.assertEqual(names('expired'), ['OLD'])
         self.assertEqual(names('soon'), ['SOON'])
         self.assertEqual(names('ok'), ['FINE'])
+
+
+class ListPaginationTests(APITestCase):
+    def test_lists_are_not_silently_cut_at_ten_rows(self):
+        from api.models.plan import Plan
+        from pharmacy.models import Supplier
+        plan = Plan.objects.create(name='Pg Plan', price=0, storage_limit_mb=100, has_pharmacy=True)
+        tenant = Tenant.objects.create(name='Big Pharmacy', industry='pharmacy', plan=plan)
+        self.client.force_authenticate(make_user(tenant, 'pg_admin', 'admin'))
+        for i in range(25):
+            Supplier.objects.create(tenant=tenant, name=f'Supplier {i}', contact_person='A', phone='1', email='s@x.co', address='x')
+        r = self.client.get('/api/pharmacy/suppliers/')
+        self.assertEqual(r.data['count'], 25)
+        self.assertEqual(len(r.data['results']), 25)
+        small = self.client.get('/api/pharmacy/suppliers/?page_size=10')
+        self.assertEqual(len(small.data['results']), 10)

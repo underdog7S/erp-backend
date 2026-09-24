@@ -206,8 +206,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.DefaultPagination',
+    'PAGE_SIZE': 200,
     # Abuse protection. Limits are per client IP (anon) / per user; the login and
     # password-reset scopes are much tighter. Kept generous for logged-in users
     # because the UI polls notifications/chat in the background.
