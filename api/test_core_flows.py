@@ -623,3 +623,49 @@ class RetailPosTests(RetailSaleGstTests):
             'warehouse': self.wh.id, 'payment_method': 'CASH',
             'items': [{'product': 'Rice', 'quantity': 1, 'price': 999}]}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+class RestaurantKitchenTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        from restaurant.models import MenuCategory, MenuItem, Table
+        cache.clear()
+        plan = Plan.objects.create(name='Rest Plan', price=0, storage_limit_mb=100, has_restaurant=True)
+        self.tenant = Tenant.objects.create(name='Cafe', industry='restaurant', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'rest_admin', 'admin'))
+        cat = MenuCategory.objects.create(tenant=self.tenant, name='Mains')
+        self.dosa = MenuItem.objects.create(tenant=self.tenant, category=cat, name='Masala Dosa', price=80)
+        self.table = Table.objects.create(tenant=self.tenant, number='T1', seats=4)
+
+    def place(self):
+        r = self.client.post('/api/restaurant/orders/', {
+            'order_type': 'dine_in', 'table_id': self.table.id,
+            'items': [{'menu_item_id': self.dosa.id, 'quantity': 2}]}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data
+
+    def test_order_creates_a_kitchen_ticket_and_walks_through_stages(self):
+        order = self.place()
+        self.assertEqual(order['total_amount'], '160.00')
+        tickets = self.client.get('/api/restaurant/kds/tickets/').data
+        self.assertEqual(len(tickets), 1)
+        t = tickets[0]
+        self.assertEqual((t['status'], t['table_number']), ('queued', 'T1'))
+        self.assertEqual(t['items'], [{'name': 'Masala Dosa', 'quantity': 2}])
+        url = f"/api/restaurant/kds/tickets/{t['id']}/status/"
+        self.assertEqual(self.client.post(url, {'status': 'ready'}, format='json').status_code, 400)  # cannot skip preparing
+        for step in ('preparing', 'ready', 'completed'):
+            self.assertEqual(self.client.post(url, {'status': step}, format='json').status_code, 200)
+        self.assertEqual(self.client.get('/api/restaurant/kds/tickets/').data, [])
+        self.assertEqual(self.client.post(url, {'status': 'preparing'}, format='json').status_code, 400)
+
+    def test_other_tenants_cannot_touch_tickets(self):
+        from api.models.plan import Plan
+        self.place()
+        ticket_id = self.client.get('/api/restaurant/kds/tickets/').data[0]['id']
+        other_plan = Plan.objects.create(name='Other Rest', price=0, storage_limit_mb=100, has_restaurant=True)
+        other = Tenant.objects.create(name='Other Cafe', industry='restaurant', plan=other_plan)
+        c2 = APIClient()
+        c2.force_authenticate(make_user(other, 'other_rest', 'admin'))
+        self.assertEqual(c2.get('/api/restaurant/kds/tickets/').data, [])
+        self.assertEqual(c2.post(f'/api/restaurant/kds/tickets/{ticket_id}/status/', {'status': 'preparing'}, format='json').status_code, 404)

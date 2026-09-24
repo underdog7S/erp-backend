@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -481,6 +481,8 @@ urlpatterns += [
     path('restaurant/menu-items/<int:pk>/', restaurant_views.MenuItemDetailView.as_view(), name='restaurant-menu-item-detail'),
     path('restaurant/tables/', restaurant_views.TableListCreateView.as_view(), name='restaurant-tables'),
     path('restaurant/tables/<int:pk>/', restaurant_views.TableDetailView.as_view(), name='restaurant-table-detail'),
+    path('restaurant/kds/tickets/', restaurant_kds_views.KDSTicketListView.as_view(), name='restaurant-kds-tickets'),
+    path('restaurant/kds/tickets/<int:pk>/status/', restaurant_kds_views.KDSTicketStatusView.as_view(), name='restaurant-kds-ticket-status'),
     path('restaurant/orders/', restaurant_views.OrderListCreateView.as_view(), name='restaurant-orders'),
     path('restaurant/orders/<int:pk>/', restaurant_views.OrderDetailView.as_view(), name='restaurant-order-detail'),
     path('restaurant/orders/<int:pk>/serve/', restaurant_views.OrderServeView.as_view(), name='restaurant-order-serve'),

@@ -991,6 +991,7 @@ class OrderSerializer(serializers.ModelSerializer):
 	items = OrderItemSerializer(many=True, read_only=True)
 	table = TableSerializer(read_only=True)
 	table_number = serializers.CharField(source='table.number', read_only=True, allow_null=True)
+	table_id = serializers.PrimaryKeyRelatedField(queryset=Table.objects.all(), source='table', write_only=True, required=False, allow_null=True)
 	
 	class Meta:
 		model = Order
@@ -1000,6 +1001,10 @@ class OrderSerializer(serializers.ModelSerializer):
 	def validate(self, data):
 		"""Validate order data, especially for cloud kitchen/delivery orders"""
 		order_type = data.get('order_type', 'dine_in')
+		request = self.context.get('request')
+		table = data.get('table')
+		if table and request and table.tenant_id != request.user.userprofile.tenant_id:
+			raise serializers.ValidationError({'table_id': 'Unknown table.'})
 		
 		# For cloud kitchen and delivery orders, customer information is required
 		if order_type in ['cloud_kitchen', 'delivery', 'takeaway']:
@@ -1058,7 +1063,11 @@ class OrderSerializer(serializers.ModelSerializer):
 		# Update order with calculated total
 		order.total_amount = total_amount
 		order.save()
-		
+
+		# The kitchen display picks the order up from here
+		from restaurant.kds import create_kds_ticket
+		create_kds_ticket(order)
+
 		return order
 	
 	def update(self, instance, validated_data):
