@@ -523,3 +523,49 @@ class RetailSaleGstTests(APITestCase):
         r = self.client.post('/api/retail/sales/', {
             'warehouse': self.wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Ghost', 'quantity': 1, 'price': 5}]}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+class CatalogTests(APITestCase):
+    """Adding a medicine / product by hand, and seeing stock in the list."""
+
+    def setUp(self):
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Catalog Plan', price=0, storage_limit_mb=100, has_pharmacy=True, has_retail=True)
+        self.tenant = Tenant.objects.create(name='Catalog Tenant', industry='pharmacy', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'catalog_admin', 'admin'))
+
+    def test_medicine_create_and_stock_totals(self):
+        from datetime import date, timedelta
+        from pharmacy.models import MedicineBatch, Supplier
+        r = self.client.post('/api/pharmacy/medicines/', {
+            'name': 'Cetirizine', 'manufacturer': 'Acme', 'dosage_form': 'TABLET', 'strength': '10mg',
+            'hsn_code': '3004', 'gst_rate': '12', 'price_includes_tax': True}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        med_id = r.data['id']
+        supplier = Supplier.objects.create(tenant=self.tenant, name='S', contact_person='A', phone='1', email='s@x.co', address='x')
+        today = date.today()
+        for number, days, qty in (('A', 90, 10), ('B', 30, 5), ('GONE', 10, 0)):
+            MedicineBatch.objects.create(
+                tenant=self.tenant, medicine_id=med_id, batch_number=number, supplier=supplier,
+                manufacturing_date=today - timedelta(days=100), expiry_date=today + timedelta(days=days),
+                cost_price=1, selling_price=2, mrp=3, quantity_received=qty, quantity_available=qty)
+        row = self.client.get('/api/pharmacy/medicines/').data['results'][0]
+        self.assertEqual(row['total_stock'], 15)
+        self.assertEqual(row['nearest_expiry'], str(today + timedelta(days=30)))  # empty batch ignored
+        self.assertEqual(row['gst_rate'], '12.00')
+
+    def test_product_create_without_sku_and_stock_total(self):
+        from retail.models import Warehouse
+        r = self.client.post('/api/retail/products/', {
+            'name': 'Notebook', 'cost_price': '20', 'selling_price': '30', 'mrp': '35',
+            'gst_rate': '12', 'hsn_code': '4820', 'price_includes_tax': 'true'})  # multipart, like the form
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(r.data['sku'].startswith('SKU-'))
+        self.assertTrue(r.data['price_includes_tax'])
+        wh = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1')
+        adj = self.client.post('/api/retail/stock-adjustments/', {
+            'warehouse': wh.id, 'adjustment_type': 'ADD', 'reason': 'opening stock',
+            'items_input': [{'product': r.data['id'], 'quantity': 12}]}, format='json')
+        self.assertEqual(adj.status_code, 201, adj.data)
+        self.assertEqual(self.client.get('/api/retail/products/').data['results'][0]['total_stock'], 12)

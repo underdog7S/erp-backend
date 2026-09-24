@@ -6,7 +6,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.permissions import HasFeaturePermissionFactory
 from django.db import models, transaction
-from django.db.models import Q, Sum, Count
+from django.db.models import Q, Sum, Count, Min
+from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError
 from decimal import Decimal
@@ -122,7 +123,10 @@ class MedicineListCreateView(generics.ListCreateAPIView):
     serializer_class = MedicineSerializer
     
     def get_queryset(self):
-        queryset = Medicine.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category')
+        queryset = Medicine.objects.filter(tenant=self.request.user.userprofile.tenant).select_related('category').annotate(
+            total_stock=Coalesce(Sum('batches__quantity_available'), 0),
+            nearest_expiry=Min('batches__expiry_date', filter=Q(batches__quantity_available__gt=0)),
+        )
         category = self.request.query_params.get('category', None)
         search = self.request.query_params.get('search', None)
         barcode = self.request.query_params.get('barcode', None)

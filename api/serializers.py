@@ -98,11 +98,14 @@ class MasterMedicineSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MedicineSerializer(serializers.ModelSerializer):
+    # Filled by the list view's annotation, summed over in-stock batches
+    total_stock = serializers.IntegerField(read_only=True, default=0)
+    nearest_expiry = serializers.DateField(read_only=True, default=None)
     category_name = serializers.CharField(source='category.name', read_only=True)
     
     class Meta:
         model = Medicine
-        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name', 'hsn_code', 'gst_rate', 'price_includes_tax']
+        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name', 'hsn_code', 'gst_rate', 'price_includes_tax', 'total_stock', 'nearest_expiry']
         read_only_fields = ('tenant',)
 
 class MedicineBatchSerializer(serializers.ModelSerializer):
@@ -426,11 +429,14 @@ class WarehouseSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     image_url = serializers.SerializerMethodField()
+    # Filled by the list view's annotation: units on hand across all warehouses
+    total_stock = serializers.IntegerField(read_only=True, default=0)
     
     class Meta:
         model = Product
         fields = '__all__'
         read_only_fields = ('tenant',)
+        extra_kwargs = {'sku': {'required': False, 'allow_blank': True}}  # generated when left blank
     
     def get_image_url(self, obj):
         if obj.image:

@@ -7,6 +7,7 @@ from api.models.permissions import HasFeaturePermissionFactory
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db.models import Q, Sum, Count, F
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -115,7 +116,8 @@ class ProductListCreateView(generics.ListCreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
     
     def get_queryset(self):
-        queryset = Product.objects.filter(tenant=self.request.user.userprofile.tenant)
+        queryset = Product.objects.filter(tenant=self.request.user.userprofile.tenant).annotate(
+            total_stock=Coalesce(Sum('inventory__quantity_available'), 0)).order_by('name')
         category = self.request.query_params.get('category', None)
         if category:
             queryset = queryset.filter(category_id=category)
