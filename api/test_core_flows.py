@@ -183,3 +183,99 @@ class LeadCaptureTests(APITestCase):
         r = self.admin_client.get('/api/crm/contacts/?lead_source=website_form&within_service_area=false')
         names = [c['full_name'] for c in r.data['results']]
         self.assertEqual(names, ['Far Away'])
+
+
+class PharmacyStockFlowTests(APITestCase):
+    """Purchase order -> receive -> batch stock -> adjustment -> expiry buckets."""
+
+    def setUp(self):
+        from datetime import date, timedelta
+        from api.models.plan import Plan
+        from pharmacy.models import Medicine, Supplier
+        cache.clear()
+        self.today = date.today()
+        self.timedelta = timedelta
+        plan = Plan.objects.create(name='Test Plan', price=0, storage_limit_mb=100, has_pharmacy=True, has_inventory=True)
+        self.tenant = Tenant.objects.create(name='Pharma Tenant', industry='pharmacy', plan=plan)
+        self.user = make_user(self.tenant, 'pharma_admin', 'admin')
+        self.client.force_authenticate(self.user)
+        self.supplier = Supplier.objects.create(tenant=self.tenant, name='MediSupply', contact_person='A', phone='1', email='s@x.co', address='x')
+        self.medicine = Medicine.objects.create(tenant=self.tenant, name='Paracetamol', manufacturer='Acme', dosage_form='TABLET', expiry_alert_days=30)
+
+    def create_po(self):
+        r = self.client.post('/api/pharmacy/purchase-orders/', {
+            'supplier': self.supplier.id, 'order_date': str(self.today),
+            'expected_delivery': str(self.today + self.timedelta(days=3)),
+            'items_input': [{'medicine': self.medicine.id, 'quantity': 100, 'unit_cost': '2.50'}],
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data
+
+    def receive_body(self, po, batch='B1', expiry=None):
+        return {'items': [{
+            'item': po['items'][0]['id'], 'batch_number': batch,
+            'manufacturing_date': str(self.today - self.timedelta(days=30)),
+            'expiry_date': str(expiry or self.today + self.timedelta(days=365)),
+            'selling_price': '4', 'mrp': '5'}]}
+
+    def test_po_with_items_computes_total(self):
+        po = self.create_po()
+        self.assertEqual(len(po['items']), 1)
+        self.assertEqual(po['total_amount'], '250.00')
+
+    def test_po_without_items_rejected(self):
+        r = self.client.post('/api/pharmacy/purchase-orders/', {
+            'supplier': self.supplier.id, 'order_date': str(self.today), 'expected_delivery': str(self.today)}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_receive_creates_batch_once(self):
+        from pharmacy.models import MedicineBatch
+        po = self.create_po()
+        r = self.client.post(f"/api/pharmacy/purchase-orders/{po['id']}/receive/", self.receive_body(po), format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        batch = MedicineBatch.objects.get(tenant=self.tenant, batch_number='B1')
+        self.assertEqual(batch.quantity_available, 100)
+        self.assertEqual(str(batch.cost_price), '2.50')
+        again = self.client.post(f"/api/pharmacy/purchase-orders/{po['id']}/receive/", self.receive_body(po, 'B2'), format='json')
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(MedicineBatch.objects.filter(tenant=self.tenant).count(), 1)
+
+    def test_receive_missing_dates_creates_nothing(self):
+        from pharmacy.models import MedicineBatch
+        po = self.create_po()
+        body = self.receive_body(po)
+        body['items'][0]['expiry_date'] = ''
+        r = self.client.post(f"/api/pharmacy/purchase-orders/{po['id']}/receive/", body, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(MedicineBatch.objects.count(), 0)
+
+    def test_stock_adjustment_moves_stock_and_blocks_negative(self):
+        from pharmacy.models import MedicineBatch
+        po = self.create_po()
+        self.client.post(f"/api/pharmacy/purchase-orders/{po['id']}/receive/", self.receive_body(po), format='json')
+        batch = MedicineBatch.objects.get(batch_number='B1')
+        ok = self.client.post('/api/pharmacy/stock-adjustments/', {
+            'medicine_batch': batch.id, 'adjustment_type': 'DAMAGED', 'quantity': 30, 'reason': 'broken'}, format='json')
+        self.assertEqual(ok.status_code, 201, ok.data)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity_available, 70)
+        too_many = self.client.post('/api/pharmacy/stock-adjustments/', {
+            'medicine_batch': batch.id, 'adjustment_type': 'REMOVE', 'quantity': 500, 'reason': 'x'}, format='json')
+        self.assertEqual(too_many.status_code, 400)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity_available, 70)
+
+    def test_expiry_buckets(self):
+        po1, po2, po3 = self.create_po(), self.create_po(), self.create_po()
+        for po, name, expiry in [(po1, 'OLD', self.today - self.timedelta(days=5)),
+                                 (po2, 'SOON', self.today + self.timedelta(days=10)),
+                                 (po3, 'FINE', self.today + self.timedelta(days=400))]:
+            self.client.post(f"/api/pharmacy/purchase-orders/{po['id']}/receive/", self.receive_body(po, name, expiry), format='json')
+
+        def names(kind):
+            r = self.client.get(f'/api/pharmacy/batches/?expiry={kind}')
+            rows = r.data['results'] if isinstance(r.data, dict) else r.data
+            return [b['batch_number'] for b in rows]
+        self.assertEqual(names('expired'), ['OLD'])
+        self.assertEqual(names('soon'), ['SOON'])
+        self.assertEqual(names('ok'), ['FINE'])

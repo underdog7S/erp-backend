@@ -293,13 +293,48 @@ class PharmacyPurchaseOrderItemSerializer(serializers.ModelSerializer):
 
 class PharmacyPurchaseOrderSerializer(serializers.ModelSerializer):
     items = PharmacyPurchaseOrderItemSerializer(many=True, read_only=True)
+    # Write-only list used when creating an order: [{medicine, quantity, unit_cost}, ...]
+    items_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.user.username', read_only=True)
     
     class Meta:
         model = PharmacyPurchaseOrder
-        fields = ['id', 'supplier', 'po_number', 'order_date', 'expected_delivery', 'status', 'total_amount', 'notes', 'created_by', 'items', 'supplier_name', 'created_by_name']
-        read_only_fields = ('tenant',)
+        fields = ['id', 'supplier', 'po_number', 'order_date', 'expected_delivery', 'status', 'total_amount', 'notes', 'created_by', 'items', 'items_input', 'supplier_name', 'created_by_name']
+        read_only_fields = ('tenant', 'total_amount', 'po_number', 'created_by')
+
+    def validate_supplier(self, supplier):
+        request = self.context.get('request')
+        if request and supplier.tenant_id != request.user.userprofile.tenant_id:
+            raise serializers.ValidationError('Unknown supplier.')
+        return supplier
+
+    def create(self, validated_data):
+        from django.db import transaction
+        items = validated_data.pop('items_input', [])
+        if not items:
+            raise serializers.ValidationError({'items_input': 'Add at least one medicine to the order.'})
+        tenant = validated_data['tenant']
+        with transaction.atomic():
+            po = PharmacyPurchaseOrder.objects.create(**validated_data)
+            total = Decimal('0')
+            for row in items:
+                medicine = Medicine.objects.filter(id=row.get('medicine'), tenant=tenant).first()
+                try:
+                    qty = int(row.get('quantity') or 0)
+                    cost = Decimal(str(row.get('unit_cost') or 0))
+                except (ValueError, ArithmeticError):
+                    raise serializers.ValidationError({'items_input': 'Quantity and unit cost must be numbers.'})
+                if not medicine or qty <= 0 or cost < 0:
+                    raise serializers.ValidationError({'items_input': 'Each line needs a valid medicine, a quantity above zero and a unit cost.'})
+                line = qty * cost
+                PharmacyPurchaseOrderItem.objects.create(
+                    tenant=tenant, purchase_order=po, medicine=medicine,
+                    quantity=qty, unit_cost=cost, total_cost=line)
+                total += line
+            po.total_amount = total
+            po.save(update_fields=['total_amount'])
+        return po
 
 class PharmacyStockAdjustmentSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine_batch.medicine.name', read_only=True)

@@ -552,6 +552,7 @@ urlpatterns += [
     path('pharmacy/sales/<int:pk>/pdf/', pharmacy_views.PharmacyInvoicePDFView.as_view(), name='pharmacy-sale-pdf'),
     path('pharmacy/purchase-orders/', pharmacy_views.PurchaseOrderListCreateView.as_view(), name='pharmacy-purchase-orders'),
     path('pharmacy/purchase-orders/<int:pk>/', pharmacy_views.PurchaseOrderDetailView.as_view(), name='pharmacy-purchase-order-detail'),
+    path('pharmacy/purchase-orders/<int:pk>/receive/', pharmacy_views.PurchaseOrderReceiveView.as_view(), name='pharmacy-purchase-order-receive'),
     path('pharmacy/stock-adjustments/', pharmacy_views.StockAdjustmentListCreateView.as_view(), name='pharmacy-stock-adjustments'),
     path('pharmacy/stock-adjustments/<int:pk>/', pharmacy_views.StockAdjustmentDetailView.as_view(), name='pharmacy-stock-adjustment-detail'),
     path('pharmacy/staff-attendance/', pharmacy_views.StaffAttendanceListCreateView.as_view(), name='pharmacy-staff-attendance'),

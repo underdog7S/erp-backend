@@ -5,7 +5,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from api.models.permissions import HasFeaturePermissionFactory
+from django.db import models, transaction
 from django.db.models import Q, Sum, Count
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError
+from decimal import Decimal
 from django.utils import timezone
 from datetime import timedelta
 import json
@@ -263,6 +267,16 @@ class MedicineBatchListCreateView(generics.ListCreateAPIView):
         medicine = self.request.query_params.get('medicine', None)
         if medicine:
             queryset = queryset.filter(medicine_id=medicine)
+        # ?expiry=expired | soon | ok  (soon = within the medicine's own alert window)
+        expiry = self.request.query_params.get('expiry')
+        if expiry in ('expired', 'soon', 'ok'):
+            in_stock = queryset.filter(quantity_available__gt=0)
+            def bucket(b):
+                if b.is_expired:
+                    return 'expired'
+                return 'soon' if b.is_expiring_soon else 'ok'
+            ids = [b.id for b in in_stock if bucket(b) == expiry]
+            queryset = queryset.filter(id__in=ids).order_by('expiry_date')
         return queryset
     
     def perform_create(self, serializer):
@@ -446,6 +460,55 @@ class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return PurchaseOrder.objects.filter(tenant=self.request.user.userprofile.tenant)
 
+class PurchaseOrderReceiveView(APIView):
+    """Mark a purchase order received and turn each line into a stock batch.
+
+    Body: {"items": [{"item": <po item id>, "batch_number": "B123", "manufacturing_date": "YYYY-MM-DD",
+                      "expiry_date": "YYYY-MM-DD", "selling_price": 12.5, "mrp": 15,
+                      "quantity": <optional, defaults to ordered quantity>}]}
+    All-or-nothing: if any line is invalid nothing is created.
+    """
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
+
+    def post(self, request, pk):
+        tenant = request.user.userprofile.tenant
+        try:
+            with transaction.atomic():
+                po = PurchaseOrder.objects.select_for_update().filter(pk=pk, tenant=tenant).first()
+                if not po:
+                    return Response({'error': 'Purchase order not found.'}, status=status.HTTP_404_NOT_FOUND)
+                if po.status in ('RECEIVED', 'CANCELLED'):
+                    return Response({'error': f'This order is already {po.status.lower()}.'}, status=status.HTTP_400_BAD_REQUEST)
+                lines = {i.id: i for i in po.items.select_related('medicine')}
+                rows = request.data.get('items') or []
+                if {r.get('item') for r in rows} != set(lines):
+                    return Response({'error': 'Give batch details for every line on the order.'}, status=status.HTTP_400_BAD_REQUEST)
+                created = []
+                for r in rows:
+                    line = lines[r['item']]
+                    try:
+                        qty = int(r.get('quantity') or line.quantity)
+                        selling = Decimal(str(r.get('selling_price')))
+                        mrp = Decimal(str(r.get('mrp')))
+                    except (TypeError, ValueError, ArithmeticError):
+                        raise DjangoValidationError(f'{line.medicine.name}: selling price, MRP and quantity must be numbers.')
+                    batch_number = (r.get('batch_number') or '').strip()
+                    if not batch_number or not r.get('expiry_date') or not r.get('manufacturing_date') or qty <= 0:
+                        raise DjangoValidationError(f'{line.medicine.name}: batch number, both dates and a quantity are required.')
+                    if MedicineBatch.objects.filter(tenant=tenant, medicine=line.medicine, batch_number=batch_number).exists():
+                        raise DjangoValidationError(f'{line.medicine.name}: batch {batch_number} already exists.')
+                    created.append(MedicineBatch.objects.create(
+                        tenant=tenant, medicine=line.medicine, batch_number=batch_number, supplier=po.supplier,
+                        manufacturing_date=r['manufacturing_date'], expiry_date=r['expiry_date'],
+                        cost_price=line.unit_cost, selling_price=selling, mrp=mrp,
+                        quantity_received=qty, quantity_available=qty))
+                po.status = 'RECEIVED'
+                po.save(update_fields=['status'])
+        except DjangoValidationError as e:
+            return Response({'error': ' '.join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Stock received.', 'batches': [b.id for b in created]}, status=status.HTTP_201_CREATED)
+
+
 # Stock Adjustment Views
 class StockAdjustmentListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
@@ -455,7 +518,22 @@ class StockAdjustmentListCreateView(generics.ListCreateAPIView):
         return StockAdjustment.objects.filter(tenant=self.request.user.userprofile.tenant)
     
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.userprofile.tenant, adjusted_by=self.request.user.userprofile)
+        tenant = self.request.user.userprofile.tenant
+        batch = serializer.validated_data['medicine_batch']
+        qty = serializer.validated_data['quantity']
+        kind = serializer.validated_data['adjustment_type']
+        if batch.tenant_id != tenant.id:
+            raise ValidationError({'medicine_batch': 'Unknown batch.'})
+        if qty <= 0:
+            raise ValidationError({'quantity': 'Quantity must be above zero.'})
+        with transaction.atomic():
+            # Lock the batch so two simultaneous adjustments can't both pass the check
+            batch = MedicineBatch.objects.select_for_update().get(pk=batch.pk)
+            delta = qty if kind == 'ADD' else -qty
+            if batch.quantity_available + delta < 0:
+                raise ValidationError({'quantity': f'Only {batch.quantity_available} in stock for this batch.'})
+            MedicineBatch.objects.filter(pk=batch.pk).update(quantity_available=models.F('quantity_available') + delta)
+            serializer.save(tenant=tenant, adjusted_by=self.request.user.userprofile)
 
 class StockAdjustmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
