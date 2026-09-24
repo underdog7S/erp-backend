@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -597,6 +597,10 @@ urlpatterns += [
     path('retail/quotations/<int:quotation_id>/convert-to-sale/', retail_views.ConvertQuotationToSaleView.as_view(), name='retail-quotation-convert'),
     path('retail/purchase-orders/', retail_views.PurchaseOrderListCreateView.as_view(), name='retail-purchase-orders'),
     path('retail/purchase-orders/<int:pk>/', retail_views.PurchaseOrderDetailView.as_view(), name='retail-purchase-order-detail'),
+    path('retail/purchase-orders/<int:pk>/receive/', retail_procurement_views.RetailPurchaseOrderReceiveView.as_view(), name='retail-purchase-order-receive'),
+    path('retail/stock-transfers/<int:pk>/dispatch/', retail_procurement_views.RetailTransferDispatchView.as_view(), name='retail-transfer-dispatch'),
+    path('retail/stock-transfers/<int:pk>/complete/', retail_procurement_views.RetailTransferCompleteView.as_view(), name='retail-transfer-complete'),
+    path('retail/stock-transfers/<int:pk>/cancel/', retail_procurement_views.RetailTransferCancelView.as_view(), name='retail-transfer-cancel'),
     path('retail/goods-receipts/', retail_views.GoodsReceiptListCreateView.as_view(), name='retail-goods-receipts'),
     path('retail/goods-receipts/<int:pk>/', retail_views.GoodsReceiptDetailView.as_view(), name='retail-goods-receipt-detail'),
     path('retail/sales/', retail_views.SaleListCreateView.as_view(), name='retail-sales'),

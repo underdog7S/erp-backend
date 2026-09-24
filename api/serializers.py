@@ -476,15 +476,59 @@ class RetailPurchaseOrderItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+def _parse_lines(rows, tenant, model, key='product', with_cost=False):
+    """Validate [{product, quantity, unit_cost?}] rows against this tenant's records."""
+    out = []
+    for row in rows or []:
+        obj = model.objects.filter(id=row.get(key), tenant=tenant).first()
+        try:
+            qty = int(row.get('quantity') or 0)
+            cost = Decimal(str(row.get('unit_cost') or 0)) if with_cost else None
+        except (ValueError, ArithmeticError):
+            raise serializers.ValidationError({'items_input': 'Quantity and unit cost must be numbers.'})
+        if not obj or qty <= 0 or (with_cost and cost < 0):
+            raise serializers.ValidationError({'items_input': 'Each line needs a valid product and a quantity above zero.'})
+        out.append((obj, qty, cost))
+    if not out:
+        raise serializers.ValidationError({'items_input': 'Add at least one product.'})
+    return out
+
+
 class RetailPurchaseOrderSerializer(serializers.ModelSerializer):
     items = RetailPurchaseOrderItemSerializer(many=True, read_only=True)
+    items_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.user.username', read_only=True)
-    
+
     class Meta:
         model = RetailPurchaseOrder
         fields = '__all__'
-        read_only_fields = ('tenant',)
+        read_only_fields = ('tenant', 'po_number', 'subtotal', 'tax_amount', 'total_amount', 'created_by')
+
+    def validate_supplier(self, supplier):
+        request = self.context.get('request')
+        if request and supplier.tenant_id != request.user.userprofile.tenant_id:
+            raise serializers.ValidationError('Unknown supplier.')
+        return supplier
+
+    def create(self, validated_data):
+        from django.db import transaction
+        items = validated_data.pop('items_input', None)
+        if items is None:
+            return super().create(validated_data)
+        tenant = validated_data['tenant']
+        lines = _parse_lines(items, tenant, Product, with_cost=True)
+        with transaction.atomic():
+            po = RetailPurchaseOrder.objects.create(**validated_data)
+            total = Decimal('0')
+            for product, qty, cost in lines:
+                RetailPurchaseOrderItem.objects.create(
+                    tenant=tenant, purchase_order=po, product=product, quantity=qty,
+                    unit_cost=cost, total_cost=qty * cost)
+                total += qty * cost
+            po.subtotal = po.total_amount = total
+            po.save(update_fields=['subtotal', 'total_amount'])
+        return po
 
 class GoodsReceiptItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='purchase_order_item.product.name', read_only=True)
@@ -651,14 +695,39 @@ class StockTransferItemSerializer(serializers.ModelSerializer):
 
 class StockTransferSerializer(serializers.ModelSerializer):
     items = StockTransferItemSerializer(many=True, read_only=True)
+    items_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     from_warehouse_name = serializers.CharField(source='from_warehouse.name', read_only=True)
     to_warehouse_name = serializers.CharField(source='to_warehouse.name', read_only=True)
     transferred_by_name = serializers.CharField(source='transferred_by.user.username', read_only=True)
-    
+
     class Meta:
         model = StockTransfer
         fields = '__all__'
-        read_only_fields = ('tenant',)
+        read_only_fields = ('tenant', 'transfer_number', 'transferred_by', 'status')
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request and self.instance is None:
+            tenant_id = request.user.userprofile.tenant_id
+            for field in ('from_warehouse', 'to_warehouse'):
+                if attrs[field].tenant_id != tenant_id:
+                    raise serializers.ValidationError({field: 'Unknown warehouse.'})
+            if attrs['from_warehouse'].id == attrs['to_warehouse'].id:
+                raise serializers.ValidationError({'to_warehouse': 'Choose a different warehouse to send stock to.'})
+        return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction
+        items = validated_data.pop('items_input', None)
+        if items is None:
+            return super().create(validated_data)
+        tenant = validated_data['tenant']
+        lines = _parse_lines(items, tenant, Product)
+        with transaction.atomic():
+            transfer = StockTransfer.objects.create(**validated_data)
+            for product, qty, _cost in lines:
+                StockTransferItem.objects.create(tenant=tenant, stock_transfer=transfer, product=product, quantity=qty)
+        return transfer
 
 class StockAdjustmentItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -670,13 +739,36 @@ class StockAdjustmentItemSerializer(serializers.ModelSerializer):
 
 class RetailStockAdjustmentSerializer(serializers.ModelSerializer):
     items = StockAdjustmentItemSerializer(many=True, read_only=True)
+    items_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     adjusted_by_name = serializers.CharField(source='adjusted_by.user.username', read_only=True)
-    
+
     class Meta:
         model = RetailStockAdjustment
         fields = '__all__'
-        read_only_fields = ('tenant',)
+        read_only_fields = ('tenant', 'adjustment_number', 'adjusted_by')
+
+    def validate_warehouse(self, warehouse):
+        request = self.context.get('request')
+        if request and warehouse.tenant_id != request.user.userprofile.tenant_id:
+            raise serializers.ValidationError('Unknown warehouse.')
+        return warehouse
+
+    def create(self, validated_data):
+        from django.db import transaction
+        from api.retail_stock import credit_stock, debit_stock
+        items = validated_data.pop('items_input', None)
+        if items is None:
+            return super().create(validated_data)
+        tenant = validated_data['tenant']
+        lines = _parse_lines(items, tenant, Product)
+        adding = validated_data['adjustment_type'] == 'ADD'
+        with transaction.atomic():
+            adj = RetailStockAdjustment.objects.create(**validated_data)
+            for product, qty, _cost in lines:
+                StockAdjustmentItem.objects.create(tenant=tenant, stock_adjustment=adj, product=product, quantity=qty)
+                (credit_stock if adding else debit_stock)(tenant, product, adj.warehouse, qty)
+        return adj
 
 class RetailStaffAttendanceSerializer(serializers.ModelSerializer):
     staff_name = serializers.CharField(source='staff.user.username', read_only=True)

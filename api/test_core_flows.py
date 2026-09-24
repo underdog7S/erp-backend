@@ -295,3 +295,106 @@ class ListPaginationTests(APITestCase):
         self.assertEqual(len(r.data['results']), 25)
         small = self.client.get('/api/pharmacy/suppliers/?page_size=10')
         self.assertEqual(len(small.data['results']), 10)
+
+
+class RetailProcurementTests(APITestCase):
+    """Purchase order -> (partial) receipt -> stock; transfers; adjustments."""
+
+    def setUp(self):
+        from datetime import date
+        from api.models.plan import Plan
+        from retail.models import Product, Supplier, Warehouse
+        cache.clear()
+        self.today = date.today()
+        plan = Plan.objects.create(name='Retail Plan', price=0, storage_limit_mb=100, has_retail=True, has_inventory=True)
+        self.tenant = Tenant.objects.create(name='Shop Tenant', industry='retail', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'retail_admin', 'admin'))
+        self.supplier = Supplier.objects.create(tenant=self.tenant, name='Wholesaler', contact_person='A', phone='1', address='x')
+        self.main = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1', is_primary=True)
+        self.second = Warehouse.objects.create(tenant=self.tenant, name='Shop 2', address='y', contact_person='B', phone='2')
+        self.product = Product.objects.create(tenant=self.tenant, name='Rice 5kg', sku='RICE5', cost_price=200, selling_price=260, mrp=280)
+
+    def stock(self, warehouse):
+        from retail.models import Inventory
+        row = Inventory.objects.filter(tenant=self.tenant, product=self.product, warehouse=warehouse).first()
+        return row.quantity_on_hand if row else 0
+
+    def make_po(self, qty=50):
+        r = self.client.post('/api/retail/purchase-orders/', {
+            'supplier': self.supplier.id, 'order_date': str(self.today), 'expected_delivery': str(self.today), 'status': 'ORDERED',
+            'items_input': [{'product': self.product.id, 'quantity': qty, 'unit_cost': '200'}]}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data
+
+    def test_po_total_and_partial_then_full_receipt(self):
+        po = self.make_po(50)
+        self.assertEqual(po['total_amount'], '10000.00')
+        line = po['items'][0]['id']
+        url = f"/api/retail/purchase-orders/{po['id']}/receive/"
+        first = self.client.post(url, {'warehouse': self.main.id, 'items': [{'item': line, 'quantity': 20}]}, format='json')
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(first.data['status'], 'PARTIAL_RECEIVED')
+        self.assertEqual(self.stock(self.main), 20)
+        over = self.client.post(url, {'warehouse': self.main.id, 'items': [{'item': line, 'quantity': 31}]}, format='json')
+        self.assertEqual(over.status_code, 400)
+        self.assertEqual(self.stock(self.main), 20)
+        rest = self.client.post(url, {'warehouse': self.main.id, 'items': [{'item': line, 'quantity': 30}]}, format='json')
+        self.assertEqual(rest.data['status'], 'RECEIVED')
+        self.assertEqual(self.stock(self.main), 50)
+        again = self.client.post(url, {'warehouse': self.main.id, 'items': [{'item': line, 'quantity': 1}]}, format='json')
+        self.assertEqual(again.status_code, 400)
+
+    def test_po_without_items_rejected(self):
+        r = self.client.post('/api/retail/purchase-orders/', {
+            'supplier': self.supplier.id, 'order_date': str(self.today), 'expected_delivery': str(self.today),
+            'items_input': []}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_transfer_moves_stock_in_two_steps(self):
+        po = self.make_po(40)
+        self.client.post(f"/api/retail/purchase-orders/{po['id']}/receive/", {
+            'warehouse': self.main.id, 'items': [{'item': po['items'][0]['id'], 'quantity': 40}]}, format='json')
+        t = self.client.post('/api/retail/stock-transfers/', {
+            'from_warehouse': self.main.id, 'to_warehouse': self.second.id, 'transfer_date': str(self.today),
+            'items_input': [{'product': self.product.id, 'quantity': 15}]}, format='json')
+        self.assertEqual(t.status_code, 201, t.data)
+        self.assertEqual(t.data['status'], 'DRAFT')
+        tid = t.data['id']
+        self.assertEqual(self.stock(self.main), 40)
+        self.assertEqual(self.client.post(f'/api/retail/stock-transfers/{tid}/complete/').status_code, 400)
+        self.assertEqual(self.client.post(f'/api/retail/stock-transfers/{tid}/dispatch/').status_code, 200)
+        self.assertEqual((self.stock(self.main), self.stock(self.second)), (25, 0))
+        self.assertEqual(self.client.post(f'/api/retail/stock-transfers/{tid}/complete/').status_code, 200)
+        self.assertEqual((self.stock(self.main), self.stock(self.second)), (25, 15))
+        self.assertEqual(self.client.post(f'/api/retail/stock-transfers/{tid}/dispatch/').status_code, 400)
+
+    def test_transfer_cannot_send_more_than_available(self):
+        t = self.client.post('/api/retail/stock-transfers/', {
+            'from_warehouse': self.main.id, 'to_warehouse': self.second.id, 'transfer_date': str(self.today),
+            'items_input': [{'product': self.product.id, 'quantity': 5}]}, format='json')
+        r = self.client.post(f"/api/retail/stock-transfers/{t.data['id']}/dispatch/")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.stock(self.main), 0)
+
+    def test_transfer_to_same_warehouse_rejected(self):
+        r = self.client.post('/api/retail/stock-transfers/', {
+            'from_warehouse': self.main.id, 'to_warehouse': self.main.id, 'transfer_date': str(self.today),
+            'items_input': [{'product': self.product.id, 'quantity': 1}]}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_adjustments_add_and_remove_and_block_negative(self):
+        add = self.client.post('/api/retail/stock-adjustments/', {
+            'warehouse': self.main.id, 'adjustment_type': 'ADD', 'reason': 'opening stock',
+            'items_input': [{'product': self.product.id, 'quantity': 10}]}, format='json')
+        self.assertEqual(add.status_code, 201, add.data)
+        self.assertEqual(self.stock(self.main), 10)
+        rm = self.client.post('/api/retail/stock-adjustments/', {
+            'warehouse': self.main.id, 'adjustment_type': 'DAMAGED', 'reason': 'water damage',
+            'items_input': [{'product': self.product.id, 'quantity': 4}]}, format='json')
+        self.assertEqual(rm.status_code, 201)
+        self.assertEqual(self.stock(self.main), 6)
+        too_many = self.client.post('/api/retail/stock-adjustments/', {
+            'warehouse': self.main.id, 'adjustment_type': 'LOSS', 'reason': 'lost',
+            'items_input': [{'product': self.product.id, 'quantity': 99}]}, format='json')
+        self.assertEqual(too_many.status_code, 400)
+        self.assertEqual(self.stock(self.main), 6)
