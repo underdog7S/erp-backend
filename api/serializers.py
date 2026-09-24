@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.db import models
+from django.db import models, transaction
 from decimal import Decimal
 from api.models.user import Tenant, UserProfile
 from api.models.custom_service import CustomServiceRequest
@@ -102,7 +102,7 @@ class MedicineSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Medicine
-        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name']
+        fields = ['id', 'name', 'generic_name', 'category', 'manufacturer', 'strength', 'dosage_form', 'prescription_required', 'description', 'side_effects', 'storage_conditions', 'expiry_alert_days', 'barcode', 'category_name', 'hsn_code', 'gst_rate', 'price_includes_tax']
         read_only_fields = ('tenant',)
 
 class MedicineBatchSerializer(serializers.ModelSerializer):
@@ -143,7 +143,7 @@ class PharmacySaleItemSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PharmacySaleItem
-        fields = ['id', 'sale', 'medicine_batch', 'quantity', 'unit_price', 'total_price', 'medicine_name']
+        fields = ['id', 'sale', 'medicine_batch', 'quantity', 'unit_price', 'total_price', 'medicine_name', 'hsn_code', 'gst_rate', 'tax_amount']
         read_only_fields = ('tenant',)
     
     def to_representation(self, instance):
@@ -165,8 +165,8 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PharmacySale
-        fields = ['id', 'invoice_number', 'customer', 'prescription', 'sale_date', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'sold_by_name', 'customer_name_input', 'phone']
-        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date')
+        fields = ['id', 'invoice_number', 'customer', 'prescription', 'sale_date', 'subtotal', 'tax_amount', 'cgst_amount', 'sgst_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'sold_by_name', 'customer_name_input', 'phone']
+        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'cgst_amount', 'sgst_amount', 'discount_amount', 'total_amount', 'sale_date')
     
     # Add fields for customer creation (write-only)
     customer_name_input = serializers.CharField(write_only=True, required=False)
@@ -190,18 +190,19 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
             
         return data
     
+    @transaction.atomic
     def create(self, validated_data):
         items_data = self.context.get('items', [])
-        
+
         # Handle customer creation if customer_name is provided
         customer_name = validated_data.pop('customer_name_input', None)
         customer_phone = validated_data.pop('phone', None)
-        
+
         if customer_name and customer_phone:
             # Get tenant from request
             request = self.context.get('request')
             tenant = request.user.userprofile.tenant if request and request.user and hasattr(request.user, 'userprofile') else None
-            
+
             # Try to find existing customer or create new one
             from pharmacy.models import Customer as PharmacyCustomer
             customer, created = PharmacyCustomer.objects.get_or_create(
@@ -225,61 +226,70 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
             if not tenant:
                 raise serializers.ValidationError("Tenant is required")
         
-        # Calculate totals from items
-        subtotal = 0
+        # Work out, per line, which batches the stock comes from (earliest expiry first, never
+        # expired stock) and how much GST is inside the price. Nothing is written until every line
+        # can be filled, so a short-stocked bill fails cleanly instead of half-saving.
+        from datetime import date
+        from pharmacy.models import Medicine as SaleMedicine, MedicineBatch as SaleBatch
+        from api.gst import line_tax, split_cgst_sgst
+        sale_tenant = validated_data['tenant']
+        subtotal = Decimal('0')
+        tax_total = Decimal('0')
+        added_tax = Decimal('0')
+        allocations = []  # (medicine, batch, qty, unit_price, tax)
         for item_data in items_data:
-            quantity = item_data.get('quantity', 1)
-            price = item_data.get('price', 0)
-            subtotal += quantity * price
-        
-        # Set required fields
-        validated_data['subtotal'] = subtotal
-        validated_data['total_amount'] = subtotal  # No tax/discount for now
-        validated_data['tax_amount'] = 0
-        validated_data['discount_amount'] = 0
-        
+            name = item_data.get('medicine', '')
+            try:
+                quantity = int(item_data.get('quantity', 1))
+                unit_price = Decimal(str(item_data.get('price', 0)))
+            except (ValueError, ArithmeticError):
+                raise serializers.ValidationError('Quantity and price must be numbers.')
+            if quantity <= 0:
+                raise serializers.ValidationError('Quantity must be above zero.')
+            medicine = SaleMedicine.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
+            if not medicine:
+                raise serializers.ValidationError(f'Medicine "{name}" was not found.')
+            remaining = quantity
+            batches = SaleBatch.objects.select_for_update().filter(
+                medicine=medicine, tenant=sale_tenant, quantity_available__gt=0, expiry_date__gte=date.today()
+            ).order_by('expiry_date', 'id')
+            for batch in batches:
+                take = min(batch.quantity_available, remaining)
+                _, tax = line_tax(take * unit_price, medicine.gst_rate, medicine.price_includes_tax)
+                allocations.append((medicine, batch, take, unit_price, tax))
+                subtotal += take * unit_price
+                tax_total += tax
+                if not medicine.price_includes_tax:
+                    added_tax += tax
+                remaining -= take
+                if remaining == 0:
+                    break
+            if remaining:
+                raise serializers.ValidationError(
+                    f'{medicine.name}: only {quantity - remaining} in date and in stock, {quantity} requested.')
+
+        cgst, sgst = split_cgst_sgst(tax_total)
+        validated_data.update(
+            subtotal=subtotal, tax_amount=tax_total, cgst_amount=cgst, sgst_amount=sgst,
+            total_amount=subtotal + added_tax, discount_amount=0)
+
         # Generate invoice number if not provided
         if 'invoice_number' not in validated_data or not validated_data['invoice_number']:
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
             validated_data['invoice_number'] = f"INV{timestamp}"
-        
+
         sale = super().create(validated_data)
         
-        # Create sale items
-        from pharmacy.models import Medicine, MedicineBatch, SaleItem as PharmacySaleItem
-        for item_data in items_data:
-            # Find the medicine batch for this medicine
-            medicine_name = item_data.get('medicine', '')
-            quantity = item_data.get('quantity', 1)
-            unit_price = item_data.get('price', 0)
-            medicine_batch = None
-            if medicine_name:
-                # Scope to this tenant - an unscoped lookup could match (and
-                # sell/deduct stock from) another tenant's medicine batch.
-                medicine = Medicine.objects.filter(
-                    name__icontains=medicine_name, tenant=sale.tenant
-                ).first()
-                if medicine:
-                    medicine_batch = MedicineBatch.objects.filter(
-                        medicine=medicine,
-                        quantity_available__gt=0
-                    ).first()
-
+        # Create sale items from the batch allocations worked out above
+        from pharmacy.models import MedicineBatch, SaleItem as PharmacySaleItem
+        for medicine, batch, qty, unit_price, tax in allocations:
             PharmacySaleItem.objects.create(
-                sale=sale,
-                medicine_batch=medicine_batch,
-                quantity=quantity,
-                unit_price=unit_price,
-                total_price=quantity * unit_price,
-                tenant=sale.tenant
-            )
-
-            # Deduct sold quantity from the batch's available stock
-            if medicine_batch:
-                MedicineBatch.objects.filter(pk=medicine_batch.pk).update(
-                    quantity_available=models.F('quantity_available') - quantity
-                )
+                sale=sale, medicine_batch=batch, quantity=qty, unit_price=unit_price,
+                total_price=qty * unit_price, hsn_code=medicine.hsn_code, gst_rate=medicine.gst_rate,
+                tax_amount=tax, tenant=sale.tenant)
+            MedicineBatch.objects.filter(pk=batch.pk).update(
+                quantity_available=models.F('quantity_available') - qty)
 
         return sale
 
@@ -565,8 +575,8 @@ class RetailSaleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = RetailSale
-        fields = ['id', 'invoice_number', 'customer', 'warehouse', 'sale_date', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'warehouse_name', 'sold_by_name', 'customer_name_input', 'phone']
-        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'discount_amount', 'total_amount', 'sale_date')
+        fields = ['id', 'invoice_number', 'customer', 'warehouse', 'sale_date', 'subtotal', 'tax_amount', 'cgst_amount', 'sgst_amount', 'discount_amount', 'total_amount', 'payment_method', 'payment_status', 'sold_by', 'notes', 'items', 'customer_name', 'warehouse_name', 'sold_by_name', 'customer_name_input', 'phone']
+        read_only_fields = ('tenant', 'invoice_number', 'subtotal', 'tax_amount', 'cgst_amount', 'sgst_amount', 'discount_amount', 'total_amount', 'sale_date')
     
     # Add fields for customer creation (write-only)
     customer_name_input = serializers.CharField(write_only=True, required=False)
@@ -596,18 +606,19 @@ class RetailSaleSerializer(serializers.ModelSerializer):
             
         return data
     
+    @transaction.atomic
     def create(self, validated_data):
         items_data = self.context.get('items', [])
-        
+
         # Handle customer creation if customer_name is provided
         customer_name = validated_data.pop('customer_name_input', None)
         customer_phone = validated_data.pop('phone', None)
-        
+
         if customer_name and customer_phone:
             # Get tenant from request
             request = self.context.get('request')
             tenant = request.user.userprofile.tenant if request and request.user and hasattr(request.user, 'userprofile') else None
-            
+
             # Try to find existing customer or create new one
             from retail.models import Customer as RetailCustomer
             customer, created = RetailCustomer.objects.get_or_create(
@@ -631,19 +642,38 @@ class RetailSaleSerializer(serializers.ModelSerializer):
             if not tenant:
                 raise serializers.ValidationError("Tenant is required")
         
-        # Calculate totals from items
-        subtotal = 0
+        # Resolve each line's product first so GST can be worked out per line
+        from retail.models import Product as SaleProduct
+        from api.gst import line_tax, split_cgst_sgst
+        sale_tenant = validated_data['tenant']
+        subtotal = Decimal('0')
+        tax_total = Decimal('0')
+        added_tax = Decimal('0')
+        resolved = []  # (product, qty, unit_price, tax)
         for item_data in items_data:
-            quantity = item_data.get('quantity', 1)
-            price = item_data.get('price', 0)
-            subtotal += quantity * price
-        
-        # Set required fields
-        validated_data['subtotal'] = subtotal
-        validated_data['total_amount'] = subtotal  # No tax/discount for now
-        validated_data['tax_amount'] = 0
-        validated_data['discount_amount'] = 0
-        
+            name = item_data.get('product', '')
+            try:
+                quantity = int(item_data.get('quantity', 1))
+                unit_price = Decimal(str(item_data.get('price', 0)))
+            except (ValueError, ArithmeticError):
+                raise serializers.ValidationError('Quantity and price must be numbers.')
+            if quantity <= 0:
+                raise serializers.ValidationError('Quantity must be above zero.')
+            product = SaleProduct.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
+            if not product:
+                raise serializers.ValidationError(f'Product "{name}" was not found.')
+            _, tax = line_tax(quantity * unit_price, product.gst_rate, product.price_includes_tax)
+            subtotal += quantity * unit_price
+            tax_total += tax
+            if not product.price_includes_tax:
+                added_tax += tax
+            resolved.append((product, quantity, unit_price, tax))
+
+        cgst, sgst = split_cgst_sgst(tax_total)
+        validated_data.update(
+            subtotal=subtotal, tax_amount=tax_total, cgst_amount=cgst, sgst_amount=sgst,
+            total_amount=subtotal + added_tax, discount_amount=0)
+
         # Generate invoice number if not provided
         if 'invoice_number' not in validated_data or not validated_data['invoice_number']:
             from datetime import datetime
@@ -652,30 +682,16 @@ class RetailSaleSerializer(serializers.ModelSerializer):
         
         sale = super().create(validated_data)
 
-        # Create sale items
-        from retail.models import Product, Inventory, SaleItem as RetailSaleItem
-        for item_data in items_data:
-            # Find the product for this item
-            product_name = item_data.get('product', '')
-            quantity = item_data.get('quantity', 1)
-            unit_price = item_data.get('price', 0)
-            # Scope to this tenant - an unscoped lookup could match (and sell
-            # stock from) another tenant's product.
-            product = Product.objects.filter(
-                name__icontains=product_name, tenant=sale.tenant
-            ).first() if product_name else None
-
+        # Create sale items (with the GST worked out above) and take the stock out
+        from retail.models import Inventory, SaleItem as RetailSaleItem
+        for product, quantity, unit_price, tax in resolved:
             RetailSaleItem.objects.create(
-                sale=sale,
-                product=product,
-                quantity=quantity,
-                unit_price=unit_price,
-                total_price=quantity * unit_price,
-                tenant=sale.tenant
-            )
+                sale=sale, product=product, quantity=quantity, unit_price=unit_price,
+                total_price=quantity * unit_price, hsn_code=product.hsn_code, gst_rate=product.gst_rate,
+                tax_amount=tax, tenant=sale.tenant)
 
             # Deduct sold quantity from inventory at the sale's warehouse
-            if product and sale.warehouse:
+            if sale.warehouse:
                 inventory = Inventory.objects.filter(
                     product=product, warehouse=sale.warehouse, tenant=sale.tenant
                 ).first()

@@ -71,6 +71,8 @@ class RawMaterial(models.Model):
     unit_of_measure = models.CharField(max_length=20, choices=UNIT_OF_MEASURE_CHOICES, default='PCS')
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Cost per unit of measure")
     reorder_level = models.IntegerField(default=10)
+    hsn_code = models.CharField(max_length=8, blank=True, help_text="HSN code printed on GST invoices")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="GST percentage, e.g. 5, 12, 18. 0 means no tax is calculated")
     max_stock_level = models.IntegerField(default=1000)
     preferred_supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True, related_name='supplied_materials')
     is_active = models.BooleanField(default=True)
@@ -120,6 +122,9 @@ class FinishedGood(models.Model):
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     mrp = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     reorder_level = models.IntegerField(default=10)
+    hsn_code = models.CharField(max_length=8, blank=True, help_text="HSN code printed on GST invoices")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="GST percentage, e.g. 5, 12, 18. 0 means no tax is calculated")
+    price_includes_tax = models.BooleanField(default=True, help_text="Selling price already contains GST (normal for MRP items)")
     max_stock_level = models.IntegerField(default=1000)
     is_active = models.BooleanField(default=True)
 

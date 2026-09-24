@@ -398,3 +398,128 @@ class RetailProcurementTests(APITestCase):
             'items_input': [{'product': self.product.id, 'quantity': 99}]}, format='json')
         self.assertEqual(too_many.status_code, 400)
         self.assertEqual(self.stock(self.main), 6)
+
+
+class GstHelperTests(APITestCase):
+    def test_inclusive_and_exclusive_tax(self):
+        from decimal import Decimal
+        from api.gst import line_tax
+        self.assertEqual(line_tax(118, 18, True), (Decimal('100.00'), Decimal('18.00')))
+        self.assertEqual(line_tax(100, 18, False), (Decimal('100.00'), Decimal('18.00')))
+        self.assertEqual(line_tax(100, 0, True), (Decimal('100.00'), Decimal('0.00')))
+
+    def test_cgst_sgst_always_add_back_to_the_tax(self):
+        from decimal import Decimal
+        from api.gst import split_cgst_sgst
+        cgst, sgst = split_cgst_sgst(Decimal('9.01'))
+        self.assertEqual(cgst + sgst, Decimal('9.01'))
+
+    def test_intra_vs_inter_state(self):
+        from api.gst import is_intra_state
+        self.assertTrue(is_intra_state('27AAPFU0939F1ZV', '27ABCDE1234F1Z5'))
+        self.assertFalse(is_intra_state('27AAPFU0939F1ZV', '29ABCDE1234F1Z5'))
+        self.assertTrue(is_intra_state('27AAPFU0939F1ZV', ''))  # counter sale, buyer unknown
+        self.assertFalse(is_intra_state('27AAPFU0939F1ZV', '', place_of_supply='07'))
+
+    def test_gstin_checksum(self):
+        from api.gst import is_valid_gstin
+        self.assertTrue(is_valid_gstin('27AAPFU0939F1ZV'))
+        self.assertFalse(is_valid_gstin('27AAPFU0939F1ZX'))
+        self.assertFalse(is_valid_gstin('not-a-gstin'))
+
+
+class PharmacySaleTests(APITestCase):
+    """Bills must take the earliest-expiry stock, refuse expired or missing stock, and carry GST."""
+
+    def setUp(self):
+        from datetime import date, timedelta
+        from api.models.plan import Plan
+        from pharmacy.models import Medicine, MedicineBatch, Supplier
+        cache.clear()
+        today = date.today()
+        plan = Plan.objects.create(name='Sale Plan', price=0, storage_limit_mb=100, has_pharmacy=True)
+        self.tenant = Tenant.objects.create(name='Sale Pharmacy', industry='pharmacy', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'sale_admin', 'admin'))
+        supplier = Supplier.objects.create(tenant=self.tenant, name='S', contact_person='A', phone='1', email='s@x.co', address='x')
+        self.medicine = Medicine.objects.create(tenant=self.tenant, name='Amoxicillin', manufacturer='Acme', dosage_form='CAPSULE',
+                                                gst_rate=12, hsn_code='3004')
+
+        def batch(number, days, qty):
+            return MedicineBatch.objects.create(
+                tenant=self.tenant, medicine=self.medicine, batch_number=number, supplier=supplier,
+                manufacturing_date=today - timedelta(days=200), expiry_date=today + timedelta(days=days),
+                cost_price=5, selling_price=10, mrp=11, quantity_received=qty, quantity_available=qty)
+        self.expired = batch('EXPIRED', -3, 50)
+        self.later = batch('LATER', 300, 50)
+        self.sooner = batch('SOONER', 60, 20)
+
+    def sell(self, qty, price=112):
+        return self.client.post('/api/pharmacy/sales/', {
+            'payment_method': 'CASH', 'items': [{'medicine': 'Amoxicillin', 'quantity': qty, 'price': price}]}, format='json')
+
+    def test_earliest_expiry_first_and_never_expired(self):
+        r = self.sell(30)
+        self.assertEqual(r.status_code, 201, r.data)
+        for b in (self.expired, self.later, self.sooner):
+            b.refresh_from_db()
+        self.assertEqual(self.sooner.quantity_available, 0)   # 20 taken first
+        self.assertEqual(self.later.quantity_available, 40)   # remaining 10 from the next expiry
+        self.assertEqual(self.expired.quantity_available, 50)  # never touched
+        self.assertEqual(len(r.data['items']), 2)
+
+    def test_gst_is_extracted_from_inclusive_price(self):
+        r = self.sell(10, price=112)  # 1120 gross at 12% inclusive -> 120 tax
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['subtotal'], '1120.00')
+        self.assertEqual(r.data['total_amount'], '1120.00')
+        self.assertEqual(r.data['tax_amount'], '120.00')
+        self.assertEqual((r.data['cgst_amount'], r.data['sgst_amount']), ('60.00', '60.00'))
+        self.assertEqual(r.data['items'][0]['hsn_code'], '3004')
+
+    def test_more_than_in_date_stock_is_refused_and_nothing_changes(self):
+        from pharmacy.models import Sale
+        r = self.sell(71)  # only 70 in date
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(Sale.objects.count(), 0)
+        self.sooner.refresh_from_db()
+        self.assertEqual(self.sooner.quantity_available, 20)
+
+    def test_unknown_medicine_is_a_clean_400(self):
+        r = self.client.post('/api/pharmacy/sales/', {
+            'payment_method': 'CASH', 'items': [{'medicine': 'Nonexistent', 'quantity': 1, 'price': 5}]}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+
+class RetailSaleGstTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        from retail.models import Inventory, Product, Warehouse
+        cache.clear()
+        plan = Plan.objects.create(name='Retail Sale Plan', price=0, storage_limit_mb=100, has_retail=True)
+        self.tenant = Tenant.objects.create(name='Sale Shop', industry='retail', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'rsale_admin', 'admin'))
+        self.wh = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1', is_primary=True)
+        self.tv = Product.objects.create(tenant=self.tenant, name='LED TV', sku='TV1', cost_price=1, selling_price=1, mrp=1,
+                                         gst_rate=18, hsn_code='8528', price_includes_tax=False)
+        self.rice = Product.objects.create(tenant=self.tenant, name='Rice', sku='R1', cost_price=1, selling_price=1, mrp=1,
+                                           gst_rate=5, hsn_code='1006')
+        Inventory.objects.create(tenant=self.tenant, product=self.rice, warehouse=self.wh, quantity_on_hand=10)
+        from retail.models import Customer
+        self.customer = Customer.objects.create(tenant=self.tenant, name='Walk In', phone='9000000000', email='', address='x')
+
+    def test_inclusive_and_exclusive_lines_together(self):
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'customer': self.customer.id, 'payment_method': 'CASH', 'customer_name_input': 'Walk In', 'phone': '9000000000',
+            'items': [{'product': 'Rice', 'quantity': 2, 'price': 105},      # 210 incl. 5% -> tax 10
+                      {'product': 'LED TV', 'quantity': 1, 'price': 1000}]},  # +18% on top -> tax 180
+            format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['subtotal'], '1210.00')
+        self.assertEqual(r.data['tax_amount'], '190.00')
+        self.assertEqual(r.data['total_amount'], '1390.00')  # 1210 + the 180 charged on top of the TV
+        self.assertEqual((r.data['cgst_amount'], r.data['sgst_amount']), ('95.00', '95.00'))
+
+    def test_unknown_product_is_a_clean_400(self):
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Ghost', 'quantity': 1, 'price': 5}]}, format='json')
+        self.assertEqual(r.status_code, 400)

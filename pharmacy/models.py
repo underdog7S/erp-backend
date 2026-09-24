@@ -71,6 +71,9 @@ class Medicine(models.Model):
     storage_conditions = models.CharField(max_length=200, blank=True)
     expiry_alert_days = models.IntegerField(default=30)
     barcode = models.CharField(max_length=100, blank=True, null=True, help_text="Product barcode for scanning")
+    hsn_code = models.CharField(max_length=8, blank=True, help_text="HSN code printed on GST invoices")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="GST percentage, e.g. 5, 12, 18. 0 means no tax is calculated")
+    price_includes_tax = models.BooleanField(default=True, help_text="Selling price already contains GST (normal for MRP items)")
     
     def __str__(self):
         return f"{self.name} - {self.strength}"
@@ -206,6 +209,8 @@ class Sale(models.Model):
     sale_date = models.DateTimeField(auto_now_add=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=50, choices=[
@@ -244,6 +249,9 @@ class SaleItem(models.Model):
     quantity = models.IntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    hsn_code = models.CharField(max_length=8, blank=True)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
     def __str__(self):
         return f"{self.medicine_batch.medicine.name} - {self.quantity}"
