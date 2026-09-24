@@ -186,6 +186,7 @@ urlpatterns = [
     path('resend-verification/', auth_views.ResendVerificationEmailView.as_view(), name='resend-verification'),
 
     # Password Reset
+    path('users/change-password/', users_views.PasswordChangeView.as_view(), name='change-password'),
     path('password-reset/request/', users_views.PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', users_views.PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
 

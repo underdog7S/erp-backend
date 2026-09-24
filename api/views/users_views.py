@@ -406,6 +406,8 @@ class PasswordResetConfirmView(APIView):
 class PasswordChangeView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     def post(self, request):
         user = request.user
@@ -415,6 +417,12 @@ class PasswordChangeView(APIView):
             return Response({"error": "Missing fields."}, status=status.HTTP_400_BAD_REQUEST)
         if not user.check_password(old_password):
             return Response({"error": "Old password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_password(new_password, user)
+        except DjangoValidationError as e:
+            return Response({"error": " ".join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
         user.set_password(new_password)
         user.save()
         update_session_auth_hash(request, user)
