@@ -3227,30 +3227,6 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         profile = UserProfile._default_manager.get(user=self.request.user)
         serializer.save(tenant=profile.tenant) 
 
-class FeeStructureListView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
-
-    def get(self, request):
-        try:
-            profile = UserProfile._default_manager.get(user=request.user)
-            if not profile.tenant:
-                return Response({'error': 'Tenant not found for user. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Allow admin, accountant, principal, and teacher to view fee structures (read-only for teachers)
-            if not profile.role or profile.role.name not in ['admin', 'accountant', 'principal', 'teacher']:
-                return Response({'error': 'You do not have permission to view fee structures.'}, status=status.HTTP_403_FORBIDDEN)
-            
-            fee_structures = FeeStructure._default_manager.filter(tenant=profile.tenant)
-            serializer = FeeStructureSerializer(fee_structures.order_by('-academic_year__start_date', 'class_obj__name'), many=True)
-            return Response(serializer.data)
-        except UserProfile.DoesNotExist:
-            logger.error(f"UserProfile not found for user: {request.user.username}")
-            return Response({'error': 'User profile not found. Please contact support.'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"Error in FeeStructureListView.get: {str(e)}", exc_info=True)
-            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
-
 class ClassAttendanceStatusView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]

@@ -235,29 +235,6 @@ class AddUserView(APIView):
                 error_msg = error_msg[:500] + "..."
             return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
 
-class RemoveUserView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    @role_required('admin', 'principal')
-    def post(self, request):
-        profile = UserProfile._default_manager.get(user=request.user)
-        if not profile.role or profile.role.name != "admin":
-            return Response({"error": "Only admins can remove users."}, status=status.HTTP_403_FORBIDDEN)
-        username = request.data.get("username")
-        try:
-            # Scope to this admin's own tenant - otherwise any tenant admin
-            # could delete a user account belonging to a different tenant.
-            user = User.objects.get(username=username, userprofile__tenant=profile.tenant)
-            if user == request.user:
-                return Response({"error": "You cannot remove yourself."}, status=status.HTTP_400_BAD_REQUEST)
-            user.delete()
-            return Response({"message": "User removed successfully."})
-        except User.DoesNotExist:  # type: ignore
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 class InviteUserView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
