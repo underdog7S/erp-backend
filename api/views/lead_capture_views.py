@@ -274,6 +274,7 @@ class ProspectSearchView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @role_required('admin', 'principal')
     def get(self, request):
         category = request.query_params.get('category', 'shops')
         if category not in CATEGORY_FILTERS:
@@ -308,6 +309,7 @@ class ProspectSaveView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @role_required('admin', 'principal')
     def post(self, request):
         tenant = _profile(request).tenant
         d = request.data

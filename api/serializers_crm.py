@@ -87,11 +87,12 @@ class ContactSerializer(serializers.ModelSerializer):
             'company', 'company_name',
             'email_opt_in', 'sms_opt_in', 'preferred_contact_method',
             'tags', 'tag_ids', 'custom_fields',
+            'lead_source', 'distance_km', 'within_service_area',
             'owner', 'owner_name', 'created_by', 'created_by_name',
             'created_at', 'updated_at', 'last_contacted_at', 'notes',
             'activity_count', 'deal_count'
         ]
-        read_only_fields = ['id', 'tenant', 'created_at', 'updated_at', 'full_name', 'full_address', 'activity_count', 'deal_count']
+        read_only_fields = ['id', 'tenant', 'created_at', 'updated_at', 'full_name', 'full_address', 'activity_count', 'deal_count', 'lead_source', 'distance_km', 'within_service_area']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -54,6 +54,14 @@ class ContactViewSet(viewsets.ModelViewSet):
         if lifecycle_stage:
             queryset = queryset.filter(lifecycle_stage=lifecycle_stage)
         
+        lead_source = self.request.query_params.get('lead_source')
+        if lead_source:
+            queryset = queryset.filter(lead_source=lead_source)
+
+        within = self.request.query_params.get('within_service_area')
+        if within in ('true', 'false'):
+            queryset = queryset.filter(within_service_area=(within == 'true'))
+
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
