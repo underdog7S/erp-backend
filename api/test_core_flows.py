@@ -448,14 +448,16 @@ class PharmacySaleTests(APITestCase):
             return MedicineBatch.objects.create(
                 tenant=self.tenant, medicine=self.medicine, batch_number=number, supplier=supplier,
                 manufacturing_date=today - timedelta(days=200), expiry_date=today + timedelta(days=days),
-                cost_price=5, selling_price=10, mrp=11, quantity_received=qty, quantity_available=qty)
+                cost_price=5, selling_price=112, mrp=112, quantity_received=qty, quantity_available=qty)
         self.expired = batch('EXPIRED', -3, 50)
         self.later = batch('LATER', 300, 50)
         self.sooner = batch('SOONER', 60, 20)
 
     def sell(self, qty, price=112):
-        return self.client.post('/api/pharmacy/sales/', {
-            'payment_method': 'CASH', 'items': [{'medicine': 'Amoxicillin', 'quantity': qty, 'price': price}]}, format='json')
+        line = {'medicine': 'Amoxicillin', 'quantity': qty}
+        if price is not None:
+            line['price'] = price
+        return self.client.post('/api/pharmacy/sales/', {'payment_method': 'CASH', 'items': [line]}, format='json')
 
     def test_earliest_expiry_first_and_never_expired(self):
         r = self.sell(30)
@@ -501,7 +503,9 @@ class RetailSaleGstTests(APITestCase):
         self.wh = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1', is_primary=True)
         self.tv = Product.objects.create(tenant=self.tenant, name='LED TV', sku='TV1', cost_price=1, selling_price=1, mrp=1,
                                          gst_rate=18, hsn_code='8528', price_includes_tax=False)
-        self.rice = Product.objects.create(tenant=self.tenant, name='Rice', sku='R1', cost_price=1, selling_price=1, mrp=1,
+        self.tv.mrp = self.tv.selling_price = 1000
+        self.tv.save()
+        self.rice = Product.objects.create(tenant=self.tenant, name='Rice', sku='R1', cost_price=1, selling_price=105, mrp=105,
                                            gst_rate=5, hsn_code='1006')
         Inventory.objects.create(tenant=self.tenant, product=self.rice, warehouse=self.wh, quantity_on_hand=10)
         from retail.models import Customer
@@ -569,3 +573,51 @@ class CatalogTests(APITestCase):
             'items_input': [{'product': r.data['id'], 'quantity': 12}]}, format='json')
         self.assertEqual(adj.status_code, 201, adj.data)
         self.assertEqual(self.client.get('/api/retail/products/').data['results'][0]['total_stock'], 12)
+
+
+class SalePricingTests(PharmacySaleTests):
+    """Bills default to the batch / catalogue price and can never exceed MRP."""
+
+    def test_price_defaults_to_batch_price(self):
+        r = self.sell(2, price=None)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['subtotal'], '224.00')
+
+    def test_price_above_mrp_refused(self):
+        r = self.sell(1, price=500)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('MRP', str(r.data))
+
+    def test_discount_below_mrp_allowed(self):
+        r = self.sell(1, price=100)
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data['subtotal'], '100.00')
+
+    def test_exact_medicine_id_beats_name_match(self):
+        from pharmacy.models import Medicine, MedicineBatch
+        twin = Medicine.objects.create(tenant=self.tenant, name='Amoxicillin Forte', manufacturer='Acme', dosage_form='CAPSULE')
+        sup = self.sooner.supplier
+        from datetime import date, timedelta
+        MedicineBatch.objects.create(tenant=self.tenant, medicine=twin, batch_number='F1', supplier=sup,
+                                     manufacturing_date=date.today() - timedelta(days=10), expiry_date=date.today() + timedelta(days=200),
+                                     cost_price=1, selling_price=50, mrp=60, quantity_received=5, quantity_available=5)
+        r = self.client.post('/api/pharmacy/sales/', {
+            'payment_method': 'CASH', 'items': [{'medicine': 'Amoxicillin Forte', 'medicine_id': twin.id, 'quantity': 1}]}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['subtotal'], '50.00')
+
+
+class RetailPosTests(RetailSaleGstTests):
+    def test_walk_in_sale_defaults_price_and_customer(self):
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'payment_method': 'CASH',
+            'items': [{'product': 'Rice', 'product_id': self.rice.id, 'quantity': 3}]}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['subtotal'], '315.00')
+        self.assertEqual(r.data['customer_name'], 'Walk-in Customer')
+
+    def test_price_above_mrp_refused(self):
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'payment_method': 'CASH',
+            'items': [{'product': 'Rice', 'quantity': 1, 'price': 999}]}, format='json')
+        self.assertEqual(r.status_code, 400)

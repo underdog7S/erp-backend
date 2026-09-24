@@ -244,12 +244,17 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
             name = item_data.get('medicine', '')
             try:
                 quantity = int(item_data.get('quantity', 1))
-                unit_price = Decimal(str(item_data.get('price', 0)))
+                price_given = item_data.get('price')
+                price_override = Decimal(str(price_given)) if price_given not in (None, '') else None
             except (ValueError, ArithmeticError):
                 raise serializers.ValidationError('Quantity and price must be numbers.')
             if quantity <= 0:
                 raise serializers.ValidationError('Quantity must be above zero.')
-            medicine = SaleMedicine.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
+            # An exact id (from the billing screen) wins; the name match is kept for older callers.
+            if item_data.get('medicine_id'):
+                medicine = SaleMedicine.objects.filter(id=item_data['medicine_id'], tenant=sale_tenant).first()
+            else:
+                medicine = SaleMedicine.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
             if not medicine:
                 raise serializers.ValidationError(f'Medicine "{name}" was not found.')
             remaining = quantity
@@ -258,6 +263,12 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
             ).order_by('expiry_date', 'id')
             for batch in batches:
                 take = min(batch.quantity_available, remaining)
+                # Price comes from the batch unless the cashier gives a lower (discounted) price;
+                # a medicine can never be billed above its printed MRP.
+                unit_price = price_override if price_override is not None else batch.selling_price
+                if unit_price < 0 or unit_price > batch.mrp:
+                    raise serializers.ValidationError(
+                        f'{medicine.name}: price {unit_price} is above the MRP of {batch.mrp} for batch {batch.batch_number}.')
                 _, tax = line_tax(take * unit_price, medicine.gst_rate, medicine.price_includes_tax)
                 allocations.append((medicine, batch, take, unit_price, tax))
                 subtotal += take * unit_price
@@ -587,17 +598,22 @@ class RetailSaleSerializer(serializers.ModelSerializer):
     # Add fields for customer creation (write-only)
     customer_name_input = serializers.CharField(write_only=True, required=False)
     phone = serializers.CharField(write_only=True, required=False)
-    
+
+    def get_extra_kwargs(self):
+        kwargs = super().get_extra_kwargs()
+        kwargs['customer'] = {**kwargs.get('customer', {}), 'required': False, 'allow_null': True}
+        return kwargs
+
     def to_representation(self, instance):
         """Custom representation to handle null values safely"""
         data = super().to_representation(instance)
-        
+
         # Handle null customer
         if instance.customer is None:
             data['customer_name'] = None
         else:
             data['customer_name'] = instance.customer.name if instance.customer else None
-            
+
         # Handle null warehouse
         if instance.warehouse is None:
             data['warehouse_name'] = None
@@ -647,7 +663,13 @@ class RetailSaleSerializer(serializers.ModelSerializer):
             tenant = validated_data.get('tenant')
             if not tenant:
                 raise serializers.ValidationError("Tenant is required")
-        
+
+        # A counter sale without a named customer goes on a shared walk-in record
+        if not validated_data.get('customer'):
+            from retail.models import Customer as WalkInCustomer
+            validated_data['customer'], _ = WalkInCustomer.objects.get_or_create(
+                tenant=validated_data['tenant'], name='Walk-in Customer', defaults={'phone': '-', 'email': '', 'address': ''})
+
         # Resolve each line's product first so GST can be worked out per line
         from retail.models import Product as SaleProduct
         from api.gst import line_tax, split_cgst_sgst
@@ -660,14 +682,22 @@ class RetailSaleSerializer(serializers.ModelSerializer):
             name = item_data.get('product', '')
             try:
                 quantity = int(item_data.get('quantity', 1))
-                unit_price = Decimal(str(item_data.get('price', 0)))
+                price_given = item_data.get('price')
+                price_override = Decimal(str(price_given)) if price_given not in (None, '') else None
             except (ValueError, ArithmeticError):
                 raise serializers.ValidationError('Quantity and price must be numbers.')
             if quantity <= 0:
                 raise serializers.ValidationError('Quantity must be above zero.')
-            product = SaleProduct.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
+            if item_data.get('product_id'):
+                product = SaleProduct.objects.filter(id=item_data['product_id'], tenant=sale_tenant).first()
+            else:
+                product = SaleProduct.objects.filter(name__icontains=name, tenant=sale_tenant).first() if name else None
             if not product:
                 raise serializers.ValidationError(f'Product "{name}" was not found.')
+            # Default to the catalogue price; a lower (discounted) price is fine, above MRP is not.
+            unit_price = price_override if price_override is not None else product.selling_price
+            if unit_price < 0 or unit_price > product.mrp:
+                raise serializers.ValidationError(f'{product.name}: price {unit_price} is above the MRP of {product.mrp}.')
             _, tax = line_tax(quantity * unit_price, product.gst_rate, product.price_includes_tax)
             subtotal += quantity * unit_price
             tax_total += tax
