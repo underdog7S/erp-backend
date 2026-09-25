@@ -971,3 +971,54 @@ class AccountingTests(APITestCase):
 
     def test_bad_dates_rejected(self):
         self.assertEqual(self.client.get('/api/accounting/report/?date_from=2026-05-01&date_to=2026-04-01').status_code, 400)
+
+
+class HrTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.tenant = Tenant.objects.create(name='Staffed Co', industry='retail')
+        self.client.force_authenticate(make_user(self.tenant, 'hr_admin', 'admin'))
+        self.staff = APIClient()
+        self.staff.force_authenticate(make_user(self.tenant, 'hr_staff', 'staff'))
+        r = self.client.post('/api/hr/employees/', {'name': 'Asha', 'monthly_salary': '30000', 'paid_leave_per_year': 2}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.emp = r.data['id']
+
+    def leave(self, start, end, kind='PAID'):
+        return self.client.post('/api/hr/leaves/', {'employee': self.emp, 'leave_type': kind, 'start_date': start, 'end_date': end}, format='json')
+
+    def test_only_admins_can_use_hr(self):
+        self.assertEqual(self.staff.get('/api/hr/employees/').status_code, 403)
+
+    def test_paid_leave_is_limited_to_the_yearly_balance(self):
+        year = __import__('datetime').date.today().year
+        two = self.leave(f'{year}-03-10', f'{year}-03-11')
+        self.assertEqual(two.data['days'], 2)
+        self.assertEqual(self.client.post(f"/api/hr/leaves/{two.data['id']}/decide/", {'decision': 'approved'}, format='json').status_code, 200)
+        more = self.leave(f'{year}-04-01', f'{year}-04-01')
+        self.assertEqual(self.client.post(f"/api/hr/leaves/{more.data['id']}/decide/", {'decision': 'approved'}, format='json').status_code, 400)
+        self.assertEqual(self.client.get('/api/hr/employees/').data['results'][0]['leave_balance'], 0)
+        self.assertEqual(self.client.post(f"/api/hr/leaves/{two.data['id']}/decide/", {'decision': 'rejected'}, format='json').status_code, 400)  # already decided
+
+    def test_bad_leave_dates_refused(self):
+        self.assertEqual(self.leave('2026-05-10', '2026-05-01').status_code, 400)
+
+    def test_payroll_deducts_unpaid_leave_and_pay_creates_an_expense(self):
+        from accounting.models import Expense
+        lv = self.leave('2026-09-10', '2026-09-12', 'UNPAID')  # 3 unpaid days in a 30-day month
+        self.client.post(f"/api/hr/leaves/{lv.data['id']}/decide/", {'decision': 'approved'}, format='json')
+        slips = self.client.post('/api/hr/payroll/run/', {'month': '2026-09'}, format='json').data
+        self.assertEqual(len(slips), 1)
+        self.assertEqual((float(slips[0]['leave_deduction']), float(slips[0]['net'])), (3000.0, 27000.0))
+        adj = self.client.patch(f"/api/hr/payslips/{slips[0]['id']}/", {'bonus': '500'}, format='json')
+        self.assertEqual(float(adj.data['net']), 27500.0)
+        paid = self.client.post(f"/api/hr/payslips/{slips[0]['id']}/pay/")
+        self.assertEqual(paid.status_code, 200, paid.data)
+        exp = Expense.objects.get(tenant=self.tenant)
+        self.assertEqual((exp.category.name, float(exp.amount)), ('Salaries', 27500.0))
+        self.assertEqual(self.client.post(f"/api/hr/payslips/{slips[0]['id']}/pay/").status_code, 400)
+        again = self.client.post('/api/hr/payroll/run/', {'month': '2026-09'}, format='json').data  # paid slip stays untouched
+        self.assertEqual((again[0]['status'], float(again[0]['net'])), ('paid', 27500.0))
+
+    def test_bad_month_refused(self):
+        self.assertEqual(self.client.post('/api/hr/payroll/run/', {'month': 'soon'}, format='json').status_code, 400)

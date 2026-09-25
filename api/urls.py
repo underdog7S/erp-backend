@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, business_views, accounting_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, business_views, accounting_views, hr_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -190,6 +190,14 @@ urlpatterns = [
     path('accounting/expenses/', accounting_views.ExpenseListCreateView.as_view(), name='accounting-expenses'),
     path('accounting/expenses/<int:pk>/', accounting_views.ExpenseDetailView.as_view(), name='accounting-expense-detail'),
     path('accounting/report/', accounting_views.ReportView.as_view(), name='accounting-report'),
+    path('hr/employees/', hr_views.EmployeeListCreateView.as_view(), name='hr-employees'),
+    path('hr/employees/<int:pk>/', hr_views.EmployeeDetailView.as_view(), name='hr-employee-detail'),
+    path('hr/leaves/', hr_views.LeaveListCreateView.as_view(), name='hr-leaves'),
+    path('hr/leaves/<int:pk>/decide/', hr_views.LeaveDecisionView.as_view(), name='hr-leave-decide'),
+    path('hr/payroll/run/', hr_views.PayrollRunView.as_view(), name='hr-payroll-run'),
+    path('hr/payslips/', hr_views.PayslipListView.as_view(), name='hr-payslips'),
+    path('hr/payslips/<int:pk>/', hr_views.PayslipAdjustView.as_view(), name='hr-payslip-adjust'),
+    path('hr/payslips/<int:pk>/pay/', hr_views.PayslipPayView.as_view(), name='hr-payslip-pay'),
     path('tenant/business/', business_views.BusinessDetailsView.as_view(), name='tenant-business'),
     path('invitations/info/', users_views.InvitationInfoView.as_view(), name='invitation-info'),
     path('users/change-password/', users_views.PasswordChangeView.as_view(), name='change-password'),

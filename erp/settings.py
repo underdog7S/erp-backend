@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'salon',
     'manufacturing',
     'accounting',
+    'hr',
     'drf_yasg',
 ]
 
