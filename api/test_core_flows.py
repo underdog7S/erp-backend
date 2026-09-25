@@ -1022,3 +1022,16 @@ class HrTests(APITestCase):
 
     def test_bad_month_refused(self):
         self.assertEqual(self.client.post('/api/hr/payroll/run/', {'month': 'soon'}, format='json').status_code, 400)
+
+
+class PublicFeePaymentGuardTests(APITestCase):
+    def test_no_payment_record_when_school_has_no_razorpay(self):
+        from datetime import date
+        from education.models import Class, FeePayment, FeeStructure, Student
+        from api.models.plan import Plan
+        plan = Plan.objects.create(name='Edu Plan', price=0, storage_limit_mb=100, has_education=True)
+        tenant = Tenant.objects.create(name='Small School', industry='education', plan=plan)
+        r = self.client.post('/api/education/public/fee-payment/', {
+            'tenant_id': tenant.id, 'student_roll_number': 'X1', 'parent_phone': '999', 'fee_structure_id': 1, 'amount': 100}, format='json')
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertEqual(FeePayment.objects.count(), 0)

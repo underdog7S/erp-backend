@@ -5712,6 +5712,12 @@ class PublicFeePaymentCreateView(APIView):
         except Tenant.DoesNotExist:
             return Response({'error': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
         
+        # Online payment needs the school's own Razorpay account. Without it nothing can be collected, so do not
+        # save a payment record that would make the fee look paid.
+        if not tenant.has_razorpay_configured():
+            return Response({'error': 'This school has not switched on online payments yet. Please pay at the school office.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
         # Verify student and parent phone
         try:
             student = Student.objects.select_related('assigned_class').get(
