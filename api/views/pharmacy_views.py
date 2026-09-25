@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import status, generics, viewsets
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -1281,62 +1282,67 @@ class SaleReturnListCreateView(generics.ListCreateAPIView):
         except Exception as e:
             return SaleReturn.objects.none()
     
-    def perform_create(self, serializer):
-        tenant = self.request.user.userprofile.tenant
-        items_data = self.request.data.get('items', [])
-        
-        # Generate return number
-        from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        return_number = f"RET{timestamp}"
-        
-        # Calculate totals
-        subtotal = 0
-        for item_data in items_data:
-            quantity = item_data.get('quantity', 0)
-            unit_price = item_data.get('unit_price', 0)
-            subtotal += quantity * unit_price
-        
-        # Create the return
-        sale_return = serializer.save(
-            tenant=tenant,
-            return_number=return_number,
-            subtotal=subtotal,
-            refund_amount=subtotal  # Default refund amount equals subtotal
-        )
-        
-        # Create return items
-        for item_data in items_data:
-            sale_item_id = item_data.get('sale_item')
-            medicine_batch_id = item_data.get('medicine_batch')
-            quantity = item_data.get('quantity', 0)
-            unit_price = item_data.get('unit_price', 0)
-            reason = item_data.get('reason', '')
-            
-            if sale_item_id and medicine_batch_id:
-                try:
-                    from pharmacy.models import SaleItem, MedicineBatch
-                    sale_item = SaleItem.objects.get(id=sale_item_id, tenant=tenant)
-                    medicine_batch = MedicineBatch.objects.get(id=medicine_batch_id, tenant=tenant)
-                    
-                    SaleReturnItem.objects.create(
-                        sale_return=sale_return,
-                        sale_item=sale_item,
-                        medicine_batch=medicine_batch,
-                        quantity=quantity,
-                        unit_price=unit_price,
-                        total_price=quantity * unit_price,
-                        reason=reason,
-                        tenant=tenant
-                    )
-                except (SaleItem.DoesNotExist, MedicineBatch.DoesNotExist):
-                    pass  # Skip invalid items
-        
-        # Note: Stock is NOT restored here - only when return is processed
+    def create(self, request, *args, **kwargs):
+        """A return is worked out from the original sale: prices, tax and batches come from the sale lines, never from the request."""
+        from decimal import Decimal
+        from django.db import transaction
+        from django.db.models import Sum
+        from pharmacy.models import SaleItem
+        tenant = request.user.userprofile.tenant
+        sale = Sale.objects.filter(pk=request.data.get('sale'), tenant=tenant).select_related('customer').first()
+        if not sale:
+            return Response({'sale': ['Unknown sale.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not sale.customer_id:
+            return Response({'error': 'This sale has no customer, so it cannot be returned here.'}, status=status.HTTP_400_BAD_REQUEST)
+        lines = request.data.get('items') or []
+        if not lines:
+            return Response({'items': ['Choose at least one item to return.']}, status=status.HTTP_400_BAD_REQUEST)
+        picked, refund = [], Decimal('0')
+        for line in lines:
+            item = SaleItem.objects.filter(pk=line.get('sale_item'), sale=sale, tenant=tenant).select_related('medicine_batch__medicine').first()
+            try:
+                qty = int(line.get('quantity'))
+            except (TypeError, ValueError):
+                qty = 0
+            if not item or qty <= 0:
+                return Response({'items': ['Each item needs a sale line and a quantity of at least 1.']}, status=status.HTTP_400_BAD_REQUEST)
+            already = SaleReturnItem.objects.filter(sale_item=item, tenant=tenant).exclude(sale_return__status='CANCELLED').aggregate(t=Sum('quantity'))['t'] or 0
+            if qty + already > item.quantity:
+                return Response({'error': f'{item.medicine_batch.medicine.name}: only {item.quantity - already} of {item.quantity} can still be returned.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            each = item.unit_price
+            if not item.medicine_batch.medicine.price_includes_tax and item.quantity:
+                each += item.tax_amount / item.quantity     # tax was added on top of the price at sale time
+            each = each.quantize(Decimal('0.01'))
+            picked.append((item, qty, each, line.get('reason', '')))
+            refund += each * qty
+        data = {k: request.data.get(k) for k in ('return_type', 'return_reason', 'reason_details', 'refund_method', 'notes') if request.data.get(k) not in (None, '')}
+        data.update(sale=sale.id, customer=sale.customer_id, subtotal=refund, refund_amount=refund)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            from datetime import datetime
+            import uuid
+            sale_return = serializer.save(tenant=tenant, status='PENDING',
+                                          return_number=f"RET{datetime.now().strftime('%Y%m%d%H%M%S')}{uuid.uuid4().hex[:4].upper()}")
+            for item, qty, each, reason in picked:
+                SaleReturnItem.objects.create(tenant=tenant, sale_return=sale_return, sale_item=item, medicine_batch=item.medicine_batch,
+                                              quantity=qty, unit_price=each, total_price=each * qty, reason=reason)
+        return Response(self.get_serializer(sale_return).data, status=status.HTTP_201_CREATED)
 
 class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     serializer_class = SaleReturnSerializer
+
+    def update(self, request, *args, **kwargs):
+        if self.get_object().status in ('PROCESSED', 'CANCELLED'):
+            return Response({'error': 'A finished return cannot be changed.'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if self.get_object().status == 'PROCESSED':
+            return Response({'error': 'A processed return cannot be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
     
     def get_queryset(self):
         try:
@@ -1345,35 +1351,51 @@ class SaleReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
             return SaleReturn.objects.none()
 
 class SaleReturnProcessView(APIView):
-    """Process a return (approve and complete refund)"""
+    """POST completes the return: the refund is fixed, stock goes back only for items that can be resold, and loyalty points earned on the
+    returned amount are taken back. POST {"action": "cancel"} cancels a return that is still pending."""
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
-    
+
     def post(self, request, pk):
-        try:
-            tenant = request.user.userprofile.tenant
-            sale_return = SaleReturn.objects.get(id=pk, tenant=tenant)
-            
-            if sale_return.status == 'PROCESSED':
-                return Response({'error': 'Return already processed'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Update status
+        from django.db import transaction
+        from django.db.models import Sum
+        tenant = request.user.userprofile.tenant
+        with transaction.atomic():
+            sale_return = SaleReturn.objects.select_for_update().select_related('customer', 'sale').filter(pk=pk, tenant=tenant).first()
+            if not sale_return:
+                return Response({'error': 'Return not found'}, status=status.HTTP_404_NOT_FOUND)
+            if sale_return.status in ('PROCESSED', 'CANCELLED'):
+                return Response({'error': f'This return is already {sale_return.status.lower()}.'}, status=status.HTTP_400_BAD_REQUEST)
+            if request.data.get('action') == 'cancel':
+                sale_return.status = 'CANCELLED'
+                sale_return.save(update_fields=['status'])
+                return Response({'message': 'Return cancelled', 'return': SaleReturnSerializer(sale_return).data})
+            today = timezone.now().date()
+            resellable = sale_return.return_reason in ('WRONG_ITEM', 'CUSTOMER_REQUEST', 'OTHER')
+            restocked = 0
+            for item in sale_return.items.select_related('medicine_batch'):
+                batch = item.medicine_batch
+                if resellable and batch and batch.expiry_date >= today:
+                    batch.quantity_available += item.quantity
+                    batch.save()
+                    restocked += item.quantity
+            customer = sale_return.customer
+            taken_back = 0
+            earned = sale_return.sale.loyalty_transactions.filter(transaction_type='EARNED').aggregate(t=Sum('points'))['t'] or 0
+            if earned and sale_return.sale.total_amount:
+                share = int(earned * (sale_return.refund_amount / sale_return.sale.total_amount))
+                taken_back = min(share, customer.loyalty_points)
+                if taken_back > 0:
+                    customer.loyalty_points -= taken_back
+                    customer.save(update_fields=['loyalty_points'])
+                    LoyaltyTransaction.objects.create(tenant=tenant, customer=customer, transaction_type='ADJUSTED', points=-taken_back, sale=sale_return.sale,
+                                                      description=f'Points taken back for return {sale_return.return_number}',
+                                                      created_by=request.user.userprofile)
             sale_return.status = 'PROCESSED'
             sale_return.processed_by = request.user.userprofile
             sale_return.processed_at = timezone.now()
             sale_return.save()
-            
-            # Restore stock for all returned items
-            for item in sale_return.items.all():
-                batch = item.medicine_batch
-                if batch:
-                    batch.quantity_available += item.quantity
-                    batch.save()
-            
-            return Response({'message': 'Return processed successfully', 'return': SaleReturnSerializer(sale_return).data})
-        except SaleReturn.DoesNotExist:
-            return Response({'error': 'Return not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Return processed successfully', 'restocked_units': restocked, 'points_taken_back': taken_back,
+                         'return': SaleReturnSerializer(sale_return).data})
 
 # Loyalty Program Views
 class LoyaltyRewardListCreateView(generics.ListCreateAPIView):
@@ -1412,7 +1434,22 @@ class LoyaltyTransactionListCreateView(generics.ListCreateAPIView):
         return queryset.order_by('-transaction_date')
     
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.userprofile.tenant, created_by=self.request.user.userprofile)
+        """Only manual adjustments are made here, and they change the customer's balance so the two can never disagree."""
+        from django.db import transaction
+        from rest_framework.exceptions import ValidationError
+        tenant = self.request.user.userprofile.tenant
+        with transaction.atomic():
+            customer = Customer.objects.select_for_update().filter(pk=serializer.validated_data['customer'].pk, tenant=tenant).first()
+            if not customer:
+                raise ValidationError({'customer': 'Unknown customer.'})
+            points = serializer.validated_data['points']
+            if points == 0 or customer.loyalty_points + points < 0:
+                raise ValidationError({'points': 'The adjustment must not be zero or take the balance below zero.'})
+            customer.loyalty_points += points
+            if points > 0:
+                customer.total_points_earned += points
+            customer.save(update_fields=['loyalty_points', 'total_points_earned'])
+            serializer.save(tenant=tenant, customer=customer, transaction_type='ADJUSTED', sale=None, reward=None, created_by=self.request.user.userprofile)
 
 class LoyaltyTransactionDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
@@ -1425,6 +1462,7 @@ class LoyaltyRedeemView(APIView):
     """Redeem loyalty points for a reward"""
     permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('pharmacy')]
     
+    @transaction.atomic
     def post(self, request):
         try:
             tenant = request.user.userprofile.tenant
@@ -1434,7 +1472,7 @@ class LoyaltyRedeemView(APIView):
             if not customer_id or not reward_id:
                 return Response({'error': 'customer_id and reward_id are required'}, status=status.HTTP_400_BAD_REQUEST)
             
-            customer = Customer.objects.get(id=customer_id, tenant=tenant)
+            customer = Customer.objects.select_for_update().get(id=customer_id, tenant=tenant)
             reward = LoyaltyReward.objects.get(id=reward_id, tenant=tenant, is_active=True)
             
             if not customer.loyalty_enrolled:

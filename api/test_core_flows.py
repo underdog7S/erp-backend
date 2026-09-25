@@ -1642,3 +1642,101 @@ class EducationFlowTests(EducationPdfTests):
         self.assertEqual(Attendance.objects.filter(tenant=self.tenant, student=self.student, date=self.today_date()).count(), 1)
         self.assertEqual(second.status_code, 200)
         self.assertFalse(Attendance.objects.get(tenant=self.tenant, student=self.student).present)
+
+
+class PharmacyReturnTests(PharmacySaleTests):
+    """Returns are priced from the sale, capped at what was sold, and restock only what can be resold."""
+
+    def make_sale(self, qty=10, customer=True):
+        from pharmacy.models import Customer
+        body = {'payment_method': 'CASH', 'payment_status': 'PAID', 'items': [{'medicine': 'Amoxicillin', 'quantity': qty, 'price': 112}]}
+        if customer:
+            self.cust = Customer.objects.create(tenant=self.tenant, name='Ravi', phone='9')
+            body['customer'] = self.cust.id
+        r = self.client.post('/api/pharmacy/sales/', body, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data
+
+    def ret(self, sale, qty, reason='CUSTOMER_REQUEST', price=None):
+        line = {'sale_item': sale['items'][0]['id'], 'quantity': qty}
+        if price is not None:
+            line['unit_price'] = price          # must be ignored
+        return self.client.post('/api/pharmacy/returns/', {'sale': sale['id'], 'return_reason': reason, 'refund_method': 'CASH', 'items': [line]}, format='json')
+
+    def test_refund_comes_from_sale_price_not_the_request(self):
+        sale = self.make_sale(10)
+        r = self.ret(sale, 4, price=99999)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(float(r.data['refund_amount']), 448.0)     # 4 x 112
+
+    def test_cannot_return_more_than_was_sold_across_returns(self):
+        sale = self.make_sale(10)
+        self.assertEqual(self.ret(sale, 6).status_code, 201)
+        self.assertEqual(self.ret(sale, 5).status_code, 400)
+        self.assertEqual(self.ret(sale, 4).status_code, 201)
+        self.assertEqual(self.ret(sale, 0).status_code, 400)
+
+    def test_processing_restocks_only_resellable_returns_and_only_once(self):
+        sale = self.make_sale(10)
+        self.sooner.refresh_from_db()
+        before = self.sooner.quantity_available
+        good = self.ret(sale, 3)
+        p = self.client.post(f"/api/pharmacy/returns/{good.data['id']}/process/")
+        self.assertEqual(p.status_code, 200, p.data)
+        self.sooner.refresh_from_db()
+        self.assertEqual(self.sooner.quantity_available, before + 3)
+        self.assertEqual(self.client.post(f"/api/pharmacy/returns/{good.data['id']}/process/").status_code, 400)
+        self.sooner.refresh_from_db()
+        self.assertEqual(self.sooner.quantity_available, before + 3)
+        damaged = self.ret(sale, 2, reason='DAMAGED')
+        self.client.post(f"/api/pharmacy/returns/{damaged.data['id']}/process/")
+        self.sooner.refresh_from_db()
+        self.assertEqual(self.sooner.quantity_available, before + 3)      # damaged goods do not go back on the shelf
+
+    def test_processing_takes_back_loyalty_points(self):
+        sale = self.make_sale(10)                                 # 1120 paid -> 1120 points
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.loyalty_points, 1120)
+        r = self.ret(sale, 5)
+        p = self.client.post(f"/api/pharmacy/returns/{r.data['id']}/process/")
+        self.assertEqual(p.data['points_taken_back'], 560)
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.loyalty_points, 560)
+
+    def test_pending_return_can_be_cancelled_without_touching_stock(self):
+        sale = self.make_sale(10)
+        r = self.ret(sale, 2)
+        self.assertEqual(self.client.post(f"/api/pharmacy/returns/{r.data['id']}/process/", {'action': 'cancel'}, format='json').status_code, 200)
+        self.assertEqual(self.client.post(f"/api/pharmacy/returns/{r.data['id']}/process/").status_code, 400)
+        self.assertEqual(self.ret(self.client.get(f"/api/pharmacy/sales/{sale['id']}/").data, 10).status_code, 201)
+
+    def test_other_pharmacys_sale_is_refused(self):
+        sale = self.make_sale(1)
+        from api.models.plan import Plan
+        other = Tenant.objects.create(name='Rival Pharmacy', industry='pharmacy', plan=Plan.objects.get(name='Sale Plan'))
+        self.client.force_authenticate(make_user(other, 'rival_admin', 'admin'))
+        self.assertEqual(self.ret(sale, 1).status_code, 400)
+
+
+class PharmacyLoyaltyTests(PharmacyReturnTests):
+    def test_redeem_takes_points_once_and_refuses_when_short(self):
+        from pharmacy.models import LoyaltyReward
+        self.make_sale(1)                                          # 112 points
+        reward = LoyaltyReward.objects.create(tenant=self.tenant, name='Rs 50 off', points_required=100, discount_amount=50)
+        big = LoyaltyReward.objects.create(tenant=self.tenant, name='Big', points_required=500, discount_amount=500)
+        body = lambda rw: {'customer_id': self.cust.id, 'reward_id': rw.id}
+        self.assertEqual(self.client.post('/api/pharmacy/loyalty/redeem/', body(reward), format='json').status_code, 200)
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.loyalty_points, 12)
+        self.assertEqual(self.client.post('/api/pharmacy/loyalty/redeem/', body(reward), format='json').status_code, 400)
+        self.assertEqual(self.client.post('/api/pharmacy/loyalty/redeem/', body(big), format='json').status_code, 400)
+
+    def test_manual_adjustment_changes_balance_and_cannot_go_negative(self):
+        self.make_sale(1)
+        post = lambda pts: self.client.post('/api/pharmacy/loyalty/transactions/', {'customer': self.cust.id, 'transaction_type': 'EARNED', 'points': pts,
+                                                                                    'description': 'Goodwill'}, format='json')
+        self.assertEqual(post(50).status_code, 201)
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.loyalty_points, 162)
+        self.assertEqual(post(-1000).status_code, 400)
+        self.assertEqual(post(0).status_code, 400)
