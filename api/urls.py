@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, business_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -186,6 +186,7 @@ urlpatterns = [
     path('resend-verification/', auth_views.ResendVerificationEmailView.as_view(), name='resend-verification'),
 
     # Password Reset
+    path('tenant/business/', business_views.BusinessDetailsView.as_view(), name='tenant-business'),
     path('invitations/info/', users_views.InvitationInfoView.as_view(), name='invitation-info'),
     path('users/change-password/', users_views.PasswordChangeView.as_view(), name='change-password'),
     path('password-reset/request/', users_views.PasswordResetRequestView.as_view(), name='password-reset-request'),

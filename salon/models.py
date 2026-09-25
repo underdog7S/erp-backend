@@ -22,6 +22,8 @@ class Service(models.Model):
 	price = models.DecimalField(max_digits=10, decimal_places=2)
 	image = models.ImageField(upload_to='salon/services/', blank=True, null=True)
 	is_active = models.BooleanField(default=True)
+	gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text='GST percentage. 0 means no tax is calculated')
+	price_includes_tax = models.BooleanField(default=True, help_text='The listed price already contains GST')
 
 	class Meta:
 		ordering = ['name', 'id']
@@ -63,6 +65,11 @@ class Appointment(models.Model):
 	end_time = models.DateTimeField()
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='scheduled')
 	price = models.DecimalField(max_digits=10, decimal_places=2)
+	gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+	tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='What the customer pays: price, plus GST when the price excludes it')
 	payment_status = models.CharField(max_length=20, choices=[
 		('pending', 'Pending'),
 		('paid', 'Paid'),

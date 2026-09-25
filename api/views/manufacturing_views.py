@@ -487,9 +487,23 @@ class SalesOrderItemListCreateView(generics.ListCreateAPIView):
             inv.quantity_on_hand = F('quantity_on_hand') - item.quantity
             inv.save()
 
+        # Snapshot the item's GST, then re-total the order. Business-to-business prices are ex-GST.
+        from api.gst import line_tax, is_intra_state, split_cgst_sgst
+        rate = item.finished_good.gst_rate
+        _, item_tax = line_tax(item.total_price, rate, inclusive=False)
+        SalesOrderItem.objects.filter(pk=item.pk).update(hsn_code=item.finished_good.hsn_code, gst_rate=rate, tax_amount=item_tax)
+
         so.subtotal = sum((i.total_price for i in so.items.all()), start=0)
+        tax = sum((i.tax_amount for i in so.items.all()), start=0)
+        if is_intra_state(tenant.gstin, so.customer.gst_number):
+            so.cgst_amount, so.sgst_amount = split_cgst_sgst(tax)
+            so.igst_amount = 0
+        else:
+            so.cgst_amount = so.sgst_amount = 0
+            so.igst_amount = tax
+        so.tax_amount = tax
         so.total_amount = so.subtotal + so.tax_amount - so.discount_amount
-        so.save(update_fields=['subtotal', 'total_amount'])
+        so.save(update_fields=['subtotal', 'tax_amount', 'cgst_amount', 'sgst_amount', 'igst_amount', 'total_amount'])
 
 
 class SalesOrderItemDetailView(generics.RetrieveUpdateDestroyAPIView):

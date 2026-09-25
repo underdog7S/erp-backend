@@ -956,7 +956,7 @@ class BookingSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Booking
 		fields = '__all__'
-		read_only_fields = ('tenant',)
+		read_only_fields = ('tenant', 'tax_amount', 'cgst_amount', 'sgst_amount', 'gst_rate')
 		extra_kwargs = {'total_amount': {'required': False}, 'status': {'read_only': True}}
 
 	def validate(self, data):
@@ -986,6 +986,13 @@ class BookingSerializer(serializers.ModelSerializer):
 			if data.get('total_amount') is None:
 				nights = max(1, ceil((end - start).total_seconds() / 86400))
 				data['total_amount'] = room.room_type.base_rate * nights
+			from api.gst import line_tax, split_cgst_sgst
+			rt = room.room_type
+			_, gst = line_tax(data['total_amount'], rt.gst_rate, rt.price_includes_tax)
+			cgst, sgst = split_cgst_sgst(gst)
+			data.update(gst_rate=rt.gst_rate, tax_amount=gst, cgst_amount=cgst, sgst_amount=sgst)
+			if not rt.price_includes_tax:
+				data['total_amount'] = data['total_amount'] + gst
 		return data
 
 	def create(self, validated_data):
@@ -1079,7 +1086,7 @@ class OrderSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Order
 		fields = '__all__'
-		read_only_fields = ('tenant',)
+		read_only_fields = ('tenant', 'tax_amount', 'cgst_amount', 'sgst_amount', 'gst_rate')
 	
 	def validate(self, data):
 		"""Validate order data, especially for cloud kitchen/delivery orders"""
@@ -1115,6 +1122,9 @@ class OrderSerializer(serializers.ModelSerializer):
 		
 		# Create order items and calculate total
 		total_amount = Decimal('0.00')
+		tax_total = Decimal('0.00')
+		added_tax = Decimal('0.00')
+		from api.gst import line_tax, split_cgst_sgst
 		for item_data in items_data:
 			menu_item_id = item_data.get('menu_item_id') or item_data.get('menu_item')
 			quantity = int(item_data.get('quantity', 1))
@@ -1122,13 +1132,19 @@ class OrderSerializer(serializers.ModelSerializer):
 			try:
 				menu_item = MenuItem.objects.get(id=menu_item_id, tenant=order.tenant)
 				price = menu_item.price
+				_, line_gst = line_tax(price * quantity, menu_item.gst_rate, menu_item.price_includes_tax)
+				tax_total += line_gst
+				if not menu_item.price_includes_tax:
+					added_tax += line_gst
 				
 				OrderItem.objects.create(
 					tenant=order.tenant,
 					order=order,
 					menu_item=menu_item,
 					quantity=quantity,
-					price=price
+					price=price,
+					gst_rate=menu_item.gst_rate,
+					tax_amount=line_gst
 				)
 				
 				total_amount += price * quantity
@@ -1144,7 +1160,9 @@ class OrderSerializer(serializers.ModelSerializer):
 				})
 		
 		# Update order with calculated total
-		order.total_amount = total_amount
+		order.total_amount = total_amount + added_tax
+		order.tax_amount = tax_total
+		order.cgst_amount, order.sgst_amount = split_cgst_sgst(tax_total)
 		order.save()
 
 		# The kitchen display picks the order up from here
@@ -1285,7 +1303,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Appointment
 		fields = '__all__'
-		read_only_fields = ('tenant',)  # Exclude tenant from validation since it's set in perform_create
+		read_only_fields = ('tenant', 'tax_amount', 'cgst_amount', 'sgst_amount', 'gst_rate', 'total_amount')  # Exclude tenant from validation since it's set in perform_create
 		extra_kwargs = {'end_time': {'required': False}, 'price': {'required': False}}
 
 	def get_stylist_name(self, obj):
@@ -1307,6 +1325,12 @@ class AppointmentSerializer(serializers.ModelSerializer):
 				data['end_time'] = start + timedelta(minutes=service.duration_minutes)
 			if data.get('price') is None:
 				data['price'] = service.price
+			if self.instance is None:
+				from api.gst import line_tax, split_cgst_sgst
+				_, gst = line_tax(data['price'], service.gst_rate, service.price_includes_tax)
+				cgst, sgst = split_cgst_sgst(gst)
+				data.update(gst_rate=service.gst_rate, tax_amount=gst, cgst_amount=cgst, sgst_amount=sgst,
+							total_amount=data['price'] + (0 if service.price_includes_tax else gst))
 		end = data.get('end_time')
 		if stylist and start and end:
 			if end <= start:

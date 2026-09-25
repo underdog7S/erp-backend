@@ -7,6 +7,8 @@ class RoomType(models.Model):
 	name = models.CharField(max_length=100)
 	description = models.TextField(blank=True)
 	base_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+	gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text='GST percentage. 0 means no tax is calculated')
+	price_includes_tax = models.BooleanField(default=False, help_text='The listed price already contains GST')
 
 	def __str__(self):
 		return f"{self.name}"
@@ -59,6 +61,10 @@ class Booking(models.Model):
 	num_guests = models.PositiveSmallIntegerField(default=1)
 	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='reserved')
 	total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+	tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	cgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+	sgst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 	created_at = models.DateTimeField(auto_now_add=True)
 
 	def __str__(self):

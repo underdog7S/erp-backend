@@ -30,6 +30,7 @@ class Tenant(models.Model):
     ]
     
     name = models.CharField(max_length=100)
+    gstin = models.CharField(max_length=15, blank=True, help_text='Your GST number, used to decide CGST/SGST or IGST on invoices')
     industry = models.CharField(max_length=50, choices=INDUSTRY_CHOICES)
     # Link to Plan model for plan-based controls
     plan = models.ForeignKey('api.Plan', on_delete=models.SET_NULL, null=True, blank=True)

@@ -848,3 +848,81 @@ class InviteAndGoogleTests(APITestCase):
         self.assertEqual(r.status_code, 201)
         self.assertFalse(r.data['email_sent'])
         self.assertIn('/activate?email=', r.data['activation_link'])
+
+
+class IndustryGstTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Gst Plan', price=0, storage_limit_mb=100, has_restaurant=True, has_salon=True, has_hotel=True, has_manufacturing=True)
+        self.tenant = Tenant.objects.create(name='Gst Tenant', industry='restaurant', plan=plan, gstin='27AAPFU0939F1ZV')
+        self.client.force_authenticate(make_user(self.tenant, 'gst_admin', 'admin'))
+
+    def test_restaurant_order_gst_inclusive_and_exclusive_items(self):
+        from restaurant.models import MenuCategory, MenuItem
+        cat = MenuCategory.objects.create(tenant=self.tenant, name='Mains')
+        dosa = MenuItem.objects.create(tenant=self.tenant, category=cat, name='Dosa', price=105, gst_rate=5, price_includes_tax=True)
+        wine = MenuItem.objects.create(tenant=self.tenant, category=cat, name='Soda', price=100, gst_rate=18, price_includes_tax=False)
+        r = self.client.post('/api/restaurant/orders/', {'order_type': 'takeaway', 'customer_name': 'A', 'customer_phone': '9',
+                             'items': [{'menu_item_id': dosa.id, 'quantity': 2}, {'menu_item_id': wine.id, 'quantity': 1}]}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(float(r.data['tax_amount']), 28.0)      # 10 inside the dosa price + 18 on top of the soda
+        self.assertEqual(float(r.data['total_amount']), 328.0)   # 210 + 100 + 18
+        self.assertEqual((float(r.data['cgst_amount']), float(r.data['sgst_amount'])), (14.0, 14.0))
+
+    def test_salon_appointment_carries_gst(self):
+        from salon.models import Service, ServiceCategory, Stylist
+        cat = ServiceCategory.objects.create(tenant=self.tenant, name='Hair')
+        svc = Service.objects.create(tenant=self.tenant, category=cat, name='Colour', price=1000, gst_rate=18, price_includes_tax=False)
+        st = Stylist.objects.create(tenant=self.tenant, first_name='Riya')
+        r = self.client.post('/api/salon/appointments/', {'service': svc.id, 'stylist': st.id, 'customer_name': 'M', 'start_time': '2030-01-10T10:00:00Z'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((float(r.data['tax_amount']), float(r.data['total_amount'])), (180.0, 1180.0))
+        self.assertEqual((float(r.data['cgst_amount']), float(r.data['sgst_amount'])), (90.0, 90.0))
+
+    def test_hotel_booking_gst_on_room_rate(self):
+        from hotel.models import Room, RoomType
+        rt = RoomType.objects.create(tenant=self.tenant, name='Deluxe', base_rate=2000, gst_rate=12, price_includes_tax=False)
+        room = Room.objects.create(tenant=self.tenant, room_number='9', room_type=rt)
+        r = self.client.post('/api/hotel/bookings/', {'room_id': room.id, 'check_in': '2030-03-01T12:00:00Z', 'check_out': '2030-03-03T11:00:00Z',
+                             'guest_first_name': 'A'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(float(r.data['tax_amount']), 480.0)      # 12% of 2 nights x 2000
+        self.assertEqual(float(r.data['total_amount']), 4480.0)
+
+    def test_manufacturing_sales_order_tax_and_state_split(self):
+        from datetime import date
+        from manufacturing.models import Customer, FinishedGood, SalesOrder, Warehouse
+        wh = Warehouse.objects.create(tenant=self.tenant, name='FG', warehouse_type='FINISHED_GOODS') if hasattr(Warehouse, 'warehouse_type') else Warehouse.objects.create(tenant=self.tenant, name='FG')
+        fg = FinishedGood.objects.create(tenant=self.tenant, name='Bolt', gst_rate=18, hsn_code='7318')
+        same = Customer.objects.create(tenant=self.tenant, name='Local', gst_number='27ABCDE1234F1Z5')
+        other = Customer.objects.create(tenant=self.tenant, name='Far', gst_number='29ABCDE1234F1Z5')
+
+        def order(customer):
+            so = SalesOrder.objects.create(tenant=self.tenant, so_number='SO' + str(customer.id), customer=customer, warehouse=wh, order_date=date.today())
+            r = self.client.post('/api/manufacturing/sales-order-items/', {'sales_order': so.id, 'finished_good': fg.id, 'quantity': 10, 'unit_price': 100}, format='json')
+            self.assertEqual(r.status_code, 201, r.data)
+            so.refresh_from_db()
+            return so
+        a = order(same)
+        self.assertEqual((float(a.cgst_amount), float(a.sgst_amount), float(a.igst_amount), float(a.total_amount)), (90.0, 90.0, 0.0, 1180.0))
+        b = order(other)
+        self.assertEqual((float(b.cgst_amount), float(b.sgst_amount), float(b.igst_amount)), (0.0, 0.0, 180.0))
+
+
+class BusinessDetailsTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.tenant = Tenant.objects.create(name='Biz', industry='retail')
+        self.admin = make_user(self.tenant, 'biz_admin', 'admin')
+        self.staff = make_user(self.tenant, 'biz_staff', 'staff')
+
+    def test_admin_saves_valid_gstin_and_bad_one_is_refused(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.put('/api/tenant/business/', {'gstin': '27aapfu0939f1zv'}, format='json').data['gstin'], '27AAPFU0939F1ZV')
+        self.assertEqual(self.client.put('/api/tenant/business/', {'gstin': '27AAPFU0939F1ZX'}, format='json').status_code, 400)
+        self.assertEqual(self.client.get('/api/tenant/business/').data['gstin'], '27AAPFU0939F1ZV')
+
+    def test_staff_cannot_change_it(self):
+        self.client.force_authenticate(self.staff)
+        self.assertEqual(self.client.put('/api/tenant/business/', {'gstin': '27AAPFU0939F1ZV'}, format='json').status_code, 403)
