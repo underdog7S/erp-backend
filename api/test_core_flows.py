@@ -1285,3 +1285,22 @@ class RetailOversellTests(RetailSaleGstTests):
         r = self.client.post('/api/retail/sales/', {
             'warehouse': self.wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Unstocked', 'product_id': ghost.id, 'quantity': 1}]}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+class ClassAttendanceStatusTests(APITestCase):
+    def test_status_shows_who_was_marked_present_on_a_past_date(self):
+        import datetime
+        from api.models.plan import Plan
+        from education.models import Attendance, Class, Student
+        plan = Plan.objects.create(name='Att Plan', price=0, storage_limit_mb=100, has_education=True)
+        tenant = Tenant.objects.create(name='Att School', industry='education', plan=plan)
+        self.client.force_authenticate(make_user(tenant, 'att_admin', 'admin'))
+        klass = Class.objects.create(tenant=tenant, name='Std 1')
+        a = Student.objects.create(tenant=tenant, name='Present Kid', upper_id='P1', admission_date=datetime.date.today(), assigned_class=klass)
+        b = Student.objects.create(tenant=tenant, name='Absent Kid', upper_id='P2', admission_date=datetime.date.today(), assigned_class=klass)
+        day = datetime.date(2026, 9, 1)
+        Attendance.objects.create(tenant=tenant, student=a, date=day, present=True)
+        Attendance.objects.create(tenant=tenant, student=b, date=day, present=False)
+        rows = self.client.get(f'/api/education/class-attendance-status/?class_id={klass.id}&date={day}').data
+        by_name = {r['student']['name']: r['present'] for r in rows}
+        self.assertEqual(by_name, {'Present Kid': True, 'Absent Kid': False})
