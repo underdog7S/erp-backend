@@ -1035,3 +1035,86 @@ class PublicFeePaymentGuardTests(APITestCase):
             'tenant_id': tenant.id, 'student_roll_number': 'X1', 'parent_phone': '999', 'fee_structure_id': 1, 'amount': 100}, format='json')
         self.assertEqual(r.status_code, 400, r.data)
         self.assertEqual(FeePayment.objects.count(), 0)
+
+
+class BillPdfTests(APITestCase):
+    """Every bill must name the business, use the rupee sign and show the figures that were saved."""
+
+    def setUp(self):
+        import datetime
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Pdf Plan', price=0, storage_limit_mb=100, has_pharmacy=True, has_retail=True, has_restaurant=True, has_salon=True, has_hotel=True)
+        self.tenant = Tenant.objects.create(name='Sunrise Traders', industry='retail', plan=plan, gstin='27AAPFU0939F1ZV',
+                                            address='12 Market Road, Pune', phone='9800000000')
+        self.client.force_authenticate(make_user(self.tenant, 'pdf_admin', 'admin'))
+        self.today = datetime.date.today()
+
+    def text(self, url):
+        import io
+        import pypdf
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200, getattr(r, 'data', r.content[:200]))
+        self.assertTrue(r['Content-Type'].startswith('application/pdf'))
+        return '\n'.join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(r.content)).pages)
+
+    def check_common(self, text):
+        for needle in ('Sunrise Traders', '12 Market Road, Pune', 'Phone: 9800000000', 'GSTIN: 27AAPFU0939F1ZV', '₹'):
+            self.assertIn(needle, text)
+        self.assertNotIn('$', text)
+        self.assertNotIn('Zenith', text)
+
+    def test_pharmacy_invoice(self):
+        import datetime
+        from pharmacy.models import Medicine, MedicineBatch, Supplier
+        sup = Supplier.objects.create(tenant=self.tenant, name='S', contact_person='A', phone='1', email='s@x.co', address='x')
+        med = Medicine.objects.create(tenant=self.tenant, name='Amoxicillin', manufacturer='Acme', dosage_form='CAPSULE', gst_rate=12, hsn_code='3004')
+        MedicineBatch.objects.create(tenant=self.tenant, medicine=med, batch_number='B77', supplier=sup, manufacturing_date=self.today,
+                                     expiry_date=self.today + datetime.timedelta(days=400), cost_price=5, selling_price=112, mrp=112, quantity_received=9, quantity_available=9)
+        s = self.client.post('/api/pharmacy/sales/', {'payment_method': 'UPI', 'customer_name_input': 'Kavya', 'phone': '9111',
+                             'items': [{'medicine': 'Amoxicillin', 'medicine_id': med.id, 'quantity': 3}]}, format='json')
+        t = self.text(f"/api/pharmacy/sales/{s.data['id']}/pdf/")
+        self.check_common(t)
+        for needle in ('TAX INVOICE', 'Kavya', 'Batch B77', '3004', '12%', 'CGST', 'SGST', '336.00', '36.00'):
+            self.assertIn(needle, t)
+
+    def test_restaurant_bill_uses_saved_gst_not_a_fixed_rate(self):
+        from restaurant.models import MenuCategory, MenuItem
+        cat = MenuCategory.objects.create(tenant=self.tenant, name='Mains')
+        dosa = MenuItem.objects.create(tenant=self.tenant, category=cat, name='Masala Dosa', price=105, gst_rate=5)
+        o = self.client.post('/api/restaurant/orders/', {'order_type': 'takeaway', 'customer_name': 'A', 'customer_phone': '9',
+                             'items': [{'menu_item_id': dosa.id, 'quantity': 2}]}, format='json')
+        t = self.text(f"/api/restaurant/orders/{o.data['id']}/invoice/")
+        self.check_common(t)
+        self.assertIn('210.00', t)
+        self.assertIn('10.00', t)         # the 5% that was stored, not a fixed 18%
+        self.assertNotIn('37.80', t)
+
+    def test_salon_bill_and_hotel_folio(self):
+        from hotel.models import Room, RoomType
+        from salon.models import Service, ServiceCategory, Stylist
+        sc = ServiceCategory.objects.create(tenant=self.tenant, name='Hair')
+        sv = Service.objects.create(tenant=self.tenant, category=sc, name='Haircut', price=500, gst_rate=18, price_includes_tax=False)
+        st = Stylist.objects.create(tenant=self.tenant, first_name='Riya')
+        a = self.client.post('/api/salon/appointments/', {'service': sv.id, 'stylist': st.id, 'customer_name': 'Meera', 'start_time': '2030-01-10T10:00:00Z'}, format='json')
+        t = self.text(f"/api/salon/appointments/{a.data['id']}/invoice/")
+        self.check_common(t)
+        self.assertIn('590.00', t)
+        rt = RoomType.objects.create(tenant=self.tenant, name='Deluxe', base_rate=2000, gst_rate=12)
+        room = Room.objects.create(tenant=self.tenant, room_number='204', room_type=rt)
+        b = self.client.post('/api/hotel/bookings/', {'room_id': room.id, 'check_in': '2030-03-01T12:00:00Z', 'check_out': '2030-03-03T11:00:00Z', 'guest_first_name': 'Arun'}, format='json')
+        t = self.text(f"/api/hotel/bookings/{b.data['id']}/folio/")
+        self.check_common(t)
+        for needle in ('2 night(s)', '4,000.00', '480.00', '4,480.00'):
+            self.assertIn(needle, t)
+
+    def test_retail_invoice(self):
+        from retail.models import Inventory, Product, Warehouse
+        wh = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1', is_primary=True)
+        pr = Product.objects.create(tenant=self.tenant, name='Basmati Rice', sku='R5', cost_price=400, selling_price=525, mrp=560, gst_rate=5, hsn_code='1006')
+        Inventory.objects.create(tenant=self.tenant, product=pr, warehouse=wh, quantity_on_hand=5)
+        s = self.client.post('/api/retail/sales/', {'warehouse': wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Basmati', 'product_id': pr.id, 'quantity': 2}]}, format='json')
+        t = self.text(f"/api/retail/sales/{s.data['id']}/invoice/")
+        self.check_common(t)
+        for needle in ('1006', '1,050.00', '50.00', 'Walk-in'):
+            self.assertIn(needle, t)

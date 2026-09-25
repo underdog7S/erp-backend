@@ -13,7 +13,7 @@ class BusinessDetailsView(APIView):
 
     def get(self, request):
         t = request.user.userprofile.tenant
-        return Response({'name': t.name, 'gstin': t.gstin})
+        return Response({'name': t.name, 'gstin': t.gstin, 'address': t.address, 'phone': t.phone})
 
     @role_required('admin', 'principal')
     def put(self, request):
@@ -22,5 +22,9 @@ class BusinessDetailsView(APIView):
         if gstin and not is_valid_gstin(gstin):
             return Response({'error': 'That GST number is not valid. It has 15 characters, for example 27AAPFU0939F1ZV.'}, status=status.HTTP_400_BAD_REQUEST)
         t.gstin = gstin
-        t.save(update_fields=['gstin'])
-        return Response({'name': t.name, 'gstin': t.gstin})
+        if 'address' in request.data:
+            t.address = str(request.data['address']).strip()[:500]
+        if 'phone' in request.data:
+            t.phone = str(request.data['phone']).strip()[:20]
+        t.save(update_fields=['gstin', 'address', 'phone'])
+        return Response({'name': t.name, 'gstin': t.gstin, 'address': t.address, 'phone': t.phone})

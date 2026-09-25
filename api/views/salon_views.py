@@ -475,63 +475,10 @@ class SalonAppointmentInvoiceView(APIView):
 		except Appointment.DoesNotExist:
 			return Response({'error': 'Appointment not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-		buffer = BytesIO()
-		p = canvas.Canvas(buffer, pagesize=A4)
-		width, height = A4
-		margin = 25 * mm
-
-		p.setFont('Helvetica-Bold', 18)
-		p.drawString(margin, height - margin, 'Zenith Salon Invoice')
-		p.setFont('Helvetica', 10)
-		p.drawRightString(width - margin, height - margin + 4, f"Invoice #: SAL-{appointment.id:06d}")
-
-		y = height - margin - 25
-		p.setFont('Helvetica-Bold', 13)
-		p.drawString(margin, y, 'Customer & Service')
-		y -= 14
-		p.setFont('Helvetica', 10)
-		p.drawString(margin, y, f"Customer: {appointment.customer_name or 'Guest'}")
-		y -= 12
-		p.drawString(margin, y, f"Phone: {appointment.customer_phone or 'N/A'}")
-		y -= 12
-		p.drawString(margin, y, f"Service: {appointment.service.name if appointment.service else 'Salon Service'}")
-		y -= 12
-		p.drawString(margin, y, f"Stylist: {str(appointment.stylist) if appointment.stylist else 'N/A'}")
-		y -= 12
-		start = appointment.start_time.strftime('%d-%m-%Y %I:%M %p') if appointment.start_time else 'N/A'
-		p.drawString(margin, y, f"Start: {start}")
-		y -= 12
-		duration = appointment.service.duration_minutes if appointment.service else 0
-		p.drawString(margin, y, f"Duration: {duration} mins")
-		y -= 20
-
-		p.setFont('Helvetica-Bold', 13)
-		p.drawString(margin, y, 'Financial Summary')
-		y -= 16
-		p.setFont('Helvetica', 11)
-		amount = float(appointment.price or 0)
-		p.drawString(margin, y, f"Subtotal: ₹{amount:.2f}")
-		y -= 14
-		tax = amount * 0.18
-		p.drawString(margin, y, f"GST (18%): ₹{tax:.2f}")
-		y -= 14
-		total = amount + tax
-		p.setFont('Helvetica-Bold', 12)
-		p.drawString(margin, y, f"Total: ₹{total:.2f}")
-		y -= 24
-
-		p.setFont('Helvetica', 9)
-		p.setFillColor(colors.black)
-		p.drawString(margin, y, f"Status: {appointment.status.capitalize() if appointment.status else 'Unknown'}")
-		y -= 12
-		p.drawString(margin, y, 'Thank you for booking with Zenith Salon. Contact us for any changes.')
-		y -= 12
-		p.drawString(margin, y, f"Generated on {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
-
-		p.showPage()
-		p.save()
-		buffer.seek(0)
-
-		response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-		response['Content-Disposition'] = f'attachment; filename="salon_invoice_{appointment.id}.pdf"'
+		from api.pdf_documents import salon_bill
+		pdf = salon_bill(appointment)
+		response = HttpResponse(pdf, content_type='application/pdf')
+		response['Content-Disposition'] = 'inline; filename="bill.pdf"'
 		return response
+
+

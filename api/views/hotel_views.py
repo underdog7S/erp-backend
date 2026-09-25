@@ -318,92 +318,10 @@ class HotelBookingFolioView(APIView):
         except Booking.DoesNotExist:
             return Response({'error': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        margin = 25 * mm
-        y = height - margin
-
-        p.setFont('Helvetica-Bold', 18)
-        p.drawString(margin, y, 'Zenith Hotel Guest Folio')
-        p.setFont('Helvetica', 10)
-        p.drawRightString(width - margin, y, f"Folio #: HTL-{booking.id:06d}")
-
-        y -= 20
-        p.setFont('Helvetica-Bold', 12)
-        p.drawString(margin, y, 'Guest & Booking Details')
-        y -= 14
-        p.setFont('Helvetica', 10)
-        guest_name = f"{booking.guest.first_name} {booking.guest.last_name}".strip()
-        p.drawString(margin, y, f"Guest: {guest_name or 'Guest'}")
-        y -= 12
-        p.drawString(margin, y, f"Phone: {booking.guest.phone or '-'}")
-        y -= 12
-        p.drawString(margin, y, f"Email: {booking.guest.email or '-'}")
-        y -= 12
-        p.drawString(margin, y, f"Room: {booking.room.room_number} ({booking.room.room_type.name})")
-        y -= 12
-        p.drawString(margin, y, f"Check In: {booking.check_in.strftime('%d-%m-%Y %I:%M %p')}")
-        y -= 12
-        p.drawString(margin, y, f"Check Out: {booking.check_out.strftime('%d-%m-%Y %I:%M %p')}")
-        y -= 12
-        p.drawString(margin, y, f"Status: {booking.status}")
-        y -= 12
-        p.drawString(margin, y, f"Guests: {booking.num_guests}")
-
-        y -= 24
-        p.setFont('Helvetica-Bold', 12)
-        p.drawString(margin, y, 'Charges')
-        y -= 14
-        p.setFont('Helvetica', 10)
-        nights = ((booking.check_out - booking.check_in).days) or 1
-        room_rate = float(booking.room.room_type.base_rate or 0)
-        room_total = room_rate * nights
-        p.drawString(margin, y, f"Room Rate ({nights} nights @ ₹{room_rate:.2f})")
-        y -= 12
-        p.drawRightString(width - margin, y, f"₹{room_total:.2f}")
-        y -= 12
-
-        # Itemize actual room-service charges placed during this stay,
-        # instead of guessing a lump "Other Charges" figure from whatever
-        # total_amount happens to be.
-        service_orders = RoomServiceOrder.objects.filter(
-            tenant=booking.tenant, room=booking.room,
-            ordered_at__gte=booking.check_in, ordered_at__lte=booking.check_out
-        ).order_by('ordered_at')
-        service_total = 0.0
-        if service_orders:
-            for order in service_orders:
-                item_names = ', '.join(i.get('name', str(i)) if isinstance(i, dict) else str(i) for i in (order.items or []))
-                p.drawString(margin, y, f"Room Service: {item_names[:60] or 'Order #' + str(order.id)}")
-                y -= 12
-                order_amount = float(order.total_amount or 0)
-                service_total += order_amount
-                p.drawRightString(width - margin, y, f"₹{order_amount:.2f}")
-                y -= 12
-        else:
-            p.drawString(margin, y, 'Room Service / Other Charges')
-            y -= 12
-            p.drawRightString(width - margin, y, "₹0.00")
-            y -= 12
-
-        computed_total = room_total + service_total
-        total_amount = float(booking.total_amount or 0) or computed_total
-        p.setFont('Helvetica-Bold', 12)
-        p.drawString(margin, y, 'Total Amount')
-        p.drawRightString(width - margin, y, f"₹{total_amount:.2f}")
-        y -= 24
-
-        p.setFont('Helvetica', 9)
-        p.drawString(margin, y, 'Thank you for staying with Zenith Hotel.')
-        p.drawRightString(width - margin, y, f"Generated on {timezone.now().strftime('%d-%m-%Y %I:%M %p')}")
-
-        p.showPage()
-        p.save()
-        buffer.seek(0)
-
-        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="hotel_folio_{booking.id}.pdf"'
+        from api.pdf_documents import hotel_folio
+        pdf = hotel_folio(booking)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="folio.pdf"'
         return response
 
 

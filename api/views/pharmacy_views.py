@@ -1490,54 +1490,12 @@ class PharmacyInvoicePDFView(APIView):
         except Sale.DoesNotExist:
             return Response({'error': 'Sale not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-
-        # Header
-        p.setFont("Helvetica-Bold", 16)
-        p.drawString(20 * mm, height - 20 * mm, getattr(profile.tenant, 'name', 'Pharmacy Invoice'))
-        
-        p.setFont("Helvetica", 12)
-        p.drawString(20 * mm, height - 30 * mm, f"Invoice: {sale.invoice_number}")
-        p.drawString(20 * mm, height - 36 * mm, f"Date: {sale.sale_date.strftime('%Y-%m-%d %H:%M')}")
-        if sale.customer:
-            p.drawString(20 * mm, height - 42 * mm, f"Customer: {sale.customer.name} (Ph: {sale.customer.phone})")
-
-        # Table Header
-        y = height - 60 * mm
-        p.setFont("Helvetica-Bold", 10)
-        p.drawString(20 * mm, y, "Item Description")
-        p.drawString(120 * mm, y, "Qty")
-        p.drawString(140 * mm, y, "Unit Price")
-        p.drawString(170 * mm, y, "Total")
-        p.line(20 * mm, y - 2 * mm, 190 * mm, y - 2 * mm)
-
-        # Table Items
-        y -= 8 * mm
-        p.setFont("Helvetica", 10)
-        for item in sale.items.all():
-            med_name = item.medicine_batch.medicine.name if item.medicine_batch and item.medicine_batch.medicine else "Medicine"
-            p.drawString(20 * mm, y, med_name[:40])
-            p.drawString(120 * mm, y, str(item.quantity))
-            p.drawString(140 * mm, y, f"${item.unit_price}")
-            p.drawString(170 * mm, y, f"${item.total_price}")
-            y -= 6 * mm
-
-        # Footer
-        p.line(20 * mm, y, 190 * mm, y)
-        y -= 6 * mm
-        p.setFont("Helvetica-Bold", 12)
-        p.drawString(130 * mm, y, "Total Amount:")
-        p.drawString(170 * mm, y, f"${sale.total_amount}")
-
-        p.showPage()
-        p.save()
-        buffer.seek(0)
-
-        response = HttpResponse(buffer, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="invoice_{sale.invoice_number}.pdf"'
+        from api.pdf_documents import pharmacy_invoice
+        pdf = pharmacy_invoice(sale)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="invoice.pdf"'
         return response
+
 
 class PrescriptionPDFView(APIView):
     """Generate PDF for a specific prescription"""
