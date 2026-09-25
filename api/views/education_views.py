@@ -1717,7 +1717,7 @@ class ReportCardPDFView(APIView):
             p.setFillColor(colors.black)
             # Use created_at or current time if generated_at doesn't exist
             gen_date = report_card.generated_at if hasattr(report_card, 'generated_at') and report_card.generated_at else (report_card.created_at if hasattr(report_card, 'created_at') and report_card.created_at else timezone.now())
-            footer_text = f"Generated on {gen_date.strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            footer_text = f"Generated on {gen_date.strftime('%d-%m-%Y at %I:%M %p')} - {school_name.upper()}"
             p.drawCentredString(width / 2, 20 * mm, footer_text)
             p.setFont('Helvetica-Oblique', 7)
             p.drawCentredString(width / 2, 15 * mm, 'This is a computer-generated document and does not require a physical signature.')
@@ -4882,29 +4882,29 @@ class TransferCertificatePDFView(APIView):
                 p.setFont('Helvetica-Bold', 10)
                 p.drawString(25 * mm, y, 'Transferring To:')
                 p.setFont('Helvetica', 10)
-                school_name = str(tc.transferring_to_school)
+                dest_school = str(tc.transferring_to_school)
                 # Calculate max width and truncate if needed - ensure it doesn't exceed page margin
                 max_school_width = width - 95 * mm - 25 * mm  # Available width from value position to right margin
-                if p.stringWidth(school_name, 'Helvetica', 10) > max_school_width:
+                if p.stringWidth(dest_school, 'Helvetica', 10) > max_school_width:
                     # Binary search for optimal truncation
-                    low, high = 0, len(school_name)
+                    low, high = 0, len(dest_school)
                     while low < high:
                         mid = (low + high + 1) // 2
-                        test_str = school_name[:mid]
+                        test_str = dest_school[:mid]
                         # Account for ellipsis width
                         if p.stringWidth(test_str, 'Helvetica', 10) + p.stringWidth('...', 'Helvetica', 10) <= max_school_width:
                             low = mid
                         else:
                             high = mid - 1
-                    school_name_trunc = school_name[:low] + '...' if low < len(school_name) else school_name[:low]
+                    dest_school_trunc = dest_school[:low] + '...' if low < len(dest_school) else dest_school[:low]
                     # Final safety check
-                    if p.stringWidth(school_name_trunc, 'Helvetica', 10) > max_school_width:
-                        school_name_trunc = school_name_trunc[:max(0, len(school_name_trunc) - 5)] + '...'
+                    if p.stringWidth(dest_school_trunc, 'Helvetica', 10) > max_school_width:
+                        dest_school_trunc = dest_school_trunc[:max(0, len(dest_school_trunc) - 5)] + '...'
                 else:
-                    school_name_trunc = school_name
+                    dest_school_trunc = dest_school
                 # Ensure it doesn't exceed right margin
-                final_x = min(95 * mm, width - 25 * mm - p.stringWidth(school_name_trunc, 'Helvetica', 10))
-                p.drawString(final_x, y, school_name_trunc)
+                final_x = min(95 * mm, width - 25 * mm - p.stringWidth(dest_school_trunc, 'Helvetica', 10))
+                p.drawString(final_x, y, dest_school_trunc)
                 y -= 15
                 
                 if tc.transferring_to_address:
@@ -5015,7 +5015,7 @@ class TransferCertificatePDFView(APIView):
             # Footer
             p.setFont('Helvetica', 8)
             p.setFillColor(colors.black)
-            footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} — {school_name.upper()}"
+            footer_text = f"Generated on {timezone.now().strftime('%d-%m-%Y at %I:%M %p')} - {(getattr(profile.tenant, 'name', '') or 'School').upper()}"
             p.drawCentredString(width / 2, 20 * mm, footer_text)
             
             p.save()

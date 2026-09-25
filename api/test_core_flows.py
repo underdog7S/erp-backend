@@ -1434,3 +1434,61 @@ class DailyNotificationTests(APITestCase):
         mine = Notification.objects.filter(user=admin)
         self.assertEqual(sorted(n.title for n in mine), ['Fees overdue', 'Medicine expiry check'])
         self.assertEqual(Notification.objects.exclude(user=admin).count(), 0)
+
+
+class EducationPdfTests(APITestCase):
+    """Report card and transfer certificate PDFs carry the school, the student and the saved figures."""
+
+    def setUp(self):
+        import datetime
+        from api.models.plan import Plan
+        from education.models import (AcademicYear, Assessment, AssessmentType, Class, MarksEntry, ReportCard, Student, Subject, Term,
+                                      TransferCertificate)
+        cache.clear()
+        plan = Plan.objects.create(name='Edu Pdf Plan', price=0, storage_limit_mb=100, has_education=True)
+        self.tenant = Tenant.objects.create(name='Green Valley School', industry='education', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'edu_pdf_admin', 'admin'))
+        d = datetime.date
+        year = AcademicYear.objects.create(tenant=self.tenant, name='2026-27', start_date=d(2026, 4, 1), end_date=d(2027, 3, 31), is_current=True)
+        klass = Class.objects.create(tenant=self.tenant, name='Class 5', order=5)
+        term = Term.objects.create(tenant=self.tenant, academic_year=year, name='Term 1', order=1, start_date=d(2026, 4, 1), end_date=d(2026, 9, 30))
+        self.student = Student.objects.create(tenant=self.tenant, name='Asha Verma', upper_id='GV-1', assigned_class=klass, admission_date=d(2022, 6, 1),
+                                              date_of_birth=d(2015, 3, 4), gender='F', parent_name='Ravi Verma', father_name='Ravi Verma', is_active=True)
+        subject = Subject.objects.create(tenant=self.tenant, class_obj=klass, name='Mathematics', code='MAT', max_marks=100, order=1)
+        kind = AssessmentType.objects.create(tenant=self.tenant, name='Mid-Term', code='MID', max_marks=100, weightage=100, order=1)
+        exam = Assessment.objects.create(tenant=self.tenant, subject=subject, term=term, assessment_type=kind, name='Maths Mid-Term',
+                                         date=d(2026, 9, 14), max_marks=100, passing_marks=35)
+        MarksEntry.objects.create(tenant=self.tenant, student=self.student, assessment=exam, marks_obtained=87, max_marks=100)
+        self.card = ReportCard.objects.create(tenant=self.tenant, student=self.student, academic_year=year, term=term, class_obj=klass, total_marks=87,
+                                              max_total_marks=100, percentage=87, grade='A', rank_in_class=2, days_present=90, days_absent=10,
+                                              attendance_percentage=90, teacher_remarks='Excellent work.', principal_remarks='Well done.',
+                                              conduct_grade='A', issued_date=d(2026, 9, 26))
+        self.tc = TransferCertificate.objects.create(tenant=self.tenant, student=self.student, academic_year=year, class_obj=klass, issue_date=d(2026, 10, 1),
+                                                     reason_for_leaving='Family relocation', student_name='Asha Verma', date_of_birth=d(2015, 3, 4),
+                                                     admission_number='GV-1', admission_date=d(2022, 6, 1), last_class_promoted='Class 4',
+                                                     transferring_to_school='City Public School', conduct_remarks='Good')
+
+    def text(self, url):
+        import io
+        import pypdf
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200, getattr(r, 'data', r.content[:200]))
+        return '\n'.join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(r.content)).pages)
+
+    def test_report_card_pdf(self):
+        t = self.text(f'/api/education/reportcards/{self.card.id}/pdf/')
+        for needle in ('GREEN VALLEY SCHOOL', 'ASHA VERMA', 'Class 5', '2026-27', 'Mathematics', '87'):
+            self.assertIn(needle, t.replace('Green Valley School', 'GREEN VALLEY SCHOOL') if needle.isupper() else t)
+
+    def test_transfer_certificate_pdf(self):
+        t = self.text(f'/api/education/tc/{self.tc.id}/pdf/')
+        self.assertIn('Asha Verma'.upper(), t.upper())
+        self.assertIn('City Public School', t)
+        self.assertIn('- GREEN VALLEY SCHOOL', t)      # footer names the issuing school, not the destination
+        self.assertNotIn('- CITY PUBLIC SCHOOL', t)
+
+    def test_other_school_cannot_download(self):
+        other = Tenant.objects.create(name='Other School', industry='education', plan=self.tenant.plan)
+        self.client.force_authenticate(make_user(other, 'edu_pdf_other', 'admin'))
+        self.assertEqual(self.client.get(f'/api/education/reportcards/{self.card.id}/pdf/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/education/tc/{self.tc.id}/pdf/').status_code, 404)
