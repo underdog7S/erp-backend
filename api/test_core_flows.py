@@ -669,3 +669,44 @@ class RestaurantKitchenTests(APITestCase):
         c2.force_authenticate(make_user(other, 'other_rest', 'admin'))
         self.assertEqual(c2.get('/api/restaurant/kds/tickets/').data, [])
         self.assertEqual(c2.post(f'/api/restaurant/kds/tickets/{ticket_id}/status/', {'status': 'preparing'}, format='json').status_code, 404)
+
+
+class SalonFlowTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        from salon.models import Service, ServiceCategory, Stylist
+        cache.clear()
+        plan = Plan.objects.create(name='Salon Plan', price=0, storage_limit_mb=100, has_salon=True)
+        self.tenant = Tenant.objects.create(name='Glow', industry='salon', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'salon_admin', 'admin'))
+        cat = ServiceCategory.objects.create(tenant=self.tenant, name='Hair')
+        self.service = Service.objects.create(tenant=self.tenant, category=cat, name='Haircut', duration_minutes=45, price=500)
+        self.stylist = Stylist.objects.create(tenant=self.tenant, first_name='Riya', commission_percent=20)
+
+    def book(self, start='2030-01-10T10:00:00Z'):
+        return self.client.post('/api/salon/appointments/', {
+            'service': self.service.id, 'stylist': self.stylist.id, 'customer_name': 'Meera', 'start_time': start}, format='json')
+
+    def test_booking_fills_end_time_and_price_and_blocks_overlap(self):
+        r = self.book()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['price'], '500.00')
+        from django.utils.dateparse import parse_datetime
+        delta = parse_datetime(r.data['end_time']) - parse_datetime(r.data['start_time'])
+        self.assertEqual(delta.total_seconds(), 45 * 60)
+        clash = self.book('2030-01-10T10:30:00Z')
+        self.assertEqual(clash.status_code, 400)
+        self.assertEqual(self.book('2030-01-10T10:45:00Z').status_code, 201)  # back to back is fine
+
+    def test_completing_books_commission_once_and_it_can_be_paid(self):
+        appt = self.book().data
+        for _ in range(2):
+            self.assertEqual(self.client.post(f"/api/salon/appointments/{appt['id']}/complete/").status_code, 200)
+        data = self.client.get('/api/salon/commissions/').data
+        self.assertEqual(len(data['results']), 1)
+        self.assertEqual(float(data['results'][0]['amount']), 100.0)
+        self.assertEqual(float(data['totals']['unpaid']), 100.0)
+        cid = data['results'][0]['id']
+        self.assertEqual(self.client.post(f'/api/salon/commissions/{cid}/pay/').status_code, 200)
+        after = self.client.get('/api/salon/commissions/').data
+        self.assertEqual((float(after['totals']['unpaid']), float(after['totals']['paid'])), (0.0, 100.0))

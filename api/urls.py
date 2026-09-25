@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -512,6 +512,8 @@ urlpatterns += [
     path('salon/services/<int:pk>/', salon_views.ServiceDetailView.as_view(), name='salon-service-detail'),
     path('salon/stylists/', salon_views.StylistListCreateView.as_view(), name='salon-stylists'),
     path('salon/stylists/<int:pk>/', salon_views.StylistDetailView.as_view(), name='salon-stylist-detail'),
+    path('salon/commissions/', salon_commission_views.CommissionListView.as_view(), name='salon-commissions'),
+    path('salon/commissions/<int:pk>/pay/', salon_commission_views.CommissionPayView.as_view(), name='salon-commission-pay'),
     path('salon/appointments/', salon_views.AppointmentListCreateView.as_view(), name='salon-appointments'),
     path('salon/appointments/<int:pk>/', salon_views.AppointmentDetailView.as_view(), name='salon-appointment-detail'),
     path('salon/appointments/<int:pk>/check-in/', salon_views.AppointmentCheckInView.as_view(), name='salon-appointment-check-in'),

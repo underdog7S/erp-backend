@@ -36,6 +36,7 @@ class Stylist(models.Model):
 	last_name = models.CharField(max_length=100, blank=True)
 	phone = models.CharField(max_length=20, blank=True)
 	email = models.EmailField(blank=True)
+	commission_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text='Share of each completed service paid to this stylist')
 	is_active = models.BooleanField(default=True)
 
 	class Meta:

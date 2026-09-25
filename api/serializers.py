@@ -1203,9 +1203,37 @@ class AppointmentSerializer(serializers.ModelSerializer):
 		model = Appointment
 		fields = '__all__'
 		read_only_fields = ('tenant',)  # Exclude tenant from validation since it's set in perform_create
+		extra_kwargs = {'end_time': {'required': False}, 'price': {'required': False}}
 
 	def get_stylist_name(self, obj):
 		return f"{obj.stylist.first_name} {obj.stylist.last_name}".strip()
+
+	def validate(self, data):
+		"""Fill in end time and price from the service, and refuse a double-booked stylist."""
+		from datetime import timedelta
+		request = self.context.get('request')
+		service, stylist = data.get('service'), data.get('stylist')
+		if request and self.instance is None:
+			tenant_id = request.user.userprofile.tenant_id
+			for obj, label in ((service, 'service'), (stylist, 'stylist')):
+				if obj and obj.tenant_id != tenant_id:
+					raise serializers.ValidationError({label: 'Unknown ' + label + '.'})
+		start = data.get('start_time')
+		if service and start:
+			if not data.get('end_time'):
+				data['end_time'] = start + timedelta(minutes=service.duration_minutes)
+			if data.get('price') is None:
+				data['price'] = service.price
+		end = data.get('end_time')
+		if stylist and start and end:
+			if end <= start:
+				raise serializers.ValidationError({'end_time': 'The end must be after the start.'})
+			clash = Appointment.objects.filter(stylist=stylist, start_time__lt=end, end_time__gt=start).exclude(status='cancelled')
+			if self.instance is not None:
+				clash = clash.exclude(pk=self.instance.pk)
+			if clash.exists():
+				raise serializers.ValidationError({'stylist': 'This stylist already has an appointment at that time.'})
+		return data
 
 # Alias serializers for backward compatibility
 SupplierSerializer = PharmacySupplierSerializer

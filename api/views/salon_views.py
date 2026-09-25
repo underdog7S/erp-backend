@@ -219,6 +219,8 @@ class AppointmentCompleteView(APIView):
 			if not appt.end_time:
 				appt.end_time = timezone.now()
 			appt.save()
+			from api.views.salon_commission_views import book_commission
+			book_commission(appt)
 			return Response({'message': 'Appointment completed', 'status': appt.status})
 		except Appointment.DoesNotExist:
 			return Response({'error': 'Appointment not found'}, status=status.HTTP_404_NOT_FOUND)
