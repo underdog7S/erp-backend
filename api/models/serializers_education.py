@@ -62,6 +62,18 @@ class FeeStructureSerializer(serializers.ModelSerializer):
         fields = ['id', 'class_obj', 'class_name', 'fee_type', 'amount', 'description', 'is_optional', 'due_date', 'academic_year', 'installments_enabled']
         read_only_fields = ['class_name']
 
+def _same_school(serializer, attrs, names):
+    """Every named related record must belong to the requesting user's school."""
+    request = serializer.context.get('request')
+    profile = getattr(getattr(request, 'user', None), 'userprofile', None)
+    if not profile:
+        return
+    for name in names:
+        value = attrs.get(name)
+        if value is not None and getattr(value, 'tenant_id', profile.tenant_id) != profile.tenant_id:
+            raise serializers.ValidationError({name: 'Unknown record.'})
+
+
 class FeePaymentSerializer(serializers.ModelSerializer):
     """Serializer for FeePayment model."""
     student_name = serializers.CharField(source='student.name', read_only=True)
@@ -83,6 +95,27 @@ class FeePaymentSerializer(serializers.ModelSerializer):
             'receipt_number', 'notes', 'installment', 'split_installments', 'academic_year', 'collected_by'
         ]
         read_only_fields = ['fee_structure_class', 'fee_structure_amount', 'payment_method_display', 'fee_type', 'fee_type_display', 'receipt_number']
+
+    def validate(self, attrs):
+        from decimal import Decimal
+        from django.db.models import Sum
+        _same_school(self, attrs, ('student', 'fee_structure', 'installment'))
+        amount = attrs.get('amount_paid', getattr(self.instance, 'amount_paid', None))
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError({'amount_paid': 'The amount must be more than zero.'})
+        student = attrs.get('student', getattr(self.instance, 'student', None))
+        fee = attrs.get('fee_structure', getattr(self.instance, 'fee_structure', None))
+        if amount is not None and student and fee:
+            earlier = FeePayment.objects.filter(tenant=student.tenant, student=student, fee_structure=fee)
+            if self.instance:
+                earlier = earlier.exclude(pk=self.instance.pk)
+            done = earlier.aggregate(t=Sum('amount_paid'), d=Sum('discount_amount'))
+            settled = (done['t'] or Decimal('0')) + (done['d'] or Decimal('0'))
+            now = amount + (attrs.get('discount_amount') or Decimal('0'))
+            if settled + now > fee.amount:
+                left = max(Decimal('0'), fee.amount - settled)
+                raise serializers.ValidationError({'amount_paid': f'This is more than the remaining due of {left:.2f}.'})
+        return attrs
 
 
 # Public API Serializers (for parents to pay fees from external websites)
@@ -118,6 +151,10 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = ['id', 'student', 'student_name', 'student_roll_number', 'class_name',
                  'date', 'present']
         read_only_fields = ['student_name', 'student_roll_number', 'class_name']
+
+    def validate(self, attrs):
+        _same_school(self, attrs, ('student',))
+        return attrs
 
 class ReportCardSerializer(serializers.ModelSerializer):
     """Serializer for ReportCard model."""
@@ -249,6 +286,16 @@ class MarksEntrySerializer(serializers.ModelSerializer):
             'subject_name', 'marks_obtained', 'max_marks', 'percentage', 'grade', 'remarks', 'entered_by', 'entered_at', 'updated_at'
         ]
         read_only_fields = ['student_name', 'student_roll_number', 'assessment_name', 'subject_name', 'percentage', 'grade', 'entered_at', 'updated_at']
+
+    def validate(self, attrs):
+        _same_school(self, attrs, ('student', 'assessment'))
+        got = attrs.get('marks_obtained', getattr(self.instance, 'marks_obtained', None))
+        top = attrs.get('max_marks', getattr(self.instance, 'max_marks', None))
+        if got is not None and got < 0:
+            raise serializers.ValidationError({'marks_obtained': 'Marks cannot be negative.'})
+        if got is not None and top is not None and got > top:
+            raise serializers.ValidationError({'marks_obtained': f'Marks cannot be more than the maximum of {top}.'})
+        return attrs
 
 class FeeInstallmentPlanSerializer(serializers.ModelSerializer):
     """Serializer for FeeInstallmentPlan model."""

@@ -391,10 +391,13 @@ class AttendanceListCreateView(APIView):
         profile = UserProfile._default_manager.get(user=request.user)
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
-        serializer = AttendanceSerializer(data=data)
+        serializer = AttendanceSerializer(data=data, context={'request': request})
         if serializer.is_valid():
-            serializer.save(tenant=profile.tenant)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # One row per student per day: marking again changes the existing row instead of adding a second one.
+            v = serializer.validated_data
+            row, created = Attendance._default_manager.update_or_create(
+                tenant=profile.tenant, student=v['student'], date=v['date'], defaults={'present': v.get('present', True)})
+            return Response(AttendanceSerializer(row).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class AttendanceDetailView(APIView):
@@ -932,7 +935,7 @@ class MarksEntryListCreateView(APIView):
             except Assessment.DoesNotExist:
                 pass
         
-        serializer = MarksEntrySerializer(data=data)
+        serializer = MarksEntrySerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save(tenant=profile.tenant, entered_by=profile)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -2357,7 +2360,7 @@ class FeePaymentDetailView(APIView):
             payment = FeePayment._default_manager.get(id=pk, tenant=profile.tenant)
         except Exception:
             return Response({'error': 'Fee payment not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = FeePaymentSerializer(payment, data=request.data)
+        serializer = FeePaymentSerializer(payment, data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)

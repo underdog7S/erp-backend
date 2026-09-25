@@ -1583,3 +1583,62 @@ class ManufacturingFlowTests(APITestCase):
                              'raw_material_warehouse': ow.id, 'output_warehouse': ow.id}, format='json')
         self.assertEqual(r.status_code, 400, r.data)
         self.assertEqual(len(self.client.get('/api/manufacturing/sales-orders/').data.get('results', [])), 0)
+
+
+class EducationFlowTests(EducationPdfTests):
+    """Fees, marks and attendance through the API. Reuses the school built for the PDF tests."""
+
+    def setUp(self):
+        super().setUp()
+        from education.models import FeeStructure
+        self.fee = FeeStructure.objects.create(tenant=self.tenant, class_obj=self.student.assigned_class, fee_type='TUITION', academic_year='2026-27',
+                                               amount=1000, due_date=self.today_date())
+
+    def today_date(self):
+        import datetime
+        return datetime.date.today()
+
+    def pay(self, amount, student=None, fee=None):
+        return self.client.post('/api/education/fee-payments/', {
+            'student': (student or self.student).id, 'fee_structure': (fee or self.fee).id, 'amount_paid': amount,
+            'payment_method': 'CASH', 'payment_date': str(self.today_date()), 'academic_year': '2026-27'}, format='json')
+
+    def test_fee_payments_add_up_and_overpayment_is_refused(self):
+        self.assertEqual(self.pay(600).status_code, 201)
+        self.assertEqual(self.pay(400).status_code, 201)
+        r = self.pay(1)
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertEqual(self.pay(0).status_code, 400)
+        self.assertEqual(self.pay(-5).status_code, 400)
+
+    def test_fee_payment_cannot_use_another_schools_student_or_fee(self):
+        from education.models import Class, FeeStructure, Student
+        other = Tenant.objects.create(name='Other School', industry='education', plan=self.tenant.plan)
+        oc = Class.objects.create(tenant=other, name='Class 5', order=5)
+        os_ = Student.objects.create(tenant=other, name='Other Kid', upper_id='OT-1', assigned_class=oc, admission_date=self.today_date(), is_active=True)
+        ofee = FeeStructure.objects.create(tenant=other, class_obj=oc, fee_type='TUITION', academic_year='2026-27', amount=500, due_date=self.today_date())
+        self.assertEqual(self.pay(100, student=os_).status_code, 400)
+        self.assertEqual(self.pay(100, fee=ofee).status_code, 400)
+
+    def test_marks_cannot_exceed_maximum_or_go_to_other_schools_student(self):
+        from education.models import Assessment, MarksEntry, Class, Student
+        exam = Assessment.objects.get(tenant=self.tenant)
+        other = Tenant.objects.create(name='Other School', industry='education', plan=self.tenant.plan)
+        oc = Class.objects.create(tenant=other, name='Class 5', order=5)
+        os_ = Student.objects.create(tenant=other, name='Other Kid', upper_id='OT-1', assigned_class=oc, admission_date=self.today_date(), is_active=True)
+        MarksEntry.objects.filter(tenant=self.tenant).delete()
+        body = {'student': self.student.id, 'assessment': exam.id, 'max_marks': 100}
+        self.assertEqual(self.client.post('/api/education/marks-entries/', {**body, 'marks_obtained': 101}, format='json').status_code, 400)
+        self.assertEqual(self.client.post('/api/education/marks-entries/', {**body, 'marks_obtained': -1}, format='json').status_code, 400)
+        self.assertEqual(self.client.post('/api/education/marks-entries/', {**body, 'student': os_.id, 'marks_obtained': 50}, format='json').status_code, 400)
+        self.assertEqual(self.client.post('/api/education/marks-entries/', {**body, 'marks_obtained': 80}, format='json').status_code, 201)
+
+    def test_attendance_is_one_row_per_student_per_day(self):
+        body = {'student': self.student.id, 'date': str(self.today_date()), 'present': True}
+        first = self.client.post('/api/education/attendance/', body, format='json')
+        self.assertIn(first.status_code, (200, 201), first.data)
+        second = self.client.post('/api/education/attendance/', {**body, 'present': False}, format='json')
+        from education.models import Attendance
+        self.assertEqual(Attendance.objects.filter(tenant=self.tenant, student=self.student, date=self.today_date()).count(), 1)
+        self.assertEqual(second.status_code, 200)
+        self.assertFalse(Attendance.objects.get(tenant=self.tenant, student=self.student).present)
