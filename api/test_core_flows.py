@@ -710,3 +710,46 @@ class SalonFlowTests(APITestCase):
         self.assertEqual(self.client.post(f'/api/salon/commissions/{cid}/pay/').status_code, 200)
         after = self.client.get('/api/salon/commissions/').data
         self.assertEqual((float(after['totals']['unpaid']), float(after['totals']['paid'])), (0.0, 100.0))
+
+
+class HotelFlowTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        from hotel.models import Room, RoomType
+        cache.clear()
+        plan = Plan.objects.create(name='Hotel Plan', price=0, storage_limit_mb=100, has_hotel=True)
+        self.tenant = Tenant.objects.create(name='Inn', industry='hotel', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'hotel_admin', 'admin'))
+        rt = RoomType.objects.create(tenant=self.tenant, name='Deluxe', base_rate=2000)
+        self.room = Room.objects.create(tenant=self.tenant, room_number='101', room_type=rt)
+
+    def book(self, start='2030-03-01T12:00:00Z', end='2030-03-03T11:00:00Z', **extra):
+        body = {'room_id': self.room.id, 'check_in': start, 'check_out': end, 'guest_first_name': 'Arun', 'guest_phone': '999'}
+        body.update(extra)
+        return self.client.post('/api/hotel/bookings/', body, format='json')
+
+    def test_booking_creates_guest_and_prices_by_nights(self):
+        r = self.book()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['status'], 'reserved')
+        self.assertEqual(float(r.data['total_amount']), 4000.0)  # 2 nights x 2000
+        self.assertEqual(r.data['guest_name'], 'Arun')
+
+    def test_double_booking_and_bad_dates_refused(self):
+        self.assertEqual(self.book().status_code, 201)
+        self.assertEqual(self.book('2030-03-02T12:00:00Z', '2030-03-04T11:00:00Z').status_code, 400)
+        self.assertEqual(self.book('2030-03-03T11:00:00Z', '2030-03-05T11:00:00Z').status_code, 201)  # starts as the other leaves
+        self.assertEqual(self.book('2030-04-05T12:00:00Z', '2030-04-04T11:00:00Z').status_code, 400)
+
+    def test_check_in_out_cycle_and_cancel_rules(self):
+        bid = self.book().data['id']
+        self.assertEqual(self.client.post(f'/api/hotel/bookings/{bid}/check-out/').status_code, 400)  # not in yet
+        self.assertEqual(self.client.post(f'/api/hotel/bookings/{bid}/check-in/').status_code, 200)
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.status, 'occupied')
+        self.assertEqual(self.client.post(f'/api/hotel/bookings/{bid}/cancel/').status_code, 400)
+        self.assertEqual(self.client.post(f'/api/hotel/bookings/{bid}/check-out/').status_code, 200)
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.status, 'available')
+        other = self.book('2030-06-01T12:00:00Z', '2030-06-02T11:00:00Z').data['id']
+        self.assertEqual(self.client.post(f'/api/hotel/bookings/{other}/cancel/').status_code, 200)

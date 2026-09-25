@@ -463,6 +463,7 @@ urlpatterns += [
     path('hotel/guests/<int:pk>/', hotel_views.GuestDetailView.as_view(), name='hotel-guest-detail'),
     path('hotel/bookings/', hotel_views.BookingListCreateView.as_view(), name='hotel-bookings'),
     path('hotel/bookings/<int:pk>/', hotel_views.BookingDetailView.as_view(), name='hotel-booking-detail'),
+    path('hotel/bookings/<int:pk>/cancel/', hotel_views.BookingCancelView.as_view(), name='hotel-booking-cancel'),
     path('hotel/bookings/<int:pk>/check-in/', hotel_views.BookingCheckInView.as_view(), name='hotel-booking-check-in'),
     path('hotel/bookings/<int:pk>/check-out/', hotel_views.BookingCheckOutView.as_view(), name='hotel-booking-check-out'),
     path('hotel/bookings/bulk-delete/', hotel_views.BookingBulkDeleteView.as_view(), name='hotel-bookings-bulk-delete'),

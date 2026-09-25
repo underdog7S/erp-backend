@@ -153,6 +153,10 @@ class BookingCheckInView(APIView):
 			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
 				id=pk, tenant=request.user.userprofile.tenant
 			)
+			if booking.status != 'reserved':
+				return Response({'error': f'A {booking.status.replace("_", " ")} booking cannot be checked in.'}, status=status.HTTP_400_BAD_REQUEST)
+			if booking.room.status in ('occupied', 'maintenance'):
+				return Response({'error': f'Room {booking.room.room_number} is {booking.room.status} right now.'}, status=status.HTTP_400_BAD_REQUEST)
 			booking.status = 'checked_in'
 			booking.save(update_fields=['status'])
 			# Update room status
@@ -172,6 +176,8 @@ class BookingCheckOutView(APIView):
 			booking = Booking.objects.select_related('room', 'room__room_type', 'guest', 'tenant').get(
 				id=pk, tenant=request.user.userprofile.tenant
 			)
+			if booking.status != 'checked_in':
+				return Response({'error': 'Only a checked-in guest can be checked out.'}, status=status.HTTP_400_BAD_REQUEST)
 			booking.status = 'checked_out'
 			booking.save(update_fields=['status'])
 			# Update room status
@@ -503,3 +509,18 @@ class BookingBulkStatusUpdateView(APIView):
 			Room.objects.filter(id__in=room_ids).update(status='available')
 		
 		return Response({'message': f'{updated_count} booking(s) updated successfully'})
+
+
+class BookingCancelView(APIView):
+    """Cancel a booking that has not checked in yet."""
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('hotel')]
+
+    def post(self, request, pk):
+        booking = Booking.objects.filter(pk=pk, tenant=request.user.userprofile.tenant).first()
+        if not booking:
+            return Response({'error': 'Booking not found'}, status=status.HTTP_404_NOT_FOUND)
+        if booking.status != 'reserved':
+            return Response({'error': 'Only a reserved booking can be cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        booking.status = 'cancelled'
+        booking.save(update_fields=['status'])
+        return Response({'message': 'Booking cancelled', 'status': booking.status})

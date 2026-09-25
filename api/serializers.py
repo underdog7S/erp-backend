@@ -909,11 +909,57 @@ class BookingSerializer(serializers.ModelSerializer):
 	room = RoomSerializer(read_only=True)
 	guest = GuestSerializer(read_only=True)
 	guest_name = serializers.SerializerMethodField()
+	# Write-side fields: pick an existing room/guest by id, or describe a new guest inline
+	room_id = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all(), source='room', write_only=True)
+	guest_id = serializers.PrimaryKeyRelatedField(queryset=Guest.objects.all(), source='guest', write_only=True, required=False)
+	guest_first_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+	guest_last_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+	guest_phone = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
 	class Meta:
 		model = Booking
 		fields = '__all__'
 		read_only_fields = ('tenant',)
+		extra_kwargs = {'total_amount': {'required': False}, 'status': {'read_only': True}}
+
+	def validate(self, data):
+		"""Rooms must belong to this hotel, dates must make sense and a room cannot be double booked."""
+		from math import ceil
+		request = self.context.get('request')
+		if self.instance is not None:
+			return self._validate_existing(data)
+		room, guest = data.get('room'), data.get('guest')
+		if request:
+			tenant_id = request.user.userprofile.tenant_id
+			if room and room.tenant_id != tenant_id:
+				raise serializers.ValidationError({'room_id': 'Unknown room.'})
+			if guest and guest.tenant_id != tenant_id:
+				raise serializers.ValidationError({'guest_id': 'Unknown guest.'})
+		if not guest and not data.get('guest_first_name'):
+			raise serializers.ValidationError({'guest_id': 'Choose a guest or enter the guest name.'})
+		start, end = data.get('check_in'), data.get('check_out')
+		if start and end:
+			if end <= start:
+				raise serializers.ValidationError({'check_out': 'Check-out must be after check-in.'})
+			if room.status == 'maintenance':
+				raise serializers.ValidationError({'room_id': 'This room is under maintenance.'})
+			clash = Booking.objects.filter(room=room, check_in__lt=end, check_out__gt=start).exclude(status__in=['cancelled', 'checked_out'])
+			if clash.exists():
+				raise serializers.ValidationError({'room_id': 'This room is already booked for those dates.'})
+			if data.get('total_amount') is None:
+				nights = max(1, ceil((end - start).total_seconds() / 86400))
+				data['total_amount'] = room.room_type.base_rate * nights
+		return data
+
+	def create(self, validated_data):
+		from django.db import transaction
+		first = validated_data.pop('guest_first_name', '')
+		last = validated_data.pop('guest_last_name', '')
+		phone = validated_data.pop('guest_phone', '')
+		with transaction.atomic():
+			if not validated_data.get('guest'):
+				validated_data['guest'] = Guest.objects.create(tenant=validated_data['tenant'], first_name=first, last_name=last, phone=phone)
+			return Booking.objects.create(**validated_data)
 
 	def get_guest_name(self, obj):
 		if obj.guest:
@@ -921,7 +967,7 @@ class BookingSerializer(serializers.ModelSerializer):
 			return name
 		return ""
 
-	def validate(self, data):
+	def _validate_existing(self, data):
 		# `room`/`guest` are declared read_only above for representation, so
 		# on write they come through as plain PKs in initial_data - fall back
 		# to those, then check for overlapping active bookings on the same
