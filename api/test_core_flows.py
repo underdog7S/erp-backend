@@ -1379,3 +1379,31 @@ class NotificationEventTests(APITestCase):
         self.client.post(f'/api/team-chat/channels/{ch.id}/messages/', {'content': 'meeting at 4'}, format='json')
         self.client.post(f'/api/team-chat/channels/{ch.id}/messages/', {'content': 'bring notes'}, format='json')
         self.assertEqual((self.count(self.staff, 'Staff room'), self.count(self.admin, 'Staff room')), (1, 0))
+
+
+class DailyNotificationTests(APITestCase):
+    def test_digests_are_sent_once_per_day_to_the_right_team(self):
+        import datetime
+        from django.core.management import call_command
+        from api.models.notifications import Notification
+        from api.models.plan import Plan
+        from education.models import Class, FeeStructure, Student
+        from pharmacy.models import Medicine, MedicineBatch, Supplier
+        plan = Plan.objects.create(name='Daily Plan', price=0, storage_limit_mb=100, has_education=True, has_pharmacy=True)
+        t = Tenant.objects.create(name='Digest Co', industry='education', plan=plan)
+        other = Tenant.objects.create(name='Quiet Co', industry='retail', plan=plan)
+        admin = make_user(t, 'digest_admin', 'admin')
+        make_user(other, 'quiet_admin', 'admin')
+        today = datetime.date.today()
+        klass = Class.objects.create(tenant=t, name='Std 1')
+        Student.objects.create(tenant=t, name='Unpaid Kid', upper_id='U1', admission_date=today, assigned_class=klass)
+        FeeStructure.objects.create(tenant=t, class_obj=klass, fee_type='TUITION', amount=1000, due_date=today - datetime.timedelta(days=5))
+        sup = Supplier.objects.create(tenant=t, name='S', contact_person='A', phone='1', email='s@x.co', address='x')
+        med = Medicine.objects.create(tenant=t, name='Old Med', manufacturer='A', dosage_form='TABLET')
+        MedicineBatch.objects.create(tenant=t, medicine=med, batch_number='X', supplier=sup, manufacturing_date=today - datetime.timedelta(days=400),
+                                     expiry_date=today - datetime.timedelta(days=3), cost_price=1, selling_price=2, mrp=3, quantity_received=5, quantity_available=5)
+        call_command('run_daily_notifications')
+        call_command('run_daily_notifications')  # second run must not duplicate
+        mine = Notification.objects.filter(user=admin)
+        self.assertEqual(sorted(n.title for n in mine), ['Fees overdue', 'Medicine expiry check'])
+        self.assertEqual(Notification.objects.exclude(user=admin).count(), 0)
