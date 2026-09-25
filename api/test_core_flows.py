@@ -753,3 +753,27 @@ class HotelFlowTests(APITestCase):
         self.assertEqual(self.room.status, 'available')
         other = self.book('2030-06-01T12:00:00Z', '2030-06-02T11:00:00Z').data['id']
         self.assertEqual(self.client.post(f'/api/hotel/bookings/{other}/cancel/').status_code, 200)
+
+
+class PrescriptionTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        from pharmacy.models import Medicine
+        cache.clear()
+        plan = Plan.objects.create(name='Rx Plan', price=0, storage_limit_mb=100, has_pharmacy=True)
+        self.tenant = Tenant.objects.create(name='Rx Pharmacy', industry='pharmacy', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'rx_admin', 'admin'))
+        self.med = Medicine.objects.create(tenant=self.tenant, name='Metformin', manufacturer='Acme', dosage_form='TABLET')
+
+    def test_prescription_with_new_patient_and_items(self):
+        r = self.client.post('/api/pharmacy/prescriptions/', {
+            'patient_name': 'Kavya', 'patient_phone': '9111111111', 'doctor_name': 'Dr Rao', 'prescription_date': '2030-01-01',
+            'diagnosis': 'Diabetes', 'items_input': [{'medicine': self.med.id, 'dosage': '500mg', 'frequency': 'twice daily', 'duration': '30 days', 'quantity': 60}]},
+            format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['customer_name'], 'Kavya')
+        self.assertEqual(r.data['items'][0]['medicine_name'], 'Metformin')
+
+    def test_prescription_needs_a_patient(self):
+        r = self.client.post('/api/pharmacy/prescriptions/', {'doctor_name': 'Dr Rao', 'prescription_date': '2030-01-01'}, format='json')
+        self.assertEqual(r.status_code, 400)

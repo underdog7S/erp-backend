@@ -136,12 +136,49 @@ class PrescriptionItemSerializer(serializers.ModelSerializer):
 
 class PrescriptionSerializer(serializers.ModelSerializer):
     items = PrescriptionItemSerializer(many=True, read_only=True)
+    # Write side: [{medicine, dosage, frequency, duration, quantity}] and an optional new patient
+    items_input = serializers.ListField(child=serializers.DictField(), write_only=True, required=False)
     customer_name = serializers.CharField(source='customer.name', read_only=True)
-    
+    patient_name = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    patient_phone = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
     class Meta:
         model = Prescription
-        fields = ['id', 'customer', 'doctor_name', 'prescription_date', 'diagnosis', 'notes', 'created_at', 'items', 'customer_name']
+        fields = ['id', 'customer', 'doctor_name', 'prescription_date', 'diagnosis', 'notes', 'created_at', 'items',
+                  'customer_name', 'items_input', 'patient_name', 'patient_phone']
         read_only_fields = ('tenant',)
+        extra_kwargs = {'customer': {'required': False}}
+
+    def validate(self, data):
+        request = self.context.get('request')
+        if self.instance is None:
+            customer = data.get('customer')
+            if not customer and not data.get('patient_name'):
+                raise serializers.ValidationError({'customer': 'Choose a patient or enter the patient name.'})
+            if customer and request and customer.tenant_id != request.user.userprofile.tenant_id:
+                raise serializers.ValidationError({'customer': 'Unknown patient.'})
+        return data
+
+    def create(self, validated_data):
+        from django.db import transaction
+        items = validated_data.pop('items_input', [])
+        name = validated_data.pop('patient_name', '')
+        phone = validated_data.pop('patient_phone', '')
+        tenant = validated_data['tenant']
+        with transaction.atomic():
+            if not validated_data.get('customer'):
+                validated_data['customer'], _ = PharmacyCustomer.objects.get_or_create(
+                    tenant=tenant, name=name, phone=phone or '-', defaults={'email': '', 'address': ''})
+            rx = Prescription.objects.create(**validated_data)
+            for row in items:
+                med = Medicine.objects.filter(id=row.get('medicine'), tenant=tenant).first()
+                if not med:
+                    raise serializers.ValidationError({'items_input': 'Each line needs a valid medicine.'})
+                PrescriptionItem.objects.create(
+                    tenant=tenant, prescription=rx, medicine=med, dosage=row.get('dosage') or '',
+                    frequency=row.get('frequency') or '', duration=row.get('duration') or '',
+                    quantity=int(row.get('quantity') or 1), notes=row.get('notes') or '')
+        return rx
 
 class PharmacySaleItemSerializer(serializers.ModelSerializer):
     medicine_name = serializers.CharField(source='medicine_batch.medicine.name', read_only=True, allow_null=True)
