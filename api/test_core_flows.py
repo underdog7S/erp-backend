@@ -777,3 +777,74 @@ class PrescriptionTests(APITestCase):
     def test_prescription_needs_a_patient(self):
         r = self.client.post('/api/pharmacy/prescriptions/', {'doctor_name': 'Dr Rao', 'prescription_date': '2030-01-01'}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+class InviteAndGoogleTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Invite Plan', price=0, storage_limit_mb=100, max_users=10)
+        Plan.objects.get_or_create(name='Free', defaults={'price': 0, 'storage_limit_mb': 100})
+        self.tenant = Tenant.objects.create(name='Acme School', industry='education', plan=plan)
+        self.owner = make_user(self.tenant, 'owner1', 'admin', email='owner@acme.test')
+        Role.objects.get_or_create(name='teacher')
+        self.client.force_authenticate(self.owner)
+
+    def invite(self, email='new.teacher@gmail.test'):
+        return self.client.post('/api/users/invite/', {'email': email, 'role': 'teacher'}, format='json')
+
+    def google(self, email, verified=True):
+        info = {'id': 'g1', 'email': email, 'given_name': 'New', 'family_name': 'Teacher', 'verified_email': verified}
+        with mock.patch('api.views.google_auth_views.GoogleOAuthView.get_google_user_info', lambda self, token: info):
+            return APIClient().post('/api/auth/google/', {'access_token': 'x'}, format='json')
+
+    def test_invite_email_is_sent_with_link_and_reply_to_the_inviter(self):
+        from django.core import mail
+        r = self.invite()
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data['email_sent'])
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ['new.teacher@gmail.test'])
+        self.assertEqual(msg.reply_to, ['owner@acme.test'])
+        self.assertIn('/activate?email=', msg.body)
+        self.assertIn('Acme School', msg.subject)
+
+    def test_invitation_info_and_password_activation(self):
+        from api.models.user import UserInvitation
+        self.invite()
+        token = UserInvitation.objects.get(email='new.teacher@gmail.test').token
+        info = APIClient().get('/api/invitations/info/', {'email': 'new.teacher@gmail.test', 'token': token})
+        self.assertEqual((info.data['team'], info.data['role']), ('Acme School', 'teacher'))
+        weak = APIClient().post('/api/users/activate/', {'email': 'new.teacher@gmail.test', 'token': token, 'password': 'short'}, format='json')
+        self.assertEqual(weak.status_code, 400)
+        ok = APIClient().post('/api/users/activate/', {'email': 'new.teacher@gmail.test', 'token': token, 'password': 'A-long-test-Passw0rd!'}, format='json')
+        self.assertEqual(ok.status_code, 200, ok.data)
+
+    def test_google_sign_in_joins_the_inviting_team_not_a_new_workspace(self):
+        self.invite()
+        r = self.google('new.teacher@gmail.test')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['user']['tenant'], 'Acme School')
+        self.assertEqual(r.data['user']['role'], 'teacher')
+        self.assertFalse(r.data['is_new_user'])
+        self.assertEqual(Tenant.objects.filter(name__icontains='Organization').count(), 0)
+        # the invitation is used up
+        self.assertEqual(self.google('new.teacher@gmail.test').status_code, 200)
+        self.assertEqual(UserProfile.objects.filter(tenant=self.tenant).count(), 2)
+
+    def test_google_sign_in_without_invite_still_creates_own_workspace(self):
+        r = self.google('stranger@gmail.test')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertNotEqual(r.data['user']['tenant'], 'Acme School')
+
+    def test_unverified_google_email_is_refused(self):
+        self.invite()
+        self.assertEqual(self.google('new.teacher@gmail.test', verified=False).status_code, 400)
+        self.assertEqual(UserProfile.objects.filter(tenant=self.tenant).count(), 1)
+
+    def test_email_failure_is_reported_with_a_shareable_link(self):
+        with mock.patch('django.core.mail.EmailMessage.send', side_effect=OSError('smtp down')):
+            r = self.invite('other@x.test')
+        self.assertEqual(r.status_code, 201)
+        self.assertFalse(r.data['email_sent'])
+        self.assertIn('/activate?email=', r.data['activation_link'])

@@ -64,6 +64,8 @@ class GoogleOAuthView(APIView):
             # Extract user information
             google_id = google_user_info.get('id')
             email = google_user_info.get('email')
+            if not google_user_info.get('verified_email', google_user_info.get('email_verified', False)):
+                return Response({'error': 'Your Google email address is not verified.'}, status=status.HTTP_400_BAD_REQUEST)
             first_name = google_user_info.get('given_name', '')
             last_name = google_user_info.get('family_name', '')
             name = google_user_info.get('name', f"{first_name} {last_name}".strip())
@@ -153,6 +155,12 @@ class GoogleOAuthView(APIView):
             profile.is_new_user = False
             return profile
         except UserProfile.DoesNotExist:
+            # Someone invited by a team admin joins that team, not a brand new workspace
+            from api.utils.invitations import accept_pending_invitation
+            invited = accept_pending_invitation(user)
+            if invited:
+                invited.is_new_user = False
+                return invited
             # Create new profile with tenant
             company = request_data.get('company', '')
             industry = request_data.get('industry', 'manufacturing')
@@ -179,11 +187,12 @@ class GoogleOAuthView(APIView):
                 tenant.save()
             
             # Create user profile
-            profile = UserProfile.objects.create(
-                user=user,
-                tenant=tenant,
-                is_new_user=True
-            )
+            # The person who signs up a new workspace is its admin. (`is_new_user` is not a model field,
+            # so it is set on the instance afterwards; passing it to create() crashed every new Google sign-up.)
+            from api.models.user import Role
+            admin_role, _ = Role.objects.get_or_create(name='admin')
+            profile = UserProfile.objects.create(user=user, tenant=tenant, role=admin_role)
+            profile.is_new_user = True
             
             return profile
     
@@ -237,6 +246,8 @@ class GoogleOAuthCallbackView(APIView):
             # Extract user information
             google_id = google_user_info.get('id')
             email = google_user_info.get('email')
+            if not google_user_info.get('verified_email', google_user_info.get('email_verified', False)):
+                return Response({'error': 'Your Google email address is not verified.'}, status=status.HTTP_400_BAD_REQUEST)
             first_name = google_user_info.get('given_name', '')
             last_name = google_user_info.get('family_name', '')
             name = google_user_info.get('name', f"{first_name} {last_name}".strip())
@@ -309,6 +320,8 @@ class GoogleOAuthCallbackView(APIView):
             # Process the same as direct OAuth
             google_id = google_user_info.get('id')
             email = google_user_info.get('email')
+            if not google_user_info.get('verified_email', google_user_info.get('email_verified', False)):
+                return Response({'error': 'Your Google email address is not verified.'}, status=status.HTTP_400_BAD_REQUEST)
             first_name = google_user_info.get('given_name', '')
             last_name = google_user_info.get('family_name', '')
             name = google_user_info.get('name', f"{first_name} {last_name}".strip())
@@ -424,6 +437,12 @@ class GoogleOAuthCallbackView(APIView):
             profile.is_new_user = False
             return profile
         except UserProfile.DoesNotExist:
+            # Someone invited by a team admin joins that team, not a brand new workspace
+            from api.utils.invitations import accept_pending_invitation
+            invited = accept_pending_invitation(user)
+            if invited:
+                invited.is_new_user = False
+                return invited
             # Create new profile with tenant
             company = request_data.get('company', '')
             industry = request_data.get('industry', 'manufacturing')
@@ -450,11 +469,12 @@ class GoogleOAuthCallbackView(APIView):
                 tenant.save()
             
             # Create user profile
-            profile = UserProfile.objects.create(
-                user=user,
-                tenant=tenant,
-                is_new_user=True
-            )
+            # The person who signs up a new workspace is its admin. (`is_new_user` is not a model field,
+            # so it is set on the instance afterwards; passing it to create() crashed every new Google sign-up.)
+            from api.models.user import Role
+            admin_role, _ = Role.objects.get_or_create(name='admin')
+            profile = UserProfile.objects.create(user=user, tenant=tenant, role=admin_role)
+            profile.is_new_user = True
             
             return profile
     

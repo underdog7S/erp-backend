@@ -1,3 +1,5 @@
+import urllib.parse
+import logging
 import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -281,17 +283,43 @@ class InviteUserView(APIView):
             expires_at=timezone.now() + timedelta(days=7),
         )
 
-        activation_link = f"{settings.FRONTEND_URL}/activate?email={email}&token={token}"
-        send_mail(
-            f"You're invited to join {tenant.name} on ZenVerse",
-            f"You've been invited to join {tenant.name} as {role.name}.\n\n"
-            f"Click the link to activate your account: {activation_link}\n\n"
-            f"This link expires in 7 days.",
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=True,
-        )
-        return Response({"message": f"Invitation sent to {email}."})
+        activation_link = f"{settings.FRONTEND_URL}/activate?email={urllib.parse.quote(email)}&token={token}"
+        inviter = request.user.get_full_name() or request.user.username
+        try:
+            from django.core.mail import EmailMessage
+            EmailMessage(
+                subject=f"{inviter} invited you to join {tenant.name} on ZenVerse",
+                body=(f"{inviter} has invited you to join {tenant.name} as {role.name}.\n\n"
+                      f"Open this link to accept: {activation_link}\n\n"
+                      f"You can set a password there, or sign in with Google using this same email address ({email}).\n"
+                      f"This link expires in 7 days. If you did not expect this, ignore this email."),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[email],
+                reply_to=[request.user.email] if request.user.email else None,
+            ).send(fail_silently=False)
+        except Exception:
+            logger.exception("Invitation email to %s failed", email)
+            return Response({
+                "message": f"The invitation was created but the email could not be sent to {email}. Share this link with them directly.",
+                "email_sent": False, "activation_link": activation_link,
+            }, status=status.HTTP_201_CREATED)
+        return Response({"message": f"Invitation sent to {email}.", "email_sent": True})
+
+
+class InvitationInfoView(APIView):
+    """Lets the activation page show who invited the person, without exposing anything else."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
+
+    def get(self, request):
+        from api.models.user import UserInvitation
+        email = (request.query_params.get("email") or "").strip().lower()
+        invitation = UserInvitation.objects.filter(email=email, token=request.query_params.get("token", "")).select_related("tenant", "role").first()
+        if not invitation or not invitation.is_valid():
+            return Response({"error": "This invitation is invalid, expired or already used."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"email": email, "team": invitation.tenant.name, "role": invitation.role.name})
+
 
 class ActivateUserView(APIView):
     permission_classes = [AllowAny]
@@ -319,6 +347,13 @@ class ActivateUserView(APIView):
         allowed, limit_message = validate_user_limit_before_adding(invitation.tenant)
         if not allowed:
             return Response({"error": limit_message}, status=status.HTTP_403_FORBIDDEN)
+
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            validate_password(password)
+        except DjangoValidationError as e:
+            return Response({"error": " ".join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             from django.utils import timezone
