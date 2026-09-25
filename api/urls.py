@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, education_detail_views, business_views, accounting_views, hr_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, education_detail_views, business_views, document_views, accounting_views, hr_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -198,6 +198,11 @@ urlpatterns = [
     path('hr/payslips/', hr_views.PayslipListView.as_view(), name='hr-payslips'),
     path('hr/payslips/<int:pk>/', hr_views.PayslipAdjustView.as_view(), name='hr-payslip-adjust'),
     path('hr/payslips/<int:pk>/pay/', hr_views.PayslipPayView.as_view(), name='hr-payslip-pay'),
+    path('manufacturing/sales-orders/<int:pk>/pdf/', document_views.ManufacturingSalesOrderPDFView.as_view(), name='manufacturing-so-pdf'),
+    path('manufacturing/purchase-orders/<int:pk>/pdf/', document_views.ManufacturingPurchaseOrderPDFView.as_view(), name='manufacturing-po-pdf'),
+    path('retail/purchase-orders/<int:pk>/pdf/', document_views.RetailPurchaseOrderPDFView.as_view(), name='retail-po-pdf'),
+    path('retail/quotations/<int:pk>/pdf/', document_views.RetailQuotationPDFView.as_view(), name='retail-quotation-pdf'),
+    path('pharmacy/purchase-orders/<int:pk>/pdf/', document_views.PharmacyPurchaseOrderPDFView.as_view(), name='pharmacy-po-pdf'),
     path('tenant/business/', business_views.BusinessDetailsView.as_view(), name='tenant-business'),
     path('invitations/info/', users_views.InvitationInfoView.as_view(), name='invitation-info'),
     path('users/change-password/', users_views.PasswordChangeView.as_view(), name='change-password'),

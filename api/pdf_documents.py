@@ -184,3 +184,89 @@ def fee_receipt(payment):
               ('Received by', (payment.collected_by.user.get_full_name() or payment.collected_by.user.username) if payment.collected_by_id else '')],
         columns=[('#', 8, 'L'), ('Description', 132, 'L'), ('Amount', 38, 'R')], rows=rows, totals=totals,
         notes=[f'Note: {payment.notes}'] if payment.notes else None, footer='Thank you for your payment.', bill_label='STUDENT')
+
+
+# ---------------------------------------------------------------- order documents
+def _party(obj):
+    return [obj.name, getattr(obj, 'address', '') or '', ('Phone: ' + obj.phone) if getattr(obj, 'phone', '') and obj.phone != '-' else '',
+            ('GSTIN: ' + obj.gst_number) if getattr(obj, 'gst_number', '') else '']
+
+
+def _qty(value):
+    value = Decimal(str(value))
+    return f'{value:,.0f}' if value == value.to_integral() else f'{value:,.2f}'
+
+
+def manufacturing_sales_order(so):
+    rows = []
+    for i, it in enumerate(so.items.select_related('finished_good'), 1):
+        rows.append([str(i), it.finished_good.name, it.hsn_code or '-', _qty(it.quantity), money(it.unit_price), _rate(it.gst_rate), money(it.total_price)])
+    columns = [('#', 8, 'L'), ('Item', 62, 'L'), ('HSN', 16, 'L'), ('Qty', 14, 'R'), ('Rate', 26, 'R'), ('GST', 14, 'R'), ('Amount', 26, 'R')]
+    totals = [('Subtotal', money(so.subtotal), False)]
+    if so.discount_amount:
+        totals.append(('Discount', '-' + money(so.discount_amount), False))
+    if so.tax_amount:
+        totals.append(('GST (added)', money(so.tax_amount), False))
+    totals.append(('Total', money(so.total_amount), True))
+    gst = {'cgst': so.cgst_amount, 'sgst': so.sgst_amount, 'igst': so.igst_amount}
+    return render_invoice(
+        so.tenant, title='Tax invoice' if so.tax_amount else 'Sales order', number=so.so_number, date_text=so.order_date.strftime('%d %b %Y'),
+        bill_to=_party(so.customer),
+        meta=[('Status', so.get_status_display()), ('Payment', so.get_payment_status_display()),
+              ('Terms', so.customer.payment_terms), ('Dispatch from', so.warehouse.name)],
+        columns=columns, rows=rows, totals=totals, gst=gst, footer='Thank you for your business.')
+
+
+def _purchase_order(po, party, rows, columns, meta, extra_note=None):
+    totals = []
+    if getattr(po, 'subtotal', 0):
+        totals.append(('Subtotal', money(po.subtotal), False))
+    if getattr(po, 'tax_amount', 0):
+        totals.append(('GST', money(po.tax_amount), False))
+    totals.append(('Total', money(po.total_amount), True))
+    return render_invoice(
+        po.tenant, title='Purchase order', number=po.po_number, date_text=po.order_date.strftime('%d %b %Y'), bill_to=party, meta=meta,
+        columns=columns, rows=rows, totals=totals, bill_label='SUPPLIER',
+        notes=['Please confirm receipt of this order and the delivery date.'] + ([extra_note] if extra_note else []),
+        footer='Authorised signature: ____________________')
+
+
+def manufacturing_purchase_order(po):
+    rows = [[str(i), it.raw_material.name, _qty(it.quantity), money(it.unit_cost), money(it.total_cost)]
+            for i, it in enumerate(po.items.select_related('raw_material'), 1)]
+    columns = [('#', 8, 'L'), ('Material', 90, 'L'), ('Qty', 20, 'R'), ('Unit cost', 28, 'R'), ('Amount', 30, 'R')]
+    meta = [('Expected delivery', po.expected_delivery.strftime('%d %b %Y') if po.expected_delivery else ''), ('Status', po.get_status_display()),
+            ('Terms', po.supplier.payment_terms)]
+    return _purchase_order(po, _party(po.supplier), rows, columns, meta)
+
+
+def retail_purchase_order(po):
+    rows = [[str(i), it.product.name + (f'\nSKU {it.product.sku}' if it.product.sku else ''), str(it.quantity), money(it.unit_cost), money(it.total_cost)]
+            for i, it in enumerate(po.items.select_related('product'), 1)]
+    columns = [('#', 8, 'L'), ('Product', 90, 'L'), ('Qty', 20, 'R'), ('Unit cost', 28, 'R'), ('Amount', 30, 'R')]
+    meta = [('Expected delivery', po.expected_delivery.strftime('%d %b %Y')), ('Status', po.get_status_display()), ('Terms', po.supplier.payment_terms)]
+    return _purchase_order(po, _party(po.supplier), rows, columns, meta)
+
+
+def pharmacy_purchase_order(po):
+    rows = [[str(i), it.medicine.name + (f' {it.medicine.strength}' if it.medicine.strength else ''), str(it.quantity), money(it.unit_cost), money(it.total_cost)]
+            for i, it in enumerate(po.items.select_related('medicine'), 1)]
+    columns = [('#', 8, 'L'), ('Medicine', 90, 'L'), ('Qty', 20, 'R'), ('Unit cost', 28, 'R'), ('Amount', 30, 'R')]
+    meta = [('Expected delivery', po.expected_delivery.strftime('%d %b %Y')), ('Status', po.get_status_display())]
+    return _purchase_order(po, _party(po.supplier), rows, columns, meta, 'Medicines must be supplied with batch number and expiry printed on each pack.')
+
+
+def retail_quotation(q):
+    rows = [[str(i), it.product.name + (f'\n{it.notes}' if it.notes else ''), str(it.quantity), money(it.unit_price), money(it.total_price)]
+            for i, it in enumerate(q.items.select_related('product'), 1)]
+    columns = [('#', 8, 'L'), ('Item', 88, 'L'), ('Qty', 20, 'R'), ('Rate', 30, 'R'), ('Amount', 30, 'R')]
+    totals = [('Subtotal', money(q.subtotal), False)]
+    if q.discount_amount:
+        totals.append(('Discount', '-' + money(q.discount_amount), False))
+    if q.tax_amount:
+        totals.append(('GST', money(q.tax_amount), False))
+    totals.append(('Total', money(q.total_amount), True))
+    return render_invoice(
+        q.tenant, title='Quotation', number=q.quotation_number, date_text=q.quotation_date.strftime('%d %b %Y'), bill_to=_party(q.customer),
+        meta=[('Valid until', q.valid_until.strftime('%d %b %Y')), ('Status', q.get_status_display())], columns=columns, rows=rows, totals=totals,
+        notes=[q.notes] if q.notes else None, footer='To accept this quotation, please confirm by phone or reply to us.', bill_label='PREPARED FOR')

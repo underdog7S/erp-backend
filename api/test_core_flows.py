@@ -1049,7 +1049,7 @@ class BillPdfTests(APITestCase):
         import datetime
         from api.models.plan import Plan
         cache.clear()
-        plan = Plan.objects.create(name='Pdf Plan', price=0, storage_limit_mb=100, has_pharmacy=True, has_retail=True, has_restaurant=True, has_salon=True, has_hotel=True)
+        plan = Plan.objects.create(name='Pdf Plan', price=0, storage_limit_mb=100, has_pharmacy=True, has_retail=True, has_restaurant=True, has_salon=True, has_hotel=True, has_manufacturing=True)
         self.tenant = Tenant.objects.create(name='Sunrise Traders', industry='retail', plan=plan, gstin='27AAPFU0939F1ZV',
                                             address='12 Market Road, Pune', phone='9800000000')
         self.client.force_authenticate(make_user(self.tenant, 'pdf_admin', 'admin'))
@@ -1094,6 +1094,33 @@ class BillPdfTests(APITestCase):
         self.assertIn('210.00', t)
         self.assertIn('10.00', t)         # the 5% that was stored, not a fixed 18%
         self.assertNotIn('37.80', t)
+
+    def test_manufacturing_sales_order_pdf_and_isolation(self):
+        from manufacturing.models import Customer, FinishedGood, SalesOrder, SalesOrderItem, Warehouse
+        wh = Warehouse.objects.create(tenant=self.tenant, name='FG Store')
+        fg = FinishedGood.objects.create(tenant=self.tenant, name='Steel Bolt', gst_rate=18, hsn_code='7318')
+        cust = Customer.objects.create(tenant=self.tenant, name='Acme Works', phone='9', gst_number='27ABCDE1234F1Z5')
+        so = SalesOrder.objects.create(tenant=self.tenant, so_number='SO-PDF', customer=cust, warehouse=wh, order_date=self.today)
+        SalesOrderItem.objects.create(tenant=self.tenant, sales_order=so, finished_good=fg, quantity=10, unit_price=100, hsn_code='7318', gst_rate=18)
+        so.refresh_from_db()
+        t = self.text(f'/api/manufacturing/sales-orders/{so.id}/pdf/')
+        self.check_common(t)
+        for needle in ('SO-PDF', 'Acme Works', 'Steel Bolt', '7318', '1,000.00'):
+            self.assertIn(needle, t)
+        other = Tenant.objects.create(name='Other Co', industry='retail')
+        self.client.force_authenticate(make_user(other, 'pdf_other', 'admin'))
+        self.assertIn(self.client.get(f'/api/manufacturing/sales-orders/{so.id}/pdf/').status_code, (403, 404))
+
+    def test_retail_purchase_order_pdf(self):
+        from retail.models import Product, PurchaseOrder, PurchaseOrderItem, Supplier
+        sup = Supplier.objects.create(tenant=self.tenant, name='Bulk Supplies', contact_person='A', phone='9', address='Mumbai', gst_number='27ABCDE1234F1Z5')
+        prod = Product.objects.create(tenant=self.tenant, name='Notebook', sku='NB-1', cost_price=30, selling_price=50, mrp=60)
+        po = PurchaseOrder.objects.create(tenant=self.tenant, supplier=sup, po_number='PO-PDF', order_date=self.today, expected_delivery=self.today, subtotal=300, total_amount=300)
+        PurchaseOrderItem.objects.create(tenant=self.tenant, purchase_order=po, product=prod, quantity=10, unit_cost=30, total_cost=300)
+        t = self.text(f'/api/retail/purchase-orders/{po.id}/pdf/')
+        self.check_common(t)
+        for needle in ('PO-PDF', 'Bulk Supplies', 'Notebook', 'SKU NB-1', '300.00'):
+            self.assertIn(needle, t)
 
     def test_salon_bill_and_hotel_folio(self):
         from hotel.models import Room, RoomType
