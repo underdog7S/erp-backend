@@ -765,14 +765,17 @@ class RetailSaleSerializer(serializers.ModelSerializer):
                 total_price=quantity * unit_price, hsn_code=product.hsn_code, gst_rate=product.gst_rate,
                 tax_amount=tax, tenant=sale.tenant)
 
-            # Deduct sold quantity from inventory at the sale's warehouse
+            # Take the stock out of the sale's warehouse; selling more than is there is refused (the whole bill rolls back)
             if sale.warehouse:
-                inventory = Inventory.objects.filter(
+                inventory = Inventory.objects.select_for_update().filter(
                     product=product, warehouse=sale.warehouse, tenant=sale.tenant
                 ).first()
-                if inventory:
-                    inventory.quantity_on_hand = max(0, inventory.quantity_on_hand - quantity)
-                    inventory.save()
+                on_hand = inventory.quantity_available if inventory else 0
+                if on_hand < quantity:
+                    raise serializers.ValidationError(
+                        f'{product.name}: only {on_hand} in stock at {sale.warehouse.name}, {quantity} requested.')
+                inventory.quantity_on_hand -= quantity
+                inventory.save()
 
         return sale
 

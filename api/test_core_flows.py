@@ -508,6 +508,7 @@ class RetailSaleGstTests(APITestCase):
         self.rice = Product.objects.create(tenant=self.tenant, name='Rice', sku='R1', cost_price=1, selling_price=105, mrp=105,
                                            gst_rate=5, hsn_code='1006')
         Inventory.objects.create(tenant=self.tenant, product=self.rice, warehouse=self.wh, quantity_on_hand=10)
+        Inventory.objects.create(tenant=self.tenant, product=self.tv, warehouse=self.wh, quantity_on_hand=10)
         from retail.models import Customer
         self.customer = Customer.objects.create(tenant=self.tenant, name='Walk In', phone='9000000000', email='', address='x')
 
@@ -1266,3 +1267,21 @@ class EducationSetupEditTests(APITestCase):
         other.force_authenticate(make_user(b, 'edu_admin_b', 'admin'))
         self.assertEqual(other.delete(f'/api/education/terms/{term.id}/').status_code, 404)
         self.assertEqual(self.client.delete(f'/api/education/terms/{term.id}/').status_code, 204)
+
+
+class RetailOversellTests(RetailSaleGstTests):
+    def test_selling_more_than_in_stock_is_refused_and_nothing_changes(self):
+        from retail.models import Inventory, Sale
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'payment_method': 'CASH',
+            'items': [{'product': 'Rice', 'product_id': self.rice.id, 'quantity': 11}]}, format='json')  # only 10 in stock
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertEqual(Sale.objects.count(), 0)
+        self.assertEqual(Inventory.objects.get(product=self.rice, warehouse=self.wh).quantity_on_hand, 10)
+
+    def test_product_with_no_stock_record_cannot_be_sold(self):
+        from retail.models import Product
+        ghost = Product.objects.create(tenant=self.tenant, name='Unstocked', sku='U1', cost_price=1, selling_price=5, mrp=5)
+        r = self.client.post('/api/retail/sales/', {
+            'warehouse': self.wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Unstocked', 'product_id': ghost.id, 'quantity': 1}]}, format='json')
+        self.assertEqual(r.status_code, 400)
