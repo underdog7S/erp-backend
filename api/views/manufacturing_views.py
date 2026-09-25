@@ -3,7 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.db import transaction
 from django.db.models import Q, F
+from rest_framework.exceptions import ValidationError
 from api.models.permissions import HasFeaturePermissionFactory
 from manufacturing.models import (
     Supplier, Warehouse, RawMaterial, RawMaterialInventory, FinishedGood,
@@ -482,13 +484,17 @@ class SalesOrderItemListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         tenant = self.request.user.userprofile.tenant
-        item = serializer.save(tenant=tenant)
-
-        so = item.sales_order
-        inv = FinishedGoodInventory.objects.filter(finished_good=item.finished_good, warehouse=so.warehouse, tenant=tenant).first()
-        if inv:
+        with transaction.atomic():
+            data = serializer.validated_data
+            inv = FinishedGoodInventory.objects.select_for_update().filter(
+                finished_good=data['finished_good'], warehouse=data['sales_order'].warehouse, tenant=tenant).first()
+            have = inv.quantity_available if inv else 0
+            if data['quantity'] > have:
+                raise ValidationError({'quantity': f"Only {have} of {data['finished_good'].name} in stock at {data['sales_order'].warehouse.name}."})
+            item = serializer.save(tenant=tenant)
             inv.quantity_on_hand = F('quantity_on_hand') - item.quantity
             inv.save()
+        so = item.sales_order
 
         # Snapshot the item's GST, then re-total the order. Business-to-business prices are ex-GST.
         from api.gst import line_tax, is_intra_state, split_cgst_sgst

@@ -900,6 +900,8 @@ class IndustryGstTests(APITestCase):
         from manufacturing.models import Customer, FinishedGood, SalesOrder, Warehouse
         wh = Warehouse.objects.create(tenant=self.tenant, name='FG', warehouse_type='FINISHED_GOODS') if hasattr(Warehouse, 'warehouse_type') else Warehouse.objects.create(tenant=self.tenant, name='FG')
         fg = FinishedGood.objects.create(tenant=self.tenant, name='Bolt', gst_rate=18, hsn_code='7318')
+        from manufacturing.models import FinishedGoodInventory
+        FinishedGoodInventory.objects.create(tenant=self.tenant, finished_good=fg, warehouse=wh, quantity_on_hand=100)
         same = Customer.objects.create(tenant=self.tenant, name='Local', gst_number='27ABCDE1234F1Z5')
         other = Customer.objects.create(tenant=self.tenant, name='Far', gst_number='29ABCDE1234F1Z5')
 
@@ -1492,3 +1494,92 @@ class EducationPdfTests(APITestCase):
         self.client.force_authenticate(make_user(other, 'edu_pdf_other', 'admin'))
         self.assertEqual(self.client.get(f'/api/education/reportcards/{self.card.id}/pdf/').status_code, 404)
         self.assertEqual(self.client.get(f'/api/education/tc/{self.tc.id}/pdf/').status_code, 404)
+
+
+class ManufacturingFlowTests(APITestCase):
+    def setUp(self):
+        import datetime
+        from api.models.plan import Plan
+        from manufacturing.models import (BillOfMaterial, BOMItem, Customer, FinishedGood, FinishedGoodInventory, RawMaterial, RawMaterialInventory,
+                                          Supplier, Warehouse)
+        cache.clear()
+        plan = Plan.objects.create(name='Mfg Plan', price=0, storage_limit_mb=100, has_manufacturing=True)
+        self.plan = plan
+        self.tenant = Tenant.objects.create(name='Iron Works', industry='manufacturing', plan=plan, gstin='27AAPFU0939F1ZV')
+        self.admin = make_user(self.tenant, 'mfg_admin', 'admin')
+        self.client.force_authenticate(self.admin)
+        self.today = datetime.date.today()
+        self.wh = Warehouse.objects.create(tenant=self.tenant, name='Main')
+        self.rm = RawMaterial.objects.create(tenant=self.tenant, name='Steel', cost_price=50, reorder_level=5)
+        self.fg = FinishedGood.objects.create(tenant=self.tenant, name='Gate', selling_price=1000, gst_rate=18, price_includes_tax=False)
+        self.bom = BillOfMaterial.objects.create(tenant=self.tenant, finished_good=self.fg)
+        BOMItem.objects.create(tenant=self.tenant, bom=self.bom, raw_material=self.rm, quantity_required=4)
+        self.rm_inv = RawMaterialInventory.objects.create(tenant=self.tenant, raw_material=self.rm, warehouse=self.wh, quantity_on_hand=40)
+        self.fg_inv = FinishedGoodInventory.objects.create(tenant=self.tenant, finished_good=self.fg, warehouse=self.wh, quantity_on_hand=5)
+        self.cust = Customer.objects.create(tenant=self.tenant, name='Buyer', phone='9', gst_number='27ABCDE1234F1Z5')
+
+    def order(self, qty):
+        r = self.client.post('/api/manufacturing/production-orders/', {
+            'bom': self.bom.id, 'finished_good': self.fg.id, 'quantity_to_produce': qty,
+            'raw_material_warehouse': self.wh.id, 'output_warehouse': self.wh.id}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        return r.data['id']
+
+    def test_production_consumes_materials_then_adds_goods(self):
+        pid = self.order(5)                                       # needs 20 steel, 40 in stock
+        self.assertEqual(self.client.post(f'/api/manufacturing/production-orders/{pid}/start/').status_code, 200)
+        self.rm_inv.refresh_from_db()
+        self.assertEqual(float(self.rm_inv.quantity_on_hand), 20.0)
+        self.assertEqual(self.client.post(f'/api/manufacturing/production-orders/{pid}/start/').status_code, 400)   # not twice
+        self.assertEqual(self.client.post(f'/api/manufacturing/production-orders/{pid}/complete/', {}, format='json').status_code, 200)
+        self.fg_inv.refresh_from_db()
+        self.assertEqual(float(self.fg_inv.quantity_on_hand), 10.0)
+
+    def test_production_refused_when_material_is_short_and_nothing_is_consumed(self):
+        pid = self.order(11)                                      # needs 44, have 40
+        r = self.client.post(f'/api/manufacturing/production-orders/{pid}/start/')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Steel', r.data['error'])
+        self.rm_inv.refresh_from_db()
+        self.assertEqual(float(self.rm_inv.quantity_on_hand), 40.0)
+
+    def test_goods_receipt_adds_stock_and_closes_purchase_order(self):
+        from manufacturing.models import Supplier
+        sup = Supplier.objects.create(tenant=self.tenant, name='Mill', phone='9')
+        po = self.client.post('/api/manufacturing/purchase-orders/', {'supplier': sup.id, 'order_date': str(self.today), 'expected_delivery': str(self.today)}, format='json')
+        self.assertEqual(po.status_code, 201, po.data)
+        item = self.client.post('/api/manufacturing/purchase-order-items/', {'purchase_order': po.data['id'], 'raw_material': self.rm.id, 'quantity': 10, 'unit_cost': 50}, format='json')
+        self.assertEqual(item.status_code, 201, item.data)
+        gr = self.client.post('/api/manufacturing/goods-receipts/', {'purchase_order': po.data['id'], 'warehouse': self.wh.id, 'receipt_date': str(self.today)}, format='json')
+        self.assertEqual(gr.status_code, 201, gr.data)
+        line = self.client.post('/api/manufacturing/goods-receipt-items/', {'goods_receipt': gr.data['id'], 'purchase_order_item': item.data['id'], 'quantity_received': 10}, format='json')
+        self.assertEqual(line.status_code, 201, line.data)
+        self.rm_inv.refresh_from_db()
+        self.assertEqual(float(self.rm_inv.quantity_on_hand), 50.0)
+        self.assertEqual(self.client.get(f"/api/manufacturing/purchase-orders/{po.data['id']}/").data['status'], 'RECEIVED')
+
+    def test_sales_order_reduces_stock_and_refuses_oversell(self):
+        from manufacturing.models import SalesOrder
+        so = SalesOrder.objects.create(tenant=self.tenant, so_number='SO-M1', customer=self.cust, warehouse=self.wh, order_date=self.today)
+        ok = self.client.post('/api/manufacturing/sales-order-items/', {'sales_order': so.id, 'finished_good': self.fg.id, 'quantity': 3, 'unit_price': 1000}, format='json')
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.fg_inv.refresh_from_db()
+        self.assertEqual(float(self.fg_inv.quantity_on_hand), 2.0)
+        over = self.client.post('/api/manufacturing/sales-order-items/', {'sales_order': so.id, 'finished_good': self.fg.id, 'quantity': 3, 'unit_price': 1000}, format='json')
+        self.assertEqual(over.status_code, 400, over.data)
+        self.fg_inv.refresh_from_db()
+        self.assertEqual(float(self.fg_inv.quantity_on_hand), 2.0)
+
+    def test_other_business_records_cannot_be_used(self):
+        from manufacturing.models import Customer, FinishedGood, SalesOrder, Warehouse
+        other = Tenant.objects.create(name='Rival', industry='manufacturing', plan=self.plan)
+        ow = Warehouse.objects.create(tenant=other, name='Theirs')
+        ofg = FinishedGood.objects.create(tenant=other, name='Secret', selling_price=1)
+        oc = Customer.objects.create(tenant=other, name='TheirBuyer', phone='1')
+        oso = SalesOrder.objects.create(tenant=other, so_number='SO-X', customer=oc, warehouse=ow, order_date=self.today)
+        r = self.client.post('/api/manufacturing/sales-order-items/', {'sales_order': oso.id, 'finished_good': self.fg.id, 'quantity': 1, 'unit_price': 1}, format='json')
+        self.assertEqual(r.status_code, 400, r.data)
+        r = self.client.post('/api/manufacturing/production-orders/', {'bom': self.bom.id, 'finished_good': ofg.id, 'quantity_to_produce': 1,
+                             'raw_material_warehouse': ow.id, 'output_warehouse': ow.id}, format='json')
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertEqual(len(self.client.get('/api/manufacturing/sales-orders/').data.get('results', [])), 0)
