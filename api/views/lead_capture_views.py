@@ -143,6 +143,10 @@ class PublicLeadFormSubmitView(APIView):
                 distance_km=distance, within_service_area=within, lead_source=source,
                 email_opt_in=bool(email), sms_opt_in=False, notes=note,
             )
+        from api.notify import notify
+        notify(tenant, f'New enquiry: {name}', f"{message or 'No message'}" + (f'  Phone: {phone}' if phone else '') +
+               (f'  ({distance} km away)' if distance is not None else ''), module='general', path='/crm/lead-capture',
+               ref=('lead', existing.id if existing else 0))
         return _cors(Response({'ok': True, 'message': cfg.success_message}, status=status.HTTP_201_CREATED))
 
 

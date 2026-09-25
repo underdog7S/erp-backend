@@ -1304,3 +1304,78 @@ class ClassAttendanceStatusTests(APITestCase):
         rows = self.client.get(f'/api/education/class-attendance-status/?class_id={klass.id}&date={day}').data
         by_name = {r['student']['name']: r['present'] for r in rows}
         self.assertEqual(by_name, {'Present Kid': True, 'Absent Kid': False})
+
+
+class NotificationEventTests(APITestCase):
+    """The bell must actually receive things, and only for the right people in the right team."""
+
+    def setUp(self):
+        cache.clear()
+        from api.models.plan import Plan
+        plan = Plan.objects.create(name='Notify Plan', price=0, storage_limit_mb=100, has_retail=True, has_education=True, max_users=20)
+        self.tenant = Tenant.objects.create(name='Bell School', industry='retail', plan=plan)
+        self.other = Tenant.objects.create(name='Other Co', industry='retail', plan=plan)
+        self.admin = make_user(self.tenant, 'bell_admin', 'admin', email='a@bell.test')
+        self.staff = make_user(self.tenant, 'bell_staff', 'staff')
+        self.outsider = make_user(self.other, 'bell_outsider', 'admin')
+
+    def count(self, user, title_part=''):
+        from api.models.notifications import Notification
+        return Notification.objects.filter(user=user, title__icontains=title_part).count()
+
+    def test_notify_reaches_admins_of_that_tenant_only(self):
+        from api.notify import notify
+        n = notify(self.tenant, 'Hello', 'body')
+        self.assertEqual(n, 1)
+        self.assertEqual((self.count(self.admin), self.count(self.staff), self.count(self.outsider)), (1, 0, 0))
+
+    def test_notify_respects_personal_switch_and_never_raises(self):
+        from api.models.notifications import NotificationPreference
+        from api.notify import notify
+        NotificationPreference.objects.create(user=self.admin, tenant=self.tenant, in_app_enabled=False)
+        self.assertEqual(notify(self.tenant, 'Muted', 'x'), 0)
+        self.assertEqual(notify(self.tenant, 'Bad', 'x', priority='urgent'), 0)  # would trigger a paid SMS: refused, not raised
+
+    def test_dedupe_keeps_one_unread_alert_per_thing(self):
+        from api.notify import notify
+        for _ in range(3):
+            notify(self.tenant, 'Low stock: Rice', 'x', ref=('low_stock', 5), dedupe_days=14)
+        self.assertEqual(self.count(self.admin, 'Low stock'), 1)
+
+    def test_new_enquiry_notifies_admins(self):
+        from api.models.lead_capture import LeadCaptureConfig
+        cfg = LeadCaptureConfig.objects.create(tenant=self.tenant)
+        r = APIClient().post(f'/api/public/lead-form/{cfg.public_key}/submit/', {
+            'name': 'Asha Kumar', 'phone': '9876543210', 'consent': 'true'})
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((self.count(self.admin, 'New enquiry'), self.count(self.outsider, 'New enquiry')), (1, 0))
+
+    def test_retail_sale_below_reorder_level_raises_one_low_stock_alert(self):
+        from retail.models import Inventory, Product, Warehouse
+        wh = Warehouse.objects.create(tenant=self.tenant, name='Main', address='x', contact_person='A', phone='1', is_primary=True)
+        p = Product.objects.create(tenant=self.tenant, name='Rice', sku='R1', cost_price=1, selling_price=5, mrp=5, reorder_level=5)
+        Inventory.objects.create(tenant=self.tenant, product=p, warehouse=wh, quantity_on_hand=8)
+        self.client.force_authenticate(self.admin)
+        for _ in range(2):
+            self.client.post('/api/retail/sales/', {'warehouse': wh.id, 'payment_method': 'CASH', 'items': [{'product': 'Rice', 'product_id': p.id, 'quantity': 2}]}, format='json')
+        self.assertEqual(self.count(self.admin, 'Low stock: Rice'), 1)  # 8 -> 6 (fine) -> 4 (low, alerts once)
+
+    def test_leave_request_and_invitation_accepted_and_chat(self):
+        from api.models.notifications import Notification
+        from api.models.team_chat import ChatChannel, ChatChannelMembership
+        self.client.force_authenticate(self.admin)
+        emp = self.client.post('/api/hr/employees/', {'name': 'Asha', 'monthly_salary': '1000'}, format='json').data['id']
+        self.client.force_authenticate(self.admin)
+        # a leave recorded by someone else reaches the admin; own action does not
+        other_admin = make_user(self.tenant, 'bell_admin2', 'admin')
+        c2 = APIClient()
+        c2.force_authenticate(other_admin)
+        c2.post('/api/hr/leaves/', {'employee': emp, 'leave_type': 'PAID', 'start_date': '2026-10-01', 'end_date': '2026-10-02'}, format='json')
+        self.assertEqual((self.count(self.admin, 'Leave request'), self.count(other_admin, 'Leave request')), (1, 0))
+        # chat: the other member is notified once, the sender never
+        ch = ChatChannel.objects.create(tenant=self.tenant, channel_type='group', name='Staff room', created_by=self.admin)
+        ChatChannelMembership.objects.create(channel=ch, user=self.admin)
+        ChatChannelMembership.objects.create(channel=ch, user=self.staff)
+        self.client.post(f'/api/team-chat/channels/{ch.id}/messages/', {'content': 'meeting at 4'}, format='json')
+        self.client.post(f'/api/team-chat/channels/{ch.id}/messages/', {'content': 'bring notes'}, format='json')
+        self.assertEqual((self.count(self.staff, 'Staff room'), self.count(self.admin, 'Staff room')), (1, 0))

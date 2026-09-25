@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.db import models, transaction
 from decimal import Decimal
+import uuid
 from api.models.user import Tenant, UserProfile
 from api.models.custom_service import CustomServiceRequest
 from education.models import Class, Student, FeeStructure, FeePayment, FeeDiscount, Attendance, ReportCard, StaffAttendance as EducationStaffAttendance, Department
@@ -330,7 +331,7 @@ class PharmacySaleSerializer(serializers.ModelSerializer):
         if 'invoice_number' not in validated_data or not validated_data['invoice_number']:
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            validated_data['invoice_number'] = f"INV{timestamp}"
+            validated_data['invoice_number'] = f"INV{timestamp}{uuid.uuid4().hex[:4].upper()}"
 
         sale = super().create(validated_data)
         
@@ -753,7 +754,7 @@ class RetailSaleSerializer(serializers.ModelSerializer):
         if 'invoice_number' not in validated_data or not validated_data['invoice_number']:
             from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            validated_data['invoice_number'] = f"RINV{timestamp}"
+            validated_data['invoice_number'] = f"RINV{timestamp}{uuid.uuid4().hex[:4].upper()}"
         
         sale = super().create(validated_data)
 
@@ -776,6 +777,10 @@ class RetailSaleSerializer(serializers.ModelSerializer):
                         f'{product.name}: only {on_hand} in stock at {sale.warehouse.name}, {quantity} requested.')
                 inventory.quantity_on_hand -= quantity
                 inventory.save()
+                if inventory.quantity_available <= product.reorder_level:
+                    from api.notify import notify
+                    notify(sale.tenant, f'Low stock: {product.name}', f'{inventory.quantity_available} left at {sale.warehouse.name} (reorder level {product.reorder_level}).',
+                           module='retail', kind='warning', path='/retail?tab=inventory', ref=('low_stock', product.id), dedupe_days=14)
 
         return sale
 
@@ -1171,6 +1176,10 @@ class OrderSerializer(serializers.ModelSerializer):
 		# The kitchen display picks the order up from here
 		from restaurant.kds import create_kds_ticket
 		create_kds_ticket(order)
+		if order.order_type in ('delivery', 'cloud_kitchen'):
+			from api.notify import notify
+			notify(order.tenant, f'New {order.get_order_type_display().lower()} order #{order.id}', f'{order.customer_name or "Customer"}: {total_amount + added_tax}.',
+			       module='restaurant', path='/restaurant?tab=pos', ref=('order', order.id))
 
 		return order
 	

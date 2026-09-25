@@ -47,6 +47,9 @@ def record_public_fee_payment(tenant, notes, payment_id, order_id, paid_paise):
         tenant=tenant, user=None, order_id=order_id or '', payment_id=payment_id, signature='', amount=amount, currency='INR',
         status='verified', sector='education', reference_id=str(payment.id),
         description=f'Online fee payment: {student.name}', verified_at=timezone.now())
+    from api.notify import notify
+    notify(tenant, f'Online fee received: {student.name}', f'{amount} received for {structure.get_fee_type_display()} (receipt {payment.receipt_number}).',
+           roles=('admin', 'principal', 'accountant'), module='education', kind='success', path='/education?tab=fees', ref=('fee_payment', payment.id))
     total_paid = FeePayment.objects.filter(tenant=tenant, student=student, fee_structure=structure).aggregate(t=Sum('amount_paid'))['t'] or 0
     if total_paid > structure.amount:
         logger.warning('Fee over-paid online: student %s fee %s paid %s of %s', student.id, structure.id, total_paid, structure.amount)

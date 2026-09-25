@@ -22,4 +22,8 @@ def accept_pending_invitation(user):
         profile = UserProfile.objects.create(user=user, tenant=invitation.tenant, role=invitation.role)
         invitation.accepted_at = timezone.now()
         invitation.save(update_fields=['accepted_at'])
+    if invitation.invited_by_id:
+        from api.notify import notify
+        notify(invitation.tenant, f'{email} joined your team', f'They signed in with Google as {invitation.role.name}.', users=[invitation.invited_by],
+               module='general', kind='success', path='/settings/users', ref=('invite', invitation.id))
     return profile

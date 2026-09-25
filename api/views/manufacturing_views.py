@@ -291,7 +291,10 @@ class QualityCheckListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.userprofile.tenant, checked_by=self.request.user.userprofile)
+        check = serializer.save(tenant=self.request.user.userprofile.tenant, checked_by=self.request.user.userprofile)
+        if str(check.result).upper() in ('FAILED', 'FAIL', 'REJECTED'):
+            from api.notify import notify
+            notify(check.tenant, 'Quality check failed', str(check), module='general', kind='warning', path='/manufacturing', ref=('qc', check.id))
 
 
 class QualityCheckDetailView(generics.RetrieveUpdateDestroyAPIView):

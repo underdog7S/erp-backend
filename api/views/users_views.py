@@ -368,6 +368,10 @@ class ActivateUserView(APIView):
             UserProfile.objects.create(user=user, tenant=invitation.tenant, role=invitation.role)
             invitation.accepted_at = timezone.now()
             invitation.save(update_fields=['accepted_at'])
+            from api.notify import notify
+            if invitation.invited_by_id:
+                notify(invitation.tenant, f'{email} joined your team', f'They accepted the invitation as {invitation.role.name}.', users=[invitation.invited_by],
+                       module='general', kind='success', path='/settings/users', ref=('invite', invitation.id))
             return Response({"message": "Account activated. You can now log in."})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -104,7 +104,10 @@ class LeaveListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         d = serializer.validated_data
-        serializer.save(tenant=_tenant(self.request), days=(d['end_date'] - d['start_date']).days + 1)
+        leave = serializer.save(tenant=_tenant(self.request), days=(d['end_date'] - d['start_date']).days + 1)
+        from api.notify import notify
+        notify(leave.tenant, f'Leave request: {leave.employee.name}', f'{leave.days} day(s) {leave.get_leave_type_display().lower()} from {leave.start_date}. Waiting for approval.',
+               module='general', path='/hr', ref=('leave', leave.id), exclude=self.request.user)
 
 
 class LeaveDecisionView(APIView):
@@ -129,6 +132,10 @@ class LeaveDecisionView(APIView):
         leave.status = decision
         leave.decided_by = request.user.userprofile
         leave.save(update_fields=['status', 'decided_by'])
+        if leave.employee.user_id:
+            from api.notify import notify
+            notify(leave.tenant, f'Your leave was {decision}', f'{leave.days} day(s) from {leave.start_date}.', users=[leave.employee.user.user],
+                   module='general', kind='success' if decision == 'approved' else 'info', path='/hr', ref=('leave_decision', leave.id))
         return Response({'status': leave.status})
 
 

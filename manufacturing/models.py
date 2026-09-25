@@ -263,6 +263,10 @@ class ProductionOrder(models.Model):
             inv, needed = inventories[item.id]
             inv.quantity_on_hand -= needed
             inv.save()
+            if inv.quantity_available <= inv.raw_material.reorder_level:
+                from api.notify import notify
+                notify(self.tenant, f'Raw material low: {inv.raw_material.name}', f'{inv.quantity_available} left (reorder level {inv.raw_material.reorder_level}).',
+                       module='general', kind='warning', path='/manufacturing?tab=raw', ref=('low_material', inv.raw_material_id), dedupe_days=14)
 
         self.status = 'IN_PROGRESS'
         self.actual_start_date = timezone.now()
@@ -290,6 +294,9 @@ class ProductionOrder(models.Model):
         self.status = 'COMPLETED'
         self.actual_end_date = timezone.now()
         self.save()
+        from api.notify import notify
+        notify(self.tenant, 'Production completed', f'{qty} of {self.finished_good.name} added to stock.', module='general', kind='success',
+               path='/manufacturing', ref=('production', self.id))
 
 
 class QualityCheck(models.Model):

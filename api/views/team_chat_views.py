@@ -218,6 +218,15 @@ class ChannelMessagesView(APIView):
         membership.last_read_at = message.created_at
         membership.save(update_fields=['last_read_at'])
 
+        if channel.channel_type != 'ai':
+            from api.notify import notify
+            from api.models.team_chat import ChatChannelMembership
+            others = [m.user for m in ChatChannelMembership.objects.filter(channel=channel).exclude(user=request.user).select_related('user')]
+            sender = request.user.get_full_name() or request.user.username
+            notify(channel.tenant,
+                   f'{sender} in {channel.name or "a direct message"}', content[:120], users=others, module='general', priority='low', path='/team-chat',
+                   ref=('chat', channel.id), dedupe_days=1)
+
         response_data = {
             'id': message.id,
             'content': message.content,
