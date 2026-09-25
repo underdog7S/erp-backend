@@ -44,7 +44,7 @@ def _p(text, size=9, bold=False, color=INK, align=0, leading=None):
     return Paragraph(escape(str(text)).replace('\n', '<br/>'), style)
 
 
-def render_invoice(tenant, *, title, number, date_text, bill_to, meta, columns, rows, totals, gst=None, notes=None, footer=None):
+def render_invoice(tenant, *, title, number, date_text, bill_to, meta, columns, rows, totals, gst=None, notes=None, footer=None, bill_label='BILLED TO'):
     """Build the PDF and return its bytes.
 
     bill_to  list of lines for the customer block
@@ -71,7 +71,7 @@ def render_invoice(tenant, *, title, number, date_text, bill_to, meta, columns, 
     story += [head, Spacer(1, 6 * mm)]
 
     # ---- customer and details
-    left = [_p('BILLED TO', 7.5, True, MUTED)] + [_p(l, 9.5) for l in bill_to if l]
+    left = [_p(bill_label, 7.5, True, MUTED)] + [_p(l, 9.5) for l in bill_to if l]
     right = [_p('DETAILS', 7.5, True, MUTED)] + [_p(f'{k}: {v}', 9) for k, v in meta if v not in (None, '')]
     info = Table([[left, right]], colWidths=[88 * mm, 88 * mm])
     info.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('LEFTPADDING', (0, 0), (-1, -1), 0)]))
@@ -90,7 +90,7 @@ def render_invoice(tenant, *, title, number, date_text, bill_to, meta, columns, 
 
     # ---- totals (right aligned) and GST summary
     tot_rows = [[_p(label, 9.5, bold), _p(amount, 9.5, bold, align=2)] for label, amount, bold in totals]
-    tot = Table(tot_rows, colWidths=[36 * mm, 34 * mm], hAlign='RIGHT')
+    tot = Table(tot_rows, colWidths=[42 * mm, 34 * mm], hAlign='RIGHT')
     tot.setStyle(TableStyle([('LINEABOVE', (0, -1), (-1, -1), 0.8, INK), ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2)]))
     story.append(tot)
     if gst and (gst.get('cgst') or gst.get('sgst') or gst.get('igst')):

@@ -285,6 +285,12 @@ class InviteUserView(APIView):
 
         activation_link = f"{settings.FRONTEND_URL}/activate?email={urllib.parse.quote(email)}&token={token}"
         inviter = request.user.get_full_name() or request.user.username
+        if not settings.DEBUG and not (settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD):
+            logger.error("Invitation not emailed: EMAIL_HOST_USER / EMAIL_HOST_PASSWORD are not set on the server")
+            return Response({
+                "message": f"The invitation was created, but this server has no email account set up (EMAIL_HOST_USER and EMAIL_HOST_PASSWORD). Share this link with {email} directly.",
+                "email_sent": False, "activation_link": activation_link,
+            }, status=status.HTTP_201_CREATED)
         try:
             from django.core.mail import EmailMessage
             EmailMessage(
@@ -297,13 +303,13 @@ class InviteUserView(APIView):
                 to=[email],
                 reply_to=[request.user.email] if request.user.email else None,
             ).send(fail_silently=False)
-        except Exception:
+        except Exception as exc:
             logger.exception("Invitation email to %s failed", email)
             return Response({
-                "message": f"The invitation was created but the email could not be sent to {email}. Share this link with them directly.",
+                "message": f"The invitation was created but the email could not be sent to {email} ({type(exc).__name__}). Share this link with them directly.",
                 "email_sent": False, "activation_link": activation_link,
             }, status=status.HTTP_201_CREATED)
-        return Response({"message": f"Invitation sent to {email}.", "email_sent": True})
+        return Response({"message": f"Invitation sent to {email}. If it does not arrive in a few minutes, check spam or share the link below.", "email_sent": True, "activation_link": activation_link})
 
 
 class InvitationInfoView(APIView):

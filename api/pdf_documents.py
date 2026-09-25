@@ -142,3 +142,45 @@ def hotel_folio(booking):
         meta=[('Room', f'{booking.room.room_number} ({rt.name})'), ('Check-in', _dt(booking.check_in)), ('Check-out', _dt(booking.check_out)),
               ('Status', booking.get_status_display())],
         columns=columns, rows=rows, totals=totals, gst=_gst(booking), footer='Thank you for staying with us.')
+
+
+def _school_identity(tenant):
+    """The tenant's own address/phone, falling back to the admin's profile (where schools entered them before)."""
+    from types import SimpleNamespace
+    from api.models.user import UserProfile
+    address, phone = tenant.address, tenant.phone
+    if not (address and phone):
+        admin = UserProfile.objects.filter(tenant=tenant, role__name__in=['admin', 'principal']).exclude(address__isnull=True).exclude(address='').first() \
+            or UserProfile.objects.filter(tenant=tenant, role__name='admin').first()
+        if admin:
+            address = address or admin.address or ''
+            phone = phone or admin.phone or ''
+    return SimpleNamespace(name=tenant.name, address=address, phone=phone, gstin=tenant.gstin)
+
+
+def fee_receipt(payment):
+    from django.db.models import Sum
+    from education.models import FeePayment
+    fs = payment.fee_structure
+    student = payment.student
+    total_fee = fs.amount if fs else payment.amount_paid
+    earlier = FeePayment.objects.filter(tenant=payment.tenant, student=student, fee_structure=fs, id__lte=payment.id) if fs else FeePayment.objects.filter(pk=payment.pk)
+    agg = earlier.aggregate(paid=Sum('amount_paid'), disc=Sum('discount_amount'))
+    paid_to_date, discounts = agg['paid'] or ZERO, agg['disc'] or ZERO
+    balance = max(ZERO, total_fee - paid_to_date - discounts)
+    fee_name = fs.get_fee_type_display() if fs else 'Fee'
+    rows = [['1', f'{fee_name}' + (f'\nInstalment: {payment.installment}' if payment.installment_id else ''), money(payment.amount_paid)]]
+    totals = [('Total fee', money(total_fee), False)]
+    if payment.discount_amount:
+        totals.append(('Discount', '-' + money(payment.discount_amount), False))
+    totals += [('Paid till date', money(paid_to_date), False), ('Balance due', money(balance), False), ('Amount received', money(payment.amount_paid), True)]
+    klass = student.assigned_class.name if student.assigned_class_id else ''
+    return render_invoice(
+        _school_identity(payment.tenant), title='Fee receipt', number=payment.receipt_number or f'FEE-{payment.id:06d}',
+        date_text=payment.payment_date.strftime('%d %b %Y'),
+        bill_to=[student.name, f'Roll no: {student.upper_id}' if student.upper_id else '', f'Class: {klass}' if klass else '',
+                 f'Parent: {student.parent_name}' if student.parent_name else '', f'Phone: {student.parent_phone}' if student.parent_phone else ''],
+        meta=[('Academic year', str(payment.academic_year) if payment.academic_year else ''), ('Paid by', payment.get_payment_method_display() if hasattr(payment, 'get_payment_method_display') else payment.payment_method),
+              ('Received by', (payment.collected_by.user.get_full_name() or payment.collected_by.user.username) if payment.collected_by_id else '')],
+        columns=[('#', 8, 'L'), ('Description', 132, 'L'), ('Amount', 38, 'R')], rows=rows, totals=totals,
+        notes=[f'Note: {payment.notes}'] if payment.notes else None, footer='Thank you for your payment.', bill_label='STUDENT')

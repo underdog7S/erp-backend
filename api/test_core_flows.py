@@ -779,6 +779,10 @@ class PrescriptionTests(APITestCase):
         self.assertEqual(r.status_code, 400)
 
 
+from django.test import override_settings
+
+
+@override_settings(EMAIL_HOST_USER='noreply@test.example', EMAIL_HOST_PASSWORD='x')
 class InviteAndGoogleTests(APITestCase):
     def setUp(self):
         from api.models.plan import Plan
@@ -1118,3 +1122,40 @@ class BillPdfTests(APITestCase):
         self.check_common(t)
         for needle in ('1006', '1,050.00', '50.00', 'Walk-in'):
             self.assertIn(needle, t)
+
+
+class FeeReceiptPdfTests(APITestCase):
+    def test_receipt_shows_running_balance_not_just_this_payment(self):
+        import datetime, io
+        import pypdf
+        from api.models.plan import Plan
+        from education.models import AcademicYear, Class, FeePayment, FeeStructure, Student
+        plan = Plan.objects.create(name='Edu Pdf', price=0, storage_limit_mb=100, has_education=True)
+        tenant = Tenant.objects.create(name='Green School', industry='education', plan=plan, address='5 School Lane', phone='9700000000')
+        self.client.force_authenticate(make_user(tenant, 'edu_pdf_admin', 'admin'))
+        klass = Class.objects.create(tenant=tenant, name='Std 1')
+        student = Student.objects.create(tenant=tenant, name='Rohit', upper_id='R1', admission_date=datetime.date.today(), assigned_class=klass, parent_name='Parent', parent_phone='9')
+        fs = FeeStructure.objects.create(tenant=tenant, class_obj=klass, fee_type='TUITION', amount=10000, due_date=datetime.date.today())
+        FeePayment.objects.create(tenant=tenant, student=student, fee_structure=fs, amount_paid=5000, payment_date=datetime.date.today(), receipt_number='R-1')
+        second = FeePayment.objects.create(tenant=tenant, student=student, fee_structure=fs, amount_paid=5000, payment_date=datetime.date.today(), receipt_number='R-2')
+        r = self.client.get(f'/api/education/fee-payments/{second.id}/receipt/')
+        self.assertEqual(r.status_code, 200)
+        text = '\n'.join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(r.content)).pages)
+        for needle in ('Green School', '5 School Lane', 'Roll no: R1', 'Paid till date', '10,000.00', 'Balance due', '₹'):
+            self.assertIn(needle, text)
+        self.assertIn('₹0.00', text.replace(' ', ''))  # fully paid after the second instalment
+
+
+@override_settings(EMAIL_HOST_USER='', EMAIL_HOST_PASSWORD='')
+class InviteWithoutEmailAccountTests(APITestCase):
+    def test_admin_is_told_and_gets_the_link_when_the_server_has_no_email_account(self):
+        from api.models.plan import Plan
+        plan = Plan.objects.create(name='Inv Plan 2', price=0, storage_limit_mb=100, max_users=10)
+        tenant = Tenant.objects.create(name='No Mail Co', industry='retail', plan=plan)
+        Role.objects.get_or_create(name='teacher')
+        self.client.force_authenticate(make_user(tenant, 'nm_admin', 'admin'))
+        r = self.client.post('/api/users/invite/', {'email': 'a@b.test', 'role': 'teacher'}, format='json')
+        self.assertEqual(r.status_code, 201)
+        self.assertFalse(r.data['email_sent'])
+        self.assertIn('EMAIL_HOST_USER', r.data['message'])
+        self.assertIn('/activate?email=', r.data['activation_link'])
