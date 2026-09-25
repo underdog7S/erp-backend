@@ -21,7 +21,7 @@ from api.views.education_views import (
 from .views import (
     integration_views,
     users_views, plan_views, dashboard_views, payments_views, 
-    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, business_views, accounting_views, hr_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
+    education_views, pharmacy_views, retail_views, retail_procurement_views, restaurant_kds_views, education_detail_views, business_views, accounting_views, hr_views, salon_commission_views, hotel_views, salon_views, restaurant_views, public_views, whatsapp_views,
     google_auth_views, api_docs_views, auth_views, admin_views, import_views, alerts_views, employee_analytics, custom_service_views,
     razorpay_views, twilio_views, manufacturing_views
 )
@@ -255,6 +255,9 @@ urlpatterns = [
     path('education/academic-years/', education_views.AcademicYearListCreateView.as_view(), name='education-academic-years'),
     path('education/academic-years/<int:pk>/', education_views.AcademicYearDetailView.as_view(), name='education-academic-year-detail'),
     path('education/terms/', education_views.TermListCreateView.as_view(), name='education-terms'),
+    path('education/terms/<int:pk>/', education_detail_views.TermDetailView.as_view(), name='education-term-detail'),
+    path('education/subjects/<int:pk>/', education_detail_views.SubjectDetailView.as_view(), name='education-subject-detail'),
+    path('education/assessments/<int:pk>/', education_detail_views.AssessmentDetailView.as_view(), name='education-assessment-detail'),
     path('education/subjects/', education_views.SubjectListCreateView.as_view(), name='education-subjects'),
     path('education/units/', education_views.UnitListCreateView.as_view(), name='education-units'),
     path('education/units/<int:pk>/', education_views.UnitDetailView.as_view(), name='education-unit-detail'),

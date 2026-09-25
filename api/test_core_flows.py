@@ -1245,3 +1245,24 @@ class OnlineFeePaymentTests(APITestCase):
             r = self.client.post('/api/education/public/fee-payment/confirm/', body, format='json')
         self.assertEqual(r.status_code, 400)
         self.assertEqual(FeePayment.objects.count(), 0)
+
+
+class EducationSetupEditTests(APITestCase):
+    def test_terms_can_be_edited_and_deleted_only_within_own_school(self):
+        import datetime
+        from api.models.plan import Plan
+        from education.models import AcademicYear, Term
+        plan = Plan.objects.create(name='Edu Edit', price=0, storage_limit_mb=100, has_education=True)
+        a = Tenant.objects.create(name='School A', industry='education', plan=plan)
+        b = Tenant.objects.create(name='School B', industry='education', plan=plan)
+        year = AcademicYear.objects.create(tenant=a, name='2026-27', start_date=datetime.date(2026, 4, 1), end_date=datetime.date(2027, 3, 31))
+        term = Term.objects.create(tenant=a, academic_year=year, name='Term 1', order=1, start_date=datetime.date(2026, 4, 1), end_date=datetime.date(2026, 9, 30))
+        self.client.force_authenticate(make_user(a, 'edu_admin_a', 'admin'))
+        r = self.client.patch(f'/api/education/terms/{term.id}/', {'name': 'First Term'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        term.refresh_from_db()
+        self.assertEqual(term.name, 'First Term')
+        other = APIClient()
+        other.force_authenticate(make_user(b, 'edu_admin_b', 'admin'))
+        self.assertEqual(other.delete(f'/api/education/terms/{term.id}/').status_code, 404)
+        self.assertEqual(self.client.delete(f'/api/education/terms/{term.id}/').status_code, 204)
