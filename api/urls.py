@@ -271,6 +271,7 @@ urlpatterns = [
     # Public API for parents to pay fees from external websites
     path('education/public/fee-status/', education_views.PublicStudentFeeStatusView.as_view(), name='education-public-fee-status'),
     path('education/public/fee-payment/', education_views.PublicFeePaymentCreateView.as_view(), name='education-public-fee-payment'),
+    path('education/public/fee-payment/confirm/', education_views.PublicFeePaymentConfirmView.as_view(), name='education-public-fee-payment-confirm'),
     
     # Installment Management endpoints
     path('education/installment-plans/', education_views.FeeInstallmentPlanListCreateView.as_view(), name='education-installment-plans'),

@@ -728,6 +728,12 @@ class RazorpayWebhookView(APIView):
                     
                     sector = order_notes.get('sector', 'general')
                     reference_id = order_notes.get('reference_id')
+
+                    if sector == 'education_public':
+                        # A school fee paid on the public page: record it now that the money is confirmed
+                        from api.fee_online import record_public_fee_payment
+                        record_public_fee_payment(tenant, order_notes, payment_id, order_id, payment_entity['amount'])
+                        return Response({'status': 'recorded'})
                     
                     # Validate reference belongs to tenant
                     if reference_id:

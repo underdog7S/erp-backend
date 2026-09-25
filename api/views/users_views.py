@@ -709,6 +709,13 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated & IsAdminOrPrincipalForWrite]
 
+    def get_queryset(self):
+        # A team only ever sees and edits its own people
+        profile = getattr(self.request.user, 'userprofile', None)
+        if not profile:
+            return UserProfile.objects.none()
+        return UserProfile.objects.filter(tenant=profile.tenant).select_related('user', 'role')
+
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])

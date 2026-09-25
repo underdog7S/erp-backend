@@ -1159,3 +1159,89 @@ class InviteWithoutEmailAccountTests(APITestCase):
         self.assertFalse(r.data['email_sent'])
         self.assertIn('EMAIL_HOST_USER', r.data['message'])
         self.assertIn('/activate?email=', r.data['activation_link'])
+
+
+class TenantIsolationTests(APITestCase):
+    """One client must never see or change another client's people."""
+
+    def setUp(self):
+        cache.clear()
+        self.a = Tenant.objects.create(name='Tenant A', industry='retail')
+        self.b = Tenant.objects.create(name='Tenant B', industry='retail')
+        self.admin_a = make_user(self.a, 'iso_admin_a', 'admin')
+        self.staff_a = make_user(self.a, 'iso_staff_a', 'staff')
+        self.user_b = make_user(self.b, 'iso_user_b', 'admin')
+
+    def test_user_list_only_shows_own_team(self):
+        for actor in (self.admin_a, self.staff_a):
+            self.client.force_authenticate(actor)
+            data = self.client.get('/api/users/').data
+            rows = data['results'] if isinstance(data, dict) else data
+            names = [str(r.get('username') or r.get('user', {}).get('username') or r) for r in rows]
+            self.assertFalse(any('iso_user_b' in n for n in names), names)
+
+    def test_admin_cannot_read_edit_or_delete_another_teams_profile(self):
+        self.client.force_authenticate(self.admin_a)
+        other = UserProfile.objects.get(user=self.user_b)
+        self.assertEqual(self.client.get(f'/api/users/{other.id}/').status_code, 404)
+        self.assertEqual(self.client.patch(f'/api/users/{other.id}/', {'phone': '1'}, format='json').status_code, 404)
+        self.assertEqual(self.client.delete(f'/api/users/{other.id}/').status_code, 404)
+        self.assertTrue(UserProfile.objects.filter(pk=other.pk).exists())
+
+
+class OnlineFeePaymentTests(APITestCase):
+    def setUp(self):
+        import datetime
+        from api.models.plan import Plan
+        from education.models import Class, FeeStructure, Student
+        cache.clear()
+        plan = Plan.objects.create(name='Fee Plan', price=0, storage_limit_mb=100, has_education=True)
+        self.tenant = Tenant.objects.create(name='Pay School', industry='education', plan=plan, razorpay_key_id='rzp_test_x',
+                                            razorpay_key_secret='secret123', razorpay_enabled=True)
+        klass = Class.objects.create(tenant=self.tenant, name='Std 2')
+        self.student = Student.objects.create(tenant=self.tenant, name='Asha', upper_id='A1', admission_date=datetime.date.today(),
+                                              assigned_class=klass, parent_phone='9000000000')
+        self.fs = FeeStructure.objects.create(tenant=self.tenant, class_obj=klass, fee_type='TUITION', amount=10000, due_date=datetime.date.today())
+        self.notes = {'sector': 'education_public', 'tenant_id': str(self.tenant.id), 'student_id': str(self.student.id),
+                      'fee_structure_id': str(self.fs.id), 'parent_name': 'Mum'}
+
+    def fake_razorpay(self):
+        from unittest import mock
+        rz = mock.MagicMock()
+        rz.Client.return_value.order.create.return_value = {'id': 'order_1', 'amount': 500000, 'currency': 'INR', 'receipt': 'r'}
+        rz.Client.return_value.order.fetch.return_value = {'id': 'order_1', 'amount': 500000, 'amount_paid': 500000, 'notes': self.notes}
+        return rz
+
+    def signature(self, order_id='order_1', payment_id='pay_1'):
+        from api.fee_online import verify_checkout_signature
+        import hashlib, hmac
+        return hmac.new(b'secret123', f'{order_id}|{payment_id}'.encode(), hashlib.sha256).hexdigest()
+
+    def test_starting_a_payment_records_nothing(self):
+        from education.models import FeePayment
+        with mock.patch('api.views.education_views.razorpay', self.fake_razorpay()):
+            r = self.client.post('/api/education/public/fee-payment/', {'tenant_id': self.tenant.id, 'student_roll_number': 'A1',
+                                 'parent_phone': '9000000000', 'fee_structure_id': self.fs.id, 'amount': 5000}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['status'], 'pending_payment')
+        self.assertEqual(FeePayment.objects.count(), 0)
+
+    def test_confirmed_payment_is_recorded_once(self):
+        from education.models import FeePayment
+        body = {'tenant_id': self.tenant.id, 'razorpay_order_id': 'order_1', 'razorpay_payment_id': 'pay_1', 'razorpay_signature': self.signature()}
+        with mock.patch('api.views.education_views.razorpay', self.fake_razorpay()):
+            first = self.client.post('/api/education/public/fee-payment/confirm/', body, format='json')
+            again = self.client.post('/api/education/public/fee-payment/confirm/', body, format='json')
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertFalse(first.data['already_recorded'])
+        self.assertTrue(again.data['already_recorded'])
+        pays = FeePayment.objects.all()
+        self.assertEqual((pays.count(), float(pays[0].amount_paid), pays[0].payment_method), (1, 5000.0, 'RAZORPAY'))
+
+    def test_bad_signature_records_nothing(self):
+        from education.models import FeePayment
+        body = {'tenant_id': self.tenant.id, 'razorpay_order_id': 'order_1', 'razorpay_payment_id': 'pay_1', 'razorpay_signature': 'forged'}
+        with mock.patch('api.views.education_views.razorpay', self.fake_razorpay()):
+            r = self.client.post('/api/education/public/fee-payment/confirm/', body, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(FeePayment.objects.count(), 0)

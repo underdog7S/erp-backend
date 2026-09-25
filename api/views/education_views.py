@@ -38,6 +38,11 @@ except ImportError:
 from rest_framework.pagination import PageNumberPagination
 from rest_framework import viewsets
 
+try:
+    import razorpay
+except ImportError:  # the online-payment views then answer that payments are unavailable
+    razorpay = None
+
 logger = logging.getLogger(__name__)
 
 # Helper function for safe text drawing with automatic wrapping
@@ -5314,7 +5319,6 @@ class PublicFeePaymentCreateView(APIView):
         from decimal import Decimal, InvalidOperation
         from django.utils import timezone
         from django.db import transaction
-        import razorpay
         
         serializer = PublicFeePaymentCreateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -5403,25 +5407,6 @@ class PublicFeePaymentCreateView(APIView):
                 'error': 'An error occurred while calculating remaining amount.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-        # Create fee payment record (pending - will be updated after Razorpay payment)
-        try:
-            with transaction.atomic():
-                fee_payment = FeePayment.objects.create(
-                    tenant=tenant,
-                    student=student,
-                    fee_structure=fee_structure,
-                    amount_paid=amount,
-                    payment_method='CASH',  # Will be updated to RAZORPAY after payment
-                    payment_date=timezone.now().date(),
-                    notes=data.get('notes', '') or f"Payment from parent: {data.get('parent_name', 'N/A')}",
-                    academic_year=fee_structure.academic_year
-                )
-        except Exception as e:
-            logger.error(f"Error creating fee payment in PublicFeePaymentCreateView: {str(e)}", exc_info=True)
-            return Response({
-                'error': 'Failed to create payment record. Please try again.'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
         # Generate payment link if Razorpay is configured
         payment_data = None
         if tenant.has_razorpay_configured():
@@ -5435,11 +5420,12 @@ class PublicFeePaymentCreateView(APIView):
                         'amount': int(amount_float * 100),
                         'currency': 'INR',
                         'payment_capture': 1,
-                        'receipt': f"FEE-{fee_payment.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                        'receipt': f"FEE-{student.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                         'notes': {
-                            'sector': 'education',
-                            'reference_id': str(fee_payment.id),
+                            'sector': 'education_public',
                             'student_id': str(student.id),
+                            'fee_structure_id': str(fee_structure.id),
+                            'parent_name': (data.get('parent_name') or '')[:60],
                             'student_name': student.name,
                             'student_roll_number': student.upper_id,
                             'fee_type': fee_structure.fee_type,
@@ -5471,25 +5457,58 @@ class PublicFeePaymentCreateView(APIView):
                         }
                     }
             except Exception as e:
-                logger.error(f"Failed to generate payment link for fee payment {fee_payment.id}: {str(e)}", exc_info=True)
-                # Continue without payment link - payment can be recorded manually
+                logger.error(f"Failed to start online fee payment for student {student.id}: {str(e)}", exc_info=True)
         
+        if not payment_data:
+            return Response({'error': 'Online payment could not be started. Please try again in a few minutes or pay at the school office.'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+
+        # Nothing is recorded yet: the fee is only marked paid once Razorpay confirms the money.
         response_data = {
-            'message': 'Fee payment record created successfully',
-            'fee_payment_id': fee_payment.id,
+            'message': 'Payment started. Complete it in the payment window.',
             'student_name': student.name,
             'student_roll_number': student.upper_id,
             'fee_type': fee_structure.fee_type,
             'amount': str(amount),
-            'receipt_number': fee_payment.receipt_number,
-            'status': 'pending_payment' if payment_data else 'recorded'
+            'status': 'pending_payment',
+            'payment': payment_data,
+            'payment_link': payment_data['payment_url'],
         }
-        
-        if payment_data:
-            response_data['payment'] = payment_data
-            response_data['payment_link'] = payment_data['payment_url']
-        
         return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+class PublicFeePaymentConfirmView(APIView):
+    """The parent's browser calls this after checkout succeeds; it verifies the payment with Razorpay and records it."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        from api.fee_online import record_public_fee_payment, verify_checkout_signature
+        d = request.data
+        try:
+            tenant = Tenant.objects.get(id=d.get('tenant_id'))
+        except (Tenant.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'School not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not tenant.has_razorpay_configured() or razorpay is None:
+            return Response({'error': 'Online payments are not available for this school.'}, status=status.HTTP_400_BAD_REQUEST)
+        order_id, payment_id = d.get('razorpay_order_id'), d.get('razorpay_payment_id')
+        if not (order_id and payment_id and verify_checkout_signature(tenant.razorpay_key_secret, order_id, payment_id, d.get('razorpay_signature'))):
+            return Response({'error': 'The payment could not be verified.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            client = razorpay.Client(auth=(tenant.razorpay_key_id, tenant.razorpay_key_secret))
+            order = client.order.fetch(order_id)
+            notes = order.get('notes', {})
+            if notes.get('sector') != 'education_public' or str(notes.get('tenant_id')) != str(tenant.id):
+                return Response({'error': 'This payment is not a school fee payment.'}, status=status.HTTP_400_BAD_REQUEST)
+            payment, created = record_public_fee_payment(tenant, notes, payment_id, order_id, order.get('amount_paid') or order.get('amount'))
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error('Confirming online fee payment failed: %s', e, exc_info=True)
+            return Response({'error': 'We could not confirm the payment yet. If money was deducted, it will be recorded shortly; contact the school if it is not.'},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'message': 'Payment recorded.', 'receipt_number': payment.receipt_number if payment else None, 'already_recorded': not created})
+
 
 from education.models import Assignment, AssignmentSubmission, Grade
 from api.serializers import AssignmentSerializer, AssignmentSubmissionSerializer, GradeSerializer
