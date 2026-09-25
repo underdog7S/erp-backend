@@ -926,3 +926,48 @@ class BusinessDetailsTests(APITestCase):
     def test_staff_cannot_change_it(self):
         self.client.force_authenticate(self.staff)
         self.assertEqual(self.client.put('/api/tenant/business/', {'gstin': '27AAPFU0939F1ZV'}, format='json').status_code, 403)
+
+
+class AccountingTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Acc Plan', price=0, storage_limit_mb=100, has_restaurant=True, has_retail=True)
+        self.tenant = Tenant.objects.create(name='Acc Co', industry='restaurant', plan=plan)
+        self.client.force_authenticate(make_user(self.tenant, 'acc_admin', 'admin'))
+        self.staff = APIClient()
+        self.staff.force_authenticate(make_user(self.tenant, 'acc_staff', 'staff'))
+
+    def add_expense(self, **kw):
+        cat = self.client.post('/api/accounting/categories/', {'name': 'Rent'}, format='json')
+        cid = cat.data['id'] if cat.status_code == 201 else self.client.get('/api/accounting/categories/').data['results'][0]['id']
+        body = {'category': cid, 'date': str(__import__('datetime').date.today()), 'vendor': 'Landlord', 'amount': '11800', 'gst_amount': '1800'}
+        body.update(kw)
+        return self.client.post('/api/accounting/expenses/', body, format='json')
+
+    def test_expense_validation(self):
+        self.assertEqual(self.add_expense().status_code, 201)
+        self.assertEqual(self.add_expense(amount='0').status_code, 400)
+        self.assertEqual(self.add_expense(gst_amount='20000').status_code, 400)
+
+    def test_staff_cannot_see_or_add_expenses(self):
+        self.add_expense()
+        self.assertEqual(self.staff.get('/api/accounting/expenses/').data['results'], [])
+        self.assertEqual(self.staff.get('/api/accounting/report/').status_code, 403)
+
+    def test_report_combines_sales_and_expenses_with_gst(self):
+        from restaurant.models import Order
+        Order.objects.create(tenant=self.tenant, order_type='takeaway', customer_name='x', customer_phone='1', status='paid', total_amount=1050, tax_amount=50)
+        Order.objects.create(tenant=self.tenant, order_type='takeaway', customer_name='y', customer_phone='1', status='open', total_amount=999, tax_amount=99)  # not paid: ignored
+        self.add_expense()
+        d = self.client.get('/api/accounting/report/').data
+        t = d['totals']
+        self.assertEqual((float(t['revenue']), float(t['output_tax'])), (1050.0, 50.0))
+        self.assertEqual((float(t['expenses']), float(t['input_tax'])), (11800.0, 1800.0))
+        self.assertEqual(float(t['profit']), (1050 - 50) - (11800 - 1800))
+        self.assertEqual(float(d['gst']['payable']), 50 - 1800)  # negative: credit to carry forward
+        csv_resp = self.client.get('/api/accounting/report/?export=csv')
+        self.assertIn(b'Restaurant orders', csv_resp.content)
+
+    def test_bad_dates_rejected(self):
+        self.assertEqual(self.client.get('/api/accounting/report/?date_from=2026-05-01&date_to=2026-04-01').status_code, 400)
