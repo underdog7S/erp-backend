@@ -303,13 +303,14 @@ class InviteUserView(APIView):
                 to=[email],
                 reply_to=[request.user.email] if request.user.email else None,
             ).send(fail_silently=False)
+            logger.info("Invitation email handed to the mail server for %s from %s", email, settings.DEFAULT_FROM_EMAIL)
         except Exception as exc:
             logger.exception("Invitation email to %s failed", email)
             return Response({
                 "message": f"The invitation was created but the email could not be sent to {email} ({type(exc).__name__}). Share this link with them directly.",
                 "email_sent": False, "activation_link": activation_link,
             }, status=status.HTTP_201_CREATED)
-        return Response({"message": f"Invitation sent to {email}. If it does not arrive in a few minutes, check spam or share the link below.", "email_sent": True, "activation_link": activation_link})
+        return Response({"message": f"Invitation handed to the mail server for {email}, sent from {settings.DEFAULT_FROM_EMAIL}. If it does not arrive in a few minutes, check their spam folder or share the link below.", "email_sent": True, "sent_from": settings.DEFAULT_FROM_EMAIL, "activation_link": activation_link})
 
 
 class InvitationInfoView(APIView):
