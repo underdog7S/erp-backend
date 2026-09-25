@@ -13,6 +13,22 @@ services:
       - key: SECRET_KEY
         sync: false
 
+  - type: cron
+    name: erp-daily-notifications
+    env: python
+    schedule: "30 2 * * *"
+    buildCommand: pip install -r requirements-production.txt
+    startCommand: python manage.py run_daily_notifications --settings=erp.settings_production
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: erp.settings_production
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
   - type: web
     name: erp-backend
     env: python
