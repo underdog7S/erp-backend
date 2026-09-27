@@ -4523,40 +4523,36 @@ class TransferCertificateListCreateView(APIView):
     
     @role_required('admin', 'principal')
     def post(self, request):
-        """Create a new Transfer Certificate"""
+        """Create a new Transfer Certificate.
+
+        class_obj, student_name, admission_number, admission_date and date_of_birth are required on the model but are not
+        writable serializer fields (they are filled in from the student here, not taken from the request), so they are
+        passed straight into serializer.save() rather than through the input data - a plain dict key the serializer never
+        declared is silently dropped by DRF, which is why this endpoint used to fail on every real attempt.
+        """
         try:
             profile = UserProfile._default_manager.get(user=request.user)
             data = request.data.copy()
-            data['tenant'] = profile.tenant.id
-        
-            # Auto-populate student details if student_id or student provided
+
             student_id = data.get('student_id') or data.get('student')
-            # Also handle class_obj_id vs class_obj
-            if 'class_obj_id' in data and 'class_obj' not in data:
-                data['class_obj'] = data['class_obj_id']
-            if student_id:
-                try:
-                    student = Student._default_manager.get(id=student_id, tenant=profile.tenant)
-                    if not data.get('student_name'):
-                        data['student_name'] = student.name
-                    if not data.get('date_of_birth'):
-                        data['date_of_birth'] = student.date_of_birth
-                    if not data.get('admission_number'):
-                        data['admission_number'] = student.upper_id or str(student.id)
-                    if not data.get('admission_date'):
-                        data['admission_date'] = student.admission_date
-                    if not data.get('class_obj') and not data.get('class_obj_id'):
-                        data['class_obj_id'] = student.assigned_class_id
-                except Student.DoesNotExist:
-                    return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Set issuer if not provided
-            if not data.get('issued_by') and not data.get('issued_by_id'):
-                data['issued_by_id'] = profile.id
-            
+            if not student_id:
+                return Response({'student': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                student = Student._default_manager.select_related('assigned_class').get(id=student_id, tenant=profile.tenant)
+            except Student.DoesNotExist:
+                return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+            if not student.assigned_class_id:
+                return Response({'error': 'This student has no class assigned, so a transfer certificate cannot be issued yet.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            data['student'] = student.id
+
             serializer = TransferCertificateSerializer(data=data, context={'request': request})
             if serializer.is_valid():
-                tc = serializer.save(tenant=profile.tenant)
+                tc = serializer.save(
+                    tenant=profile.tenant, class_obj=student.assigned_class, student_name=student.name,
+                    date_of_birth=student.date_of_birth, admission_number=student.upper_id or str(student.id),
+                    admission_date=student.admission_date, issued_by=profile,
+                )
                 return Response(TransferCertificateSerializer(tc).data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except UserProfile.DoesNotExist:

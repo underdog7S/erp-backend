@@ -1785,3 +1785,55 @@ class EducationDepartmentTests(APITestCase):
         self.client.force_authenticate(make_user(other, 'dept_other', 'admin'))
         self.assertEqual(self.client.get(f"/api/education/departments/{dept['id']}/").status_code, 404)
         self.assertEqual(len(self.client.get('/api/education/departments/').data), 0)
+
+
+class AdmissionAndTcTests(APITestCase):
+    """The screens that were reading fields the API never returned (student_name/applicant_name, class_applying_for)."""
+
+    def setUp(self):
+        from datetime import date
+        from api.models.plan import Plan
+        from education.models import AdmissionApplication, Class, Student
+        cache.clear()
+        plan = Plan.objects.create(name='Admin Plan', price=0, storage_limit_mb=100, has_education=True)
+        self.tenant = Tenant.objects.create(name='Admin School', industry='education', plan=plan)
+        self.admin = make_user(self.tenant, 'admn_admin', 'admin')
+        self.client.force_authenticate(self.admin)
+        self.klass = Class.objects.create(tenant=self.tenant, name='Class 3', order=3)
+        self.app = AdmissionApplication.objects.create(tenant=self.tenant, applicant_name='Meera Rao', email='meera@example.com',
+                                                       phone='9', desired_class=self.klass)
+        self.student = Student.objects.create(tenant=self.tenant, name='Old Student', upper_id='ADM-1', assigned_class=self.klass,
+                                              admission_date=date.today(), is_active=True)
+
+    def test_application_list_has_readable_name_and_class(self):
+        r = self.client.get('/api/education/admission-applications/')
+        self.assertEqual(r.status_code, 200)
+        row = r.data[0]
+        self.assertEqual(row['student_name'], 'Meera Rao')
+        self.assertEqual(row['class_name'], 'Class 3')
+
+    def test_approve_creates_student_when_asked(self):
+        from education.models import Student
+        r = self.client.post(f'/api/education/admission-applications/{self.app.id}/approve/', {'create_student': True}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.status, 'approved')
+        self.assertTrue(Student.objects.filter(tenant=self.tenant, name='Meera Rao').exists())
+
+    def test_reject_records_reason(self):
+        r = self.client.post(f'/api/education/admission-applications/{self.app.id}/reject/', {'rejection_reason': 'Class full'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.app.refresh_from_db()
+        self.assertEqual(self.app.status, 'rejected')
+        self.assertIn('Class full', self.app.notes)
+
+    def test_transfer_certificate_created_from_student_and_pdf_downloads(self):
+        from datetime import date
+        r = self.client.post('/api/education/tc/', {'student': self.student.id, 'reason_for_leaving': 'Relocation',
+                             'issue_date': str(date.today())}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['student_name'], 'Old Student')
+        listed = self.client.get('/api/education/tc/')
+        self.assertEqual(listed.data[0]['student_name'], 'Old Student')
+        pdf = self.client.get(f"/api/education/tc/{r.data['id']}/pdf/")
+        self.assertEqual(pdf.status_code, 200)

@@ -392,7 +392,7 @@ class TransferCertificateSerializer(serializers.ModelSerializer):
             'id', 'student', 'student_name', 'student_roll_number', 'class_name',
             'tc_number', 'issue_date', 'reason_for_leaving', 'remarks', 'issued_by', 'issued_by_name', 'created_at'
         ]
-        read_only_fields = ['student_name', 'student_roll_number', 'class_name', 'issued_by_name', 'created_at']
+        read_only_fields = ['tc_number', 'student_name', 'student_roll_number', 'class_name', 'issued_by_name', 'created_at']
     
     def get_issued_by_name(self, obj):
         if obj.issued_by and obj.issued_by.user:
@@ -423,16 +423,17 @@ class AdmissionApplicationSerializer(serializers.ModelSerializer):
     
     remarks = serializers.CharField(source='notes', required=False, allow_blank=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    class_name = serializers.CharField(source='desired_class.name', read_only=True, allow_null=True)
 
     class Meta:
         model = AdmissionApplication
         fields = [
             'id', 'student_name', 'date_of_birth', 'gender', 'parent_name', 'parent_phone',
-            'parent_email', 'class_applying_for_id', 'academic_year_id', 'application_date',
+            'parent_email', 'class_applying_for_id', 'class_name', 'academic_year_id', 'application_date',
             'previous_school', 'documents_submitted', 'status', 'status_display',
             'remarks', 'created_at'
         ]
-        read_only_fields = ['status_display', 'created_at']
+        read_only_fields = ['status_display', 'class_name', 'created_at']
 
     def create(self, validated_data):
         dob = validated_data.pop('date_of_birth', None)
