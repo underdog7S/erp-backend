@@ -2281,6 +2281,8 @@ class EducationDepartmentListCreateView(APIView):
         profile = UserProfile._default_manager.get(user=request.user)
         data = request.data.copy()
         data['tenant'] = profile.tenant.id
+        if Department._default_manager.filter(tenant=profile.tenant, name__iexact=str(data.get('name', '')).strip()).exists():
+            return Response({'name': ['A department with this name already exists.']}, status=status.HTTP_400_BAD_REQUEST)
         serializer = DepartmentSerializer(data=data)
         if serializer.is_valid():
             serializer.save(tenant=profile.tenant)
@@ -2855,8 +2857,11 @@ class FeeDiscountViewSet(viewsets.ModelViewSet):
         serializer.save(tenant=profile.tenant)
 
 class DepartmentViewSet(viewsets.ModelViewSet):
+    """Only the retrieve/update/destroy routes of this ViewSet are reachable (education/departments/<pk>/): the list/create
+    path is registered earlier for EducationDepartmentListCreateView, which wins. Kept in step with that view's own rule -
+    admin and principal change departments, everyone with education access can view."""
     serializer_class = DepartmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasFeaturePermissionFactory('education')]
 
     def get_queryset(self):
         profile = UserProfile._default_manager.get(user=self.request.user)
@@ -2864,7 +2869,19 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         profile = UserProfile._default_manager.get(user=self.request.user)
-        serializer.save(tenant=profile.tenant) 
+        serializer.save(tenant=profile.tenant)
+
+    @role_required('admin', 'principal')
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @role_required('admin', 'principal')
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @role_required('admin', 'principal')
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs) 
 
 class ClassAttendanceStatusView(APIView):
     authentication_classes = [JWTAuthentication]

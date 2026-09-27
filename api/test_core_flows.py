@@ -1740,3 +1740,48 @@ class PharmacyLoyaltyTests(PharmacyReturnTests):
         self.assertEqual(self.cust.loyalty_points, 162)
         self.assertEqual(post(-1000).status_code, 400)
         self.assertEqual(post(0).status_code, 400)
+
+
+class EducationDepartmentTests(APITestCase):
+    def setUp(self):
+        from api.models.plan import Plan
+        cache.clear()
+        plan = Plan.objects.create(name='Dept Plan', price=0, storage_limit_mb=100, has_education=True)
+        self.tenant = Tenant.objects.create(name='Dept School', industry='education', plan=plan)
+        self.admin = make_user(self.tenant, 'dept_admin', 'admin')
+        self.client.force_authenticate(self.admin)
+
+    def test_create_list_and_reject_duplicate(self):
+        r = self.client.post('/api/education/departments/', {'name': 'Science', 'description': 'Physics, chemistry, biology'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(r.data['is_active'])
+        dup = self.client.post('/api/education/departments/', {'name': 'science'}, format='json')
+        self.assertEqual(dup.status_code, 400, dup.data)
+        listed = self.client.get('/api/education/departments/')
+        self.assertEqual(len(listed.data), 1)
+
+    def test_update_and_deactivate(self):
+        dept = self.client.post('/api/education/departments/', {'name': 'Arts'}, format='json').data
+        upd = self.client.patch(f"/api/education/departments/{dept['id']}/", {'is_active': False}, format='json')
+        self.assertEqual(upd.status_code, 200, upd.data)
+        self.assertFalse(upd.data['is_active'])
+
+    def test_staff_cannot_create(self):
+        staff = make_user(self.tenant, 'dept_staff', 'staff')
+        self.client.force_authenticate(staff)
+        self.assertEqual(self.client.post('/api/education/departments/', {'name': 'Ops'}, format='json').status_code, 403)
+
+    def test_staff_can_view_but_not_change(self):
+        dept = self.client.post('/api/education/departments/', {'name': 'Commerce'}, format='json').data
+        staff = make_user(self.tenant, 'dept_staff2', 'teacher')
+        self.client.force_authenticate(staff)
+        self.assertEqual(self.client.get('/api/education/departments/').status_code, 200)
+        self.assertEqual(self.client.patch(f"/api/education/departments/{dept['id']}/", {'name': 'x'}, format='json').status_code, 403)
+        self.assertEqual(self.client.delete(f"/api/education/departments/{dept['id']}/").status_code, 403)
+
+    def test_other_schools_department_is_invisible(self):
+        dept = self.client.post('/api/education/departments/', {'name': 'Sports'}, format='json').data
+        other = Tenant.objects.create(name='Other School', industry='education', plan=self.tenant.plan)
+        self.client.force_authenticate(make_user(other, 'dept_other', 'admin'))
+        self.assertEqual(self.client.get(f"/api/education/departments/{dept['id']}/").status_code, 404)
+        self.assertEqual(len(self.client.get('/api/education/departments/').data), 0)

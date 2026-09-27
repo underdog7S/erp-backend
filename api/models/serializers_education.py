@@ -211,7 +211,8 @@ class DepartmentSerializer(serializers.ModelSerializer):
     """Serializer for Department model."""
     class Meta:
         model = Department
-        fields = ['id', 'name', 'description', 'head', 'is_active']
+        fields = ['id', 'name', 'description', 'is_active']
+        read_only_fields = ('tenant',)
 
 class AcademicYearSerializer(serializers.ModelSerializer):
     """Serializer for AcademicYear model."""
